@@ -1,7 +1,8 @@
 // A notebook the agent keeps for itself: short notes that every chat and scheduled job share, in
 // one JSON file in AnythingLLM's storage (`notebook-lean/notebook.json`). No model and no vectors:
-// read finds notes by their words, and the agent decides what to write. The file is changed under
-// its lock (#shared/atomic), since a scheduled job runs in a process of its own.
+// read finds notes by their words, rarer words counting more, and the agent brings the meaning: it
+// asks with synonyms and related words, and gives a note keywords its text lacks. The file is
+// changed under its lock (#shared/atomic), since a scheduled job runs in a process of its own.
 
 import path from "node:path";
 import { storageDir } from "#shared/anythingllm";
@@ -13,6 +14,7 @@ type Args = Record<string, unknown>;
 interface Note {
   id: number;
   text: string;
+  keywords?: string; // words a later read might ask with that the text lacks
   updated: string; // ISO date and time
 }
 
@@ -23,6 +25,7 @@ interface Book {
 
 const MAX_NOTES = 500;
 const MAX_TEXT = 1000; // characters in a note
+const MAX_KEYWORDS = 200; // characters in a note's keywords
 const SHOWN = 30; // notes a read shows at most
 
 const file = (): string => path.join(storageDir(), "notebook-lean", "notebook.json");
@@ -33,13 +36,39 @@ const change = <T,>(fn: (book: Book) => T): Promise<T> => updateJson(file(), fre
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const wordsOf = (text: string): string[] => [...new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])];
 const count = (n: number): string => `${n} note${n === 1 ? "" : "s"}`;
-const line = (n: Note): string => `#${n.id} (${n.updated.slice(0, 10)}) ${n.text}`;
+const body = (n: Note): string => `${n.text}${n.keywords ? ` [keywords: ${n.keywords}]` : ""}`;
+const line = (n: Note): string => `#${n.id} (${n.updated.slice(0, 10)}) ${body(n)}`;
 
 function textOf(value: unknown): string {
   const text = clean(value);
   if (!text) throw new Told("text is the note, and it's empty");
   if (text.length > MAX_TEXT) throw new Told(`a note is at most ${MAX_TEXT} characters; this one is ${text.length}: split it or say it shorter`);
   return text;
+}
+
+/** A note's keywords, "" for none: models often send an empty value for a parameter they don't use,
+ *  so empty never clears what a note has. */
+function keywordsOf(value: unknown): string {
+  const keywords = clean(value);
+  if (keywords.length > MAX_KEYWORDS) throw new Told(`keywords are at most ${MAX_KEYWORDS} characters; these are ${keywords.length}: keep the few a later search would use`);
+  return keywords;
+}
+
+/** The notes that hold any asked word, each with its score: the sum of the rarity (BM25's IDF) of
+ *  each asked word it holds, so a word most notes hold counts for little. A note holds a word when
+ *  a word of its text or keywords starts with it ("drink" holds for "drinks", "tea" not for "steak"). */
+function scored(notes: Note[], asked: string[]): { n: Note; score: number }[] {
+  const holds = notes.map((n) => {
+    const words = wordsOf(`${n.text} ${n.keywords ?? ""}`);
+    return asked.map((w) => words.some((t) => t.startsWith(w)));
+  });
+  const weights = asked.map((_, i) => {
+    const df = holds.filter((h) => h[i]).length;
+    return Math.log(1 + (notes.length - df + 0.5) / (df + 0.5));
+  });
+  return notes
+    .map((n, j) => ({ n, score: asked.reduce((sum, _, i) => sum + (holds[j][i] ? weights[i] : 0), 0) }))
+    .filter((s) => s.score);
 }
 
 function idOf(value: unknown): number {
@@ -67,14 +96,10 @@ function read(args: Args): string {
     shown = newest.slice(0, SHOWN);
     header = `${count(notes.length)}; the newest ${shown.length}:`;
   } else {
-    const hitsOf = (n: Note): number => {
-      const text = n.text.toLowerCase();
-      return asked.filter((w) => text.includes(w)).length;
-    };
-    const scored = newest.map((n) => ({ n, hits: hitsOf(n) })).filter((s) => s.hits);
-    if (!scored.length) return `No note has any of: ${asked.join(", ")}. Try other words, or read with no query for the newest notes.`;
-    shown = scored.sort((a, b) => b.hits - a.hits).slice(0, SHOWN).map((s) => s.n);
-    header = `${scored.length} of ${count(notes.length)} ${scored.length === 1 ? "has" : "have"} some of those words; the best ${shown.length}:`;
+    const hits = scored(newest, asked);
+    if (!hits.length) return `No note has any of: ${asked.join(", ")}. Try other words, or read with no query for the newest notes.`;
+    shown = hits.sort((a, b) => b.score - a.score).slice(0, SHOWN).map((s) => s.n);
+    header = `${hits.length} of ${count(notes.length)} ${hits.length === 1 ? "has" : "have"} some of those words; the best ${shown.length}:`;
   }
   return [header, ...shown.map(line), "", NOTE_IS_DATA].join("\n");
 }
@@ -83,12 +108,18 @@ const ACTIONS: Record<string, (args: Args) => string | Promise<string>> = {
   read,
   write: (args) => {
     const text = textOf(args.text);
+    const keywords = keywordsOf(args.keywords);
     const key = text.toLowerCase();
     return change((book) => {
       const same = book.notes.find((n) => n.text.toLowerCase() === key);
+      if (same && keywords) {
+        same.keywords = keywords;
+        same.updated = new Date().toISOString();
+        return `That note is already there as #${same.id}; it now reads: ${body(same)}`;
+      }
       if (same) return `That note is already there as #${same.id}.`;
       if (book.notes.length >= MAX_NOTES) throw new Told(`the notebook is full (${MAX_NOTES} notes): delete or merge some first`);
-      const note = { id: book.next++, text, updated: new Date().toISOString() };
+      const note: Note = { id: book.next++, text, keywords: keywords || undefined, updated: new Date().toISOString() };
       book.notes.push(note);
       return `Wrote #${note.id}.`;
     });
@@ -96,11 +127,13 @@ const ACTIONS: Record<string, (args: Args) => string | Promise<string>> = {
   edit: (args) => {
     const id = idOf(args.id);
     const text = textOf(args.text);
+    const keywords = keywordsOf(args.keywords);
     return change((book) => {
       const note = noteIn(book, id);
       note.text = text;
+      if (keywords) note.keywords = keywords;
       note.updated = new Date().toISOString();
-      return `#${id} now reads: ${text}`;
+      return `#${id} now reads: ${body(note)}`;
     });
   },
   delete: (args) => {

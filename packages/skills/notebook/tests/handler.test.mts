@@ -49,6 +49,57 @@ test("a query finds notes by their words, the most matched first", async () => {
   assert.match(await call({ action: "read", query: "tomatoes" }), /^1 of 3 notes has some of those words; the best 1:\n#2 /);
 });
 
+test("a rare word outranks one most notes hold", async () => {
+  await call({ action: "write", text: "The user prefers espresso." });
+  await call({ action: "write", text: "The user drinks tea." });
+  await call({ action: "write", text: "The user drinks water." });
+  await call({ action: "write", text: "The user drinks juice." });
+  // Counting words would tie all four at two and show the newest first.
+  const read = await call({ action: "read", query: "user drinks espresso" });
+  assert.match(read, /^4 of 4 notes have some of those words; the best 4:\n#1 /);
+});
+
+test("a query word matches the start of a note's words, not their middle", async () => {
+  await call({ action: "write", text: "The user drinks green tea." });
+  await call({ action: "write", text: "The user likes steak." });
+  assert.match(await call({ action: "read", query: "tea" }), /^1 of 2 notes has some of those words; the best 1:\n#1 /);
+  assert.match(await call({ action: "read", query: "drink" }), /^1 of 2 notes has some of those words; the best 1:\n#1 /);
+});
+
+test("keywords are searched and shown", async () => {
+  assert.equal(await call({ action: "write", text: "The user drinks coffee black.", keywords: " espresso,  drink " }), "Wrote #1.");
+  await call({ action: "write", text: "The user lives in Uppsala." });
+  assert.match(await call({ action: "read", query: "espresso" }), /^1 of 2 notes has .*\n#1 .*\[keywords: espresso, drink\]\n/);
+  assert.ok(!("keywords" in book().notes[1]), "a note written without keywords has none");
+});
+
+test("an edit without keywords keeps a note's, one with keywords replaces them", async () => {
+  await call({ action: "write", text: "The user drinks coffee black.", keywords: "espresso" });
+  assert.equal(await call({ action: "edit", id: "#1", text: "The user drinks coffee with oat milk.", keywords: "" }), "#1 now reads: The user drinks coffee with oat milk. [keywords: espresso]");
+  assert.equal(await call({ action: "edit", id: "#1", text: "The user drinks tea.", keywords: "beverage" }), "#1 now reads: The user drinks tea. [keywords: beverage]");
+});
+
+test("writing a note that's already there gives it the keywords", async () => {
+  await call({ action: "write", text: "The user lives in Uppsala." });
+  assert.equal(await call({ action: "write", text: "The user lives in Uppsala.", keywords: "home, city, Sweden" }), "That note is already there as #1; it now reads: The user lives in Uppsala. [keywords: home, city, Sweden]");
+  assert.equal(book().notes.length, 1);
+});
+
+test("keywords over 200 characters are refused", async () => {
+  assert.match(await call({ action: "write", text: "A note.", keywords: "k".repeat(201) }), /^Couldn't write: keywords are at most 200 characters/);
+  assert.ok(!fs.existsSync(bookFile));
+});
+
+test("a notebook written before keywords reads and edits as it was", async () => {
+  fs.mkdirSync(path.dirname(bookFile), { recursive: true });
+  const old = { next: 3, notes: [{ id: 1, text: "The user lives in Uppsala.", updated: "2026-10-01T08:00:00.000Z" }, { id: 2, text: "The user drinks tea.", updated: "2026-10-02T08:00:00.000Z" }] };
+  fs.writeFileSync(bookFile, JSON.stringify(old));
+  assert.match(await call({ action: "read", query: "uppsala" }), /^1 of 2 notes has .*\n#1 \(2026-10-01\) The user lives in Uppsala\.\n/);
+  await call({ action: "edit", id: "#2", text: "The user drinks green tea." });
+  assert.deepEqual(book().notes[0], old.notes[0]);
+  assert.ok(!("keywords" in book().notes[1]));
+});
+
 test("the same note twice is refused, whatever its case", async () => {
   await call({ action: "write", text: "The user lives in Uppsala." });
   assert.equal(await call({ action: "write", text: "the user lives in uppsala." }), "That note is already there as #1.");
