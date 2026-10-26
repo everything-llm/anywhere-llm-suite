@@ -821,6 +821,11 @@ details[open]>summary .chev{transform:rotate(180deg)}
 .list pre:empty{display:none}
 pre{margin:0;padding:10px var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ground);font:0.8125rem/1.4 var(--font-mono);color:var(--ink);white-space:pre-wrap;word-break:break-word;font-variant-ligatures:none;max-height:360px;overflow:auto}
 .stack pre{word-break:break-all}
+.code{position:relative}
+.code pre{padding-right:calc(var(--target) + var(--space-3))}
+.copy{position:absolute;top:4px;right:4px;width:var(--target);height:var(--target);padding:0;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);display:flex;align-items:center;justify-content:center}
+.copy:active{transform:scale(0.97)}
+@media (prefers-reduced-motion:reduce){.copy:active{transform:none}}
 form.card{padding:var(--space-5);gap:var(--space-3)}
 .need{border-color:var(--accent);box-shadow:none}
 .ttl{display:flex;flex-direction:column;gap:var(--space-1)}
@@ -947,10 +952,17 @@ textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:va
   }
 
   // Copies `text`; where the clipboard is refused, selects it to copy by hand.
+  const copier = (text, pre) => () => navigator.clipboard.writeText(text).then(() => toast("Copied"), () => getSelection().selectAllChildren(pre));
   const copyable = (text) => {
     const pre = el("pre", { textContent: text });
-    const copy = () => navigator.clipboard.writeText(text).then(() => toast("Copied"), () => getSelection().selectAllChildren(pre));
-    return el("div", { className: "stack" }, pre, el("button", { className: "btn", type: "button", textContent: "Copy", ariaLabel: "Copy the line", onclick: copy }));
+    return el("div", { className: "stack" }, pre, el("button", { className: "btn", type: "button", textContent: "Copy", ariaLabel: "Copy the line", onclick: copier(text, pre) }));
+  };
+
+  // A code view: the text in a box with an icon button that copies it, held at the corner while the code scrolls.
+  const COPY = Object.assign(document.createElement("template"), { innerHTML: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>' }).content.firstChild;
+  const codeBox = (text, what) => {
+    const pre = el("pre", { textContent: text });
+    return el("div", { className: "code" }, pre, el("button", { className: "copy", type: "button", ariaLabel: `Copy ${what}`, title: "Copy", onclick: copier(text, pre) }, COPY.cloneNode(true)));
   };
 
   const remove = (text, ev, fields, asked = `${text}?`) => el("button", { className: "btn del", type: "button", textContent: text, onclick: () => confirm(asked) && post(ev, fields) });
@@ -986,7 +998,7 @@ textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:va
         el("p", { className: "info", textContent: `${t.reach.join(", ") || "no base address or target"}; keys: ${t.secrets.join(", ") || "none"}` }),
         el("div", { className: "fns" }, ...t.functions.map((f) => el("details", {},
           el("summary", {}, el("span", {}, el("b", { textContent: f.name }), `: ${f.description} (v${f.version})`), chev()),
-          el("div", { className: "body" }, el("pre", { textContent: f.source }), t.locked ? null : remove("Delete this function", "fn-delete", { fn: `${t.service}.${f.name}` }))))),
+          el("div", { className: "body" }, codeBox(f.source, `${f.name}\u2019s source`), t.locked ? null : remove("Delete this function", "fn-delete", { fn: `${t.service}.${f.name}` }))))),
         el("p", { className: "cap", textContent: t.locked ? "Locked: the agent can’t change or remove it. Unlock it to let it, or to delete here." : "Read its functions, then lock it: the agent can’t change a locked toolkit. Locking also pins its targets (machine, account and host key): they stay as they are for it, and unlocked toolkits can’t use them." }),
         el("div", { className: "acts" }, lock, t.locked ? null : remove("Delete the toolkit", "toolkit-delete", { service: t.service }))));
     }
