@@ -142,6 +142,21 @@ async function checked(app: Json, earlier: string[] = [], what = "saved", page =
   return app;
 }
 
+/** The workspaces that have an app named `name`, each with whether it takes jobs. */
+export function holders(name: string): { workspace: string; jobs: boolean }[] {
+  if (nameProblem(name)) return [];
+  return listDir(root())
+    .filter((w) => WORKSPACE.test(w))
+    .flatMap((workspace) => {
+      try {
+        const app = readJson<Json | null>(path.join(root(), workspace, `${name}.json`), () => null);
+        return app ? [{ workspace, jobs: app.jobs === true }] : [];
+      } catch {
+        return [{ workspace, jobs: false }]; // there, but broken
+      }
+    });
+}
+
 /** This workspace's apps, the newest change first. */
 export function list(workspace: string): Json[] {
   const dir = folder(workspace);

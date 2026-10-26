@@ -272,10 +272,26 @@ function scopeFor(self: HandlerContext, action: ActionName, p: Args): Scope {
   }
   const { job } = RULES[action];
   if (job === "never") throw new AppError(`a scheduled job can't ${action}: the user does that from a chat`);
-  if (!named) return scope;
+  if (!named) {
+    if (job !== "own" && typeof p.name === "string") towardTheUsers(p.name);
+    return scope;
+  }
   if (job === "own") throw new AppError(`in a workspace it names, a scheduled job may ${NAMED}, not ${action}: ask the user to do that from a chat`);
   // "app": the store checks the app takes jobs, in the same locked pass as the change.
   return { workspace: named, job: true, named: true };
+}
+
+/** A job that names no workspace works on its own apps, in _jobs, which the user's chats don't see.
+ *  When the app it names is the user's, it is told where, instead of working on a copy of its own
+ *  that the user never sees, or on none. */
+function towardTheUsers(name: string): void {
+  const found = store.holders(name);
+  const own = found.some((h) => h.workspace === "_jobs");
+  const theirs = found.filter((h) => h.workspace !== "_jobs" && (own ? h.jobs : true)).map((h) => `"${h.workspace}"`);
+  if (!theirs.length) return;
+  const where = `the user's is in workspace ${theirs.join(" and ")}: name the workspace to work on it`;
+  if (own) throw new AppError(`two apps are named ${name}: this job's own, in _jobs, which the user's chats don't see, and ${where}`);
+  throw new AppError(`this job's own workspace (_jobs) has no app named ${name}; ${where}`);
 }
 
 async function run(self: HandlerContext, params: Args): Promise<string> {

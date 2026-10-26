@@ -35,6 +35,22 @@ test("a job naming a workspace may list and read there, and do only on an app th
   assert.match(await asJob({ action: "list", workspace: "../etc" }), /^Apps: not a workspace/);
 });
 
+test("a job naming no workspace is told where the user's app is, not given a copy of its own", async () => {
+  // shop is the user's, in home, and takes jobs (the test before let it).
+  assert.match(await asJob({ action: "read", name: "shop" }), /^Apps: this job's own workspace \(_jobs\) has no app named shop; the user's is in workspace "home": name the workspace to work on it/);
+  assert.match(await asJob({ action: "create", name: "shop", title: "Shop", starter: "checklist" }), /^Made the app shop/, "a job may still make its own");
+  for (const action of ["read", "do"])
+    assert.match(await asJob({ action, name: "shop", ev: "add", patch: add("Eggs") }), /^Apps: two apps are named shop: this job's own, in _jobs, which the user's chats don't see, and the user's is in workspace "home": name the workspace/, action);
+  assert.ok(!store.read("_jobs", "shop").data.items.some((i: { text: string }) => i.text === "Eggs"), "its own copy was left alone");
+  assert.match(await asJob({ action: "do", workspace: "home", name: "shop", ev: "add", patch: add("Eggs") }), /^Done: add on shop\./);
+  assert.match(await asJob({ action: "edit", name: "shop", file: "app.json", find: '"title": "Shop"', text: '"title": "Own shop"' }), /^Changed shop's app\.json\./, "what only its own workspace allows is unchanged");
+  // A same-named app of the user's that doesn't take jobs is none of the job's business.
+  await call("home", { action: "create", name: "notes", title: "Notes", starter: "checklist" });
+  await asJob({ action: "create", name: "notes", title: "Notes", starter: "checklist" });
+  assert.match(await asJob({ action: "do", name: "notes", ev: "add", patch: add("Mine") }), /^Done: add on notes\./);
+  assert.equal(store.read("_jobs", "notes").data.items.at(-1).text, "Mine");
+});
+
 test("what pages did is told to a chat, never to a job", async () => {
   from("home", "shop", { id: "p1", ev: "add", fields: { text: "Jam" }, patch: [{ op: "add", path: "/items/-", value: { text: "Jam", done: false } }] });
   assert.doesNotMatch(await asJob({ action: "read", workspace: "home", name: "shop" }), /Changes made on app pages/);

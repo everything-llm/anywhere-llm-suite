@@ -38,7 +38,7 @@
         "type": "string"
       },
       "workspace": {
-        "description": "Scheduled job only: the app's workspace.",
+        "description": "Scheduled job only: the workspace of the user's app. Without it a job works on its own apps, in _jobs, which the user's chats don't see.",
         "type": "string"
       },
       "title": {
