@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# tools/publish <skill> [--dry-run] [--again]: builds a skill and uploads build/<hubId> to the Community
+# Hub with the Hub's own CLI, which asks for the name, the description and public or private, and
+# confirms the files. The CLI is yours to install and log in (npm install -g @mintplex-labs/anythingllm-hub-cli,
+# then `anythingllm-hub-cli login`); this script never downloads it and never reads its key (the CLI itself
+# prints "Loaded connection key: ..." on every upload, so don't paste its output anywhere). HUB_CLI
+# names the command if it isn't `anythingllm-hub-cli`. A version already published from this
+# checkout (dist/.published-<hubId>) is refused unless --again. --dry-run builds and shows what would go.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+dry=; again=; skill=
+for a in "$@"; do
+  case "$a" in
+    --dry-run) dry=1 ;;
+    --again) again=1 ;;
+    -*) echo "tools/publish: no such option: $a" >&2; exit 2 ;;
+    *) skill="$a" ;;
+  esac
+done
+load_skill "$skill"
+version=$(plugin_field version)
+record="$ROOT/dist/.published-$HUB_ID"
+
+node "$ROOT/packages/build.mjs" skills "$skill" >&2
+built="$SKILL_DIR/build/$HUB_ID"
+[ -f "$built/plugin.json" ] && [ -f "$built/handler.js" ] || { echo "tools/publish: $built needs plugin.json and handler.js" >&2; exit 1; }
+
+echo "$HUB_ID $version:" >&2
+(cd "$built" && ls -l | tail -n +2) >&2
+if [ -z "$again" ] && [ -f "$record" ] && [ "$(cat "$record")" = "$version" ]; then
+  echo "tools/publish: $HUB_ID $version was already published from here; raise its version in plugin.json, or pass --again" >&2
+  exit 1
+fi
+[ -z "$dry" ] || { echo "tools/publish: dry run, nothing uploaded" >&2; exit 0; }
+
+cli=${HUB_CLI:-anythingllm-hub-cli}
+command -v "$cli" >/dev/null || { echo "tools/publish: $cli isn't installed (npm install -g @mintplex-labs/anythingllm-hub-cli), then log in with it" >&2; exit 2; }
+(cd "$built" && "$cli" upload --type agent-skill --path .)
+mkdir -p "$ROOT/dist"
+echo "$version" > "$record"

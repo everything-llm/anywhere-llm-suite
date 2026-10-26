@@ -2,7 +2,7 @@
 # implemented here, so `make` and the scripts never disagree.
 
 .DEFAULT_GOAL := help
-.PHONY: help hooks test check e2e e2e-skill package install
+.PHONY: help hooks test check e2e e2e-skill package publish install
 
 PART    ?=# install or skills; empty: all
 SKILL   ?=# a skill's folder name under packages/skills
@@ -35,6 +35,9 @@ e2e-skill: ## Run a skill's own check inside a throwaway AnythingLLM (SKILL=brow
 
 package: ## Build and zip a skill into dist/ (SKILL=library)
 	tools/package $(SKILL)
+
+publish: ## Build a skill and upload it to the Community Hub (SKILL=notebook; needs the Hub's CLI, logged in)
+	tools/publish $(SKILL)
 
 install: ## Build and install into AnythingLLM's storage (STORAGE=<folder>; empty: Desktop's)
 	tools/install $(if $(STORAGE),--storage "$(STORAGE)")
