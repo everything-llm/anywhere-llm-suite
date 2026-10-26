@@ -11,7 +11,7 @@ import { allowedFile } from "#shared/fence";
 import { lf } from "#shared/static";
 import { close, listen } from "#shared/test-helpers";
 import { check } from "../src/sandbox.ts";
-import { call, cardsShown, giveKey, hideLinks, idOf, installed, library, pageConfig, postVault, publicDir, reset, runRecord, skillDir, storage, until, vaultConfig, vaultState } from "./harness.mts";
+import { call, cardsShown, giveKey, hideLinks, idOf, installed, library, LIBRARY_CARD, pageConfig, postVault, publicDir, reset, runRecord, skillDir, storage, until, VAULT_CARD, vaultConfig, vaultState } from "./harness.mts";
 
 const readAllowed = () => JSON.parse(fs.readFileSync(allowedFile(storage), "utf8"));
 
@@ -55,7 +55,7 @@ test.beforeEach(reset);
 
 test("the user's key is given on the Vault, never on the card, kept unseen, and goes with a function's requests", async () => {
   const said = await giveKey("demo", "https://127.0.0.1/", KEY);
-  assert.match(said, /^The user gives the key on the Vault: \/vault-lean\/[\w-]+\.html\n/);
+  assert.match(said, new RegExp(`^The user gives the key on the Vault\\. Give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\nTell them to open it`));
   assert.ok(!said.includes(KEY));
   assert.equal(cardsShown.length, 0, "a question card would show the key in the chat once answered");
   assert.ok(!fs.readFileSync(path.join(storage, "vault-lean", "vault.json"), "utf8").includes(KEY), "the vault holds it encrypted");
@@ -213,8 +213,8 @@ test("the switch is read on every call: turned off, the links are in the answers
   assert.ok(!/library-lean\/|vault-lean\//.test(await call({ action: "library" })));
   hideLinks(false);
   const open = await call({ action: "library" });
-  assert.match(open, /The Vault, the user's own view of every key and browser login, by name: \/vault-lean\/[\w-]+\.html\nThe Library page, the user's own view of the toolkits and runs: \/library-lean\/[\w-]+\.html/);
-  assert.match(await call({ action: "secret", kind: "ssh", label: "box" }), /^The user registers the target "box" on the Library page, under Targets: \/library-lean\/[\w-]+\.html\n/);
+  assert.match(open, new RegExp(`The Vault and the Library page are the user's own pages\\. Give the user each card as it is, in its own quote, so they open it from your answer:\\n\\n${VAULT_CARD}\\n\\n${LIBRARY_CARD}`));
+  assert.match(await call({ action: "secret", kind: "ssh", label: "box" }), new RegExp(`^The user registers the target "box" on the Library page, under Targets\\. Give them this card as it is, in its own quote:\\n\\n${LIBRARY_CARD}\\n\\nTell them to open it`));
   hideLinks(true);
   assert.ok(!/library-lean\/|vault-lean\//.test(await call({ action: "library" })));
 });

@@ -24,6 +24,10 @@ export const skillDir = path.join(testsDir, "..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "library-lean-"));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 export const storage = path.join(tmp, "storage");
+/** The cards the library gives for the Vault and the Library page, as a pattern (the source of a RegExp). */
+export const VAULT_CARD = String.raw`> \*\*\[The Vault\]\(\/vault-lean\/[\w-]+\.html\)\*\*\n>\n> Every key and browser login, by name\.`;
+export const LIBRARY_CARD = String.raw`> \*\*\[The Library\]\(\/library-lean\/[\w-]+\.html\)\*\*\n>\n> The toolkits, their runs and the machines\.`;
+
 export const publicDir = path.join(tmp, "public");
 export const library = path.join(storage, "library-lean");
 process.env.STORAGE_DIR = storage;

@@ -7,19 +7,19 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { linksFile, readLinks } from "#shared/page-links";
-import { call, giveKey, hideLinks, library, pageConfig, pageState, post, postVault, publicDir, reset, seal, skillDir, storage, until, vaultConfig, vaultState } from "./harness.mts";
+import { call, giveKey, hideLinks, library, LIBRARY_CARD, pageConfig, pageState, post, postVault, publicDir, reset, seal, skillDir, storage, until, VAULT_CARD, vaultConfig, vaultState } from "./harness.mts";
 
 const KEY = "page-key-0123456789";
 test.beforeEach(reset);
 
 const vaultFile = (name: string) => path.join(publicDir, "vault-lean", name);
 
-test("library ends with the Vault's link and the Library page's: relative, or absolute with ANYTHINGLLM_URL", async () => {
-  assert.match(await call({ action: "library" }), /The Vault, the user's own view of every key and browser login, by name: \/vault-lean\/[\w-]+\.html\nThe Library page, the user's own view of the toolkits and runs: \/library-lean\/[\w-]+\.html$/);
+test("library gives the Vault's card and the Library page's, each as a quote with its link: relative, or absolute with ANYTHINGLLM_URL", async () => {
+  assert.match(await call({ action: "library" }), new RegExp(`The Vault and the Library page are the user's own pages\\. Give the user each card as it is, in its own quote, so they open it from your answer:\\n\\n${VAULT_CARD}\\n\\n${LIBRARY_CARD}$`));
   const said = await call({ action: "library" }, { base: "https://llm.example.com/" });
   const { token, key, secret } = pageConfig();
-  assert.ok(said.endsWith(`https://llm.example.com/library-lean/${token}.html`));
-  assert.ok(said.includes(`https://llm.example.com/vault-lean/${vaultConfig().token}.html\n`));
+  assert.ok(said.includes(`**[The Library](https://llm.example.com/library-lean/${token}.html)**`));
+  assert.ok(said.includes(`**[The Vault](https://llm.example.com/vault-lean/${vaultConfig().token}.html)**`));
   assert.equal(key, "brx-test", "the page posts with the browser-extension key install keeps");
   assert.equal(vaultConfig().key, "brx-test");
   assert.ok(secret.length >= 20);
@@ -61,7 +61,7 @@ test("a key and a target asked for under one label are on their own pages, and o
 
 test("a key is asked for on the Vault, given there, and the agent is told", async () => {
   const asked = await call({ action: "secret", site: "api.example.com", label: "ex" });
-  assert.match(asked, /^The user gives the key on the Vault: \/vault-lean\/[\w-]+\.html\n/);
+  assert.match(asked, new RegExp(`^The user gives the key on the Vault\\. Give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\nTell them to open it`));
   assert.deepEqual(vaultState().needs, [{ label: "ex", site: "api.example.com" }]);
   postVault({ ev: "key-save", label: "ex", site: "api.example.com", sealed: seal(KEY) });
   await call({ action: "library" });

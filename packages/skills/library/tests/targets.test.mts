@@ -17,7 +17,7 @@ import test from "node:test";
 import ssh2 from "ssh2";
 import { listen } from "#shared/test-helpers";
 import { sshFingerprint } from "#shared/thishost";
-import { THIS_HOST_FINGERPRINT, call as called, library, pageConfig, pageState, post, publicDir, reset, seal as sealWith, storage, until } from "./harness.mts";
+import { call as called, library, LIBRARY_CARD, pageConfig, pageState, post, publicDir, reset, seal as sealWith, storage, THIS_HOST_FINGERPRINT, until } from "./harness.mts";
 
 const { Server, utils } = ssh2;
 
@@ -258,7 +258,7 @@ test.beforeEach(() => {
 
 test("a target is asked for and registered on the page, with a key made there whose private half nobody is shown", async () => {
   const asked = await call({ action: "secret", kind: "ssh", label: "box" });
-  assert.match(asked, /^The user registers the target "box" on the Library page, under Targets: \/library-lean\/[\w-]+\.html\n/);
+  assert.match(asked, new RegExp(`^The user registers the target "box" on the Library page, under Targets\\. Give them this card as it is, in its own quote:\\n\\n${LIBRARY_CARD}\\n\\nTell them to open it`));
   assert.deepEqual(pageState().needs, [{ label: "box", site: "" }]);
   const box = await register();
   assert.match(box.public, /^ssh-ed25519 AAAA\S+ library-lean box$/);

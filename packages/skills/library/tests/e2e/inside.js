@@ -69,7 +69,7 @@ const server = http.createServer((req, res) => {
   };
 
   assert.match(await call({ action: "guide" }), /The library is the user's own set of API toolkits/);
-  assert.match(await call({ action: "secret", site: "127.0.0.1", label: "tasks" }), /^The user gives the key on the Vault: \/vault-lean\/[\w-]+\.html\n/);
+  assert.match(await call({ action: "secret", site: "127.0.0.1", label: "tasks" }), /^The user gives the key on the Vault\. Give them this card as it is, in its own quote:\n\n> \*\*\[The Vault\]\(\/vault-lean\/[\w-]+\.html\)\*\*\n>\n> Every key and browser login, by name\.\n\nTell them to open it/);
   assert.equal(cards.length, 0, "never on a question card, which shows its answers in the chat");
   const storage = process.env.STORAGE_DIR || `${APP}/storage`;
   const { token, secret } = JSON.parse(fs.readFileSync(`${storage}/vault-lean/vault-page.json`, "utf8"));

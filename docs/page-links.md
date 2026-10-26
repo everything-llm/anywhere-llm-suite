@@ -36,3 +36,19 @@ What the bridge passes on is paths, numbers and times only, never text a skill w
 A valid path matches `^/library-lean/[A-Za-z0-9_-]{24}\.html$`, `^/vault-lean/[A-Za-z0-9_-]{24}\.html$`, `^/apps-lean/manager-[A-Za-z0-9_-]{24}\.html$` or, for a tab, `^/browser-lean/[A-Za-z0-9_-]{24}\.html$`: the token is 18 random bytes in base64url (`newSecret()`). The manager shares `apps-lean/` with the apps' own pages (`<token>.html`, opened differently), and its `manager-` name is a shape no app page has. A reader takes anything else, a missing file, a link in its place or a file that isn't JSON as no link for that page, never as an error.
 
 The file is mode `0600`, written to a temporary file and renamed over the old one under its lock (`page-links.json.lock`), and kept whether or not the links are kept from the agent (`page-links-hidden`). It holds no event secret and no page key, but a path is a bearer capability (whoever fetches the page gets the secret its HTML embeds): never log it or show it beyond the user.
+
+## The card in an answer
+
+While the links are given to the agent, the library's answers hand it the Vault's and the Library page's links as a card to put in its reply as written: a quote whose first line is the page's name as a bold link, then a line on what the page is for.
+
+```
+> **[The Vault](/vault-lean/<token>.html)**
+>
+> Every key and browser login, by name.
+
+> **[The Library](/library-lean/<token>.html)**
+>
+> The toolkits, their runs and the machines.
+```
+
+The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link; a client that draws app cards can draw these the same way, by the link's page (`/vault-lean/` or `/library-lean/`). The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.
