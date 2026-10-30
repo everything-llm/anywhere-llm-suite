@@ -109,56 +109,45 @@ const extensionKeys = async (): Promise<{ id: number; key: string }[]> => ((awai
 /** The Vault page's path in an answer that gives its card. */
 const vaultPath = (answer: string): string => answer.match(/\((\/vault-lean\/[\w-]+\.html)\)/)![1];
 
-test("AnythingLLM's server runs in its server folder, where a skill finds its models (serverDir)", run, () => {
-  const find = `const fs = require("fs");
-for (const p of fs.readdirSync("/proc").filter((n) => /^\\d+$/.test(n)))
-  try {
-    if (/node .*index\\.js/.test(fs.readFileSync("/proc/" + p + "/cmdline", "utf8").replace(/\\0/g, " "))) console.log(fs.readlinkSync("/proc/" + p + "/cwd"));
-  } catch {}`;
-  const done = spawnSync(env("E2E_ENGINE"), ["exec", env("E2E_CONTAINER"), "node", "-e", find], { encoding: "utf8" });
-  assert.equal(done.status, 0, done.stderr);
-  assert.ok(done.stdout.split("\n").includes("/app/server"), done.stdout);
-});
-
-test("with no key from install, a skill makes one with AnythingLLM's own model, the upload takes it, and a revoked one is replaced", run, async () => {
+test("with no key from install, the chat gives the user's two steps; a key given in PAGE_KEY is kept, the upload takes it, and a revoked one is dropped", run, async () => {
   const first = skillCall("library-lean", { action: "library" });
-  assert.match(first.answer, /^The pages had no key to post with, so Library made one with AnythingLLM\. Tell the user they'll see it under Settings › Browser Extension, where they can revoke it/);
-  const made = (await pageCfg(vaultPath(first.answer))).key;
-  assert.match(made, /^brx-/);
-  assert.ok((await extensionKeys()).some((k) => k.key === made), "AnythingLLM lists it in Settings › Browser Extension");
-  assert.equal(await upload(made), 200, "AnythingLLM's upload takes it");
-  assert.doesNotMatch(skillCall("browser-lean", { action: "guide" }).answer, /made one/, "another skill finds it in the vault");
+  assert.match(first.answer, /The Vault and the Library page aren't available here: the pages have no key to post with yet\. Give the user these two steps[^\n]*1\. In AnythingLLM, open Settings › Browser Extension, create a key and copy it\. 2\. Open Settings › Agent Skills › Library, paste it into PAGE_KEY and save\. The setup guide shows both: https:\/\/everything-llm\.github\.io\/anywhere-llm-suite\/setup\.html#page-key/);
+  assert.equal((await extensionKeys()).length, 0, "no skill made one");
 
-  const id = (await extensionKeys()).find((k) => k.key === made)!.id;
+  // The key the user makes in Settings › Browser Extension and pastes into one skill's PAGE_KEY.
+  const make = async () => String(((await api("POST", "/browser-extension/api-keys/new")).json as { apiKey: string }).apiKey);
+  const given = await make();
+  await saveSettings("library-lean", await skillConfig("library-lean"), { PAGE_KEY: given });
+  const took = skillCall("library-lean", { action: "library" });
+  assert.match(took.answer, /^The key in PAGE_KEY \(Settings › Agent Skills › Library\) is kept in the Vault for the pages, and the field is empty again\./);
+  assert.equal((await skillConfig("library-lean")).setup_args.PAGE_KEY.value, "", "emptied in plugin.json");
+  assert.equal((await pageCfg(vaultPath(took.answer))).key, given);
+  assert.equal(await upload(given), 200, "AnythingLLM's upload takes it");
+  assert.doesNotMatch(skillCall("apps-lean", { action: "list" }).answer, /no key to post with/, "another skill finds it in the vault");
+
+  const id = (await extensionKeys()).find((k) => k.key === given)!.id;
   assert.equal((await api("DELETE", `/browser-extension/api-keys/${id}`)).status, 200); // revoked in Settings › Browser Extension
-  assert.equal(await upload(made), 403);
-  const again = skillCall("library-lean", { action: "library" });
-  assert.match(again.answer, /^The pages had no key to post with, so Library made one/, "the refused key is dropped, and another made");
-  const remade = (await pageCfg(vaultPath(again.answer))).key;
-  assert.notEqual(remade, made);
-  assert.equal(await upload(remade), 200);
+  assert.equal(await upload(given), 403);
+  assert.match(skillCall("library-lean", { action: "library" }).answer, /the pages have no key to post with yet/, "the refused key is dropped, and the chat asks again");
 
-  // A key the user gives in PAGE_KEY, as the chat would ask, from Settings › Browser Extension.
-  const given = String(((await api("POST", "/browser-extension/api-keys/new")).json as { apiKey: string }).apiKey);
-  await saveSettings("apps-lean", await skillConfig("apps-lean"), { PAGE_KEY: given });
-  const took = skillCall("apps-lean", { action: "list" });
-  assert.match(took.answer, /^The key in PAGE_KEY \(Settings › Agent Skills › Artifacts\) is kept in the Vault for the pages, and the field is empty again\./);
-  assert.equal((await skillConfig("apps-lean")).setup_args.PAGE_KEY.value, "", "emptied in plugin.json");
-  assert.equal((await pageCfg(vaultPath(skillCall("library-lean", { action: "library" }).answer))).key, given, "every skill's pages post with it now");
+  const next = await make();
+  await saveSettings("apps-lean", await skillConfig("apps-lean"), { PAGE_KEY: `http://127.0.0.1:3001/api|${next}` }); // as Copy API Key copies it
+  assert.match(skillCall("apps-lean", { action: "list" }).answer, /^The key in PAGE_KEY \(Settings › Agent Skills › Artifacts\) is kept in the Vault/);
+  assert.equal((await pageCfg(vaultPath(skillCall("library-lean", { action: "library" }).answer))).key, next, "every skill's pages post with it now");
+  assert.equal(await upload(next), 200);
 });
 
 test("a key saved in the library's settings is taken by its next call: the field really empties, and AnythingLLM still loads the skill", run, async () => {
   const asked = skillCall("library-lean", { action: "secret", site: "api.example.com", label: "ex" });
-  assert.match(asked.answer, /paste the key for api\.example\.com into NEW_KEY/);
+  assert.match(asked.answer, /paste the key for api\.example\.com into NEW_KEY, save, and say "done" here; the setup guide shows it: https:\/\/everything-llm\.github\.io\/anywhere-llm-suite\/setup\.html#service-key/);
   const shown = await skillConfig("library-lean");
-  assert.equal(shown.setup_args.KEY_FOR.value, "api.example.com", "the skill wrote KEY_FOR while AnythingLLM runs");
+  assert.ok(!("KEY_FOR" in shown.setup_args), "one field");
   await saveSettings("library-lean", shown, { NEW_KEY: "e2e-slot-key-0123" });
   const taken = skillCall("library-lean", { action: "guide" });
-  assert.match(taken.answer, /^Saved the key "ex" for api\.example\.com from NEW_KEY \(Settings › Agent Skills › Library\) into the Vault, sealed; NEW_KEY and KEY_FOR are empty again\./);
+  assert.match(taken.answer, /^Saved the key "ex" for api\.example\.com from NEW_KEY \(Settings › Agent Skills › Library\) into the Vault, sealed; NEW_KEY is empty again\./);
   assert.ok(!taken.answer.includes("e2e-slot-key-0123"));
   const after = await skillConfig("library-lean");
   assert.equal(after.setup_args.NEW_KEY.value, "");
-  assert.equal(after.setup_args.KEY_FOR.value, "");
   assert.equal(taken.options.NEW_KEY, null, "AnythingLLM's loader reads it empty");
   assert.equal(after.active, true);
   const { settings } = await allm("/admin/system-preferences-for?labels=imported_agent_skills");

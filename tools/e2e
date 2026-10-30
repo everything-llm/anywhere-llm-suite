@@ -2,9 +2,9 @@
 # tools/e2e: the suite against the real thing. Starts a throwaway AnythingLLM (the image in
 # tools/versions.env) on a free port with its storage bind-mounted from a temporary folder, as
 # AnythingLLM's Docker instructions do; runs the built `anywherellm-suite install` into that storage
-# (with no key for the pages: the skills make one, as from the Hub), makes a workspace, and runs
-# tools/e2e.test.mts, or
-# with arguments (`tools/e2e command...`) that command in its place. Everything lives in the
+# (with no key for the pages, as a Hub import has none: the tests give one in PAGE_KEY), makes a
+# workspace, and runs tools/e2e.test.mts, or with arguments (`tools/e2e command...`) that command in
+# its place. Everything lives in the
 # temporary folder and a container of its own; both are removed on the way out, pass or fail, and
 # nothing running on this machine (an AnythingLLM on :3001, the user's settings) is touched.
 #

@@ -19,7 +19,7 @@ Small artifacts (apps) a user keeps in a workspace, such as a shopping list, dai
 | What | Where |
 | --- | --- |
 | Each artifact: app.json's keys, page.html, data, its newest 20 changes and 10 earlier files, its page's token and secret | `apps-lean/<workspace>/<name>.json` in AnythingLLM's storage, changed under its lock |
-| The key every page posts with (a browser-extension key: it can store documents, never read them) | `vault-lean/vault.json`, found or made by the skills (`PAGE_KEY` when the chat asks), or `anywherellm-suite/page-key` when install was given one (`--page-key`) |
+| The key every page posts with (a browser-extension key: it can store documents, never read them) | `vault-lean/vault.json`, given once in a suite skill's `PAGE_KEY`, or `anywherellm-suite/page-key` when install was given one (`--page-key`) |
 | Each artifact's page, at a random address | `public/apps-lean/<token>.html` beside AnythingLLM's server (`ANYTHINGLLM_PUBLIC_DIR` to move it) |
 | What a page posts, until the skill applies it | `documents/custom-documents/raw-apps-lean-event-*.json`, as AnythingLLM's collector writes it |
 | What pages and the artifacts manager did since a workspace's last chat call (20 lines) | `apps-lean/<workspace>/.news.json` |
@@ -46,7 +46,7 @@ A page posts each change with its artifact's secret, and the skill applies it to
 
 ## What it needs of AnythingLLM
 
-The storage folder; the public folder, which AnythingLLM serves without a sign-in; the browser-extension upload its pages post to, with the key the skills find or make (`#shared/pagekey`), which `models/browserExtensionApiKey` makes when there's none; and the invocation's workspace. Each is listed in `docs/.scratch/TODO.md`.
+The storage folder; the public folder, which AnythingLLM serves without a sign-in; the browser-extension upload its pages post to, with the key the user gives in a `PAGE_KEY` setting (`#shared/pagekey`); and the invocation's workspace. Each is listed in `docs/.scratch/TODO.md`.
 
 ## Check
 
