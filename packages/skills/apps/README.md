@@ -19,7 +19,7 @@ Small artifacts (apps) a user keeps in a workspace, such as a shopping list, dai
 | What | Where |
 | --- | --- |
 | Each artifact: app.json's keys, page.html, data, its newest 20 changes and 10 earlier files, its page's token and secret | `apps-lean/<workspace>/<name>.json` in AnythingLLM's storage, changed under its lock |
-| The key every page posts with (a browser-extension key: it can store documents, never read them) | `anywherellm-suite/page-key`, which install keeps (`--page-key`) |
+| The key every page posts with (a browser-extension key: it can store documents, never read them) | `vault-lean/vault.json`, found or made by the skills (`PAGE_KEY` when the chat asks), or `anywherellm-suite/page-key` when install was given one (`--page-key`) |
 | Each artifact's page, at a random address | `public/apps-lean/<token>.html` beside AnythingLLM's server (`ANYTHINGLLM_PUBLIC_DIR` to move it) |
 | What a page posts, until the skill applies it | `documents/custom-documents/raw-apps-lean-event-*.json`, as AnythingLLM's collector writes it |
 | What pages and the artifacts manager did since a workspace's last chat call (20 lines) | `apps-lean/<workspace>/.news.json` |
@@ -30,7 +30,7 @@ Small artifacts (apps) a user keeps in a workspace, such as a shopping list, dai
 
 ## Using it
 
-`anywherellm-suite install` puts it in (see the [README](../../../README.md)); then switch on Artifacts under Agent Skills. Each artifact's page is published as it's made; set Artifacts' ANYTHINGLLM_URL to the address your browser and phone reach AnythingLLM at, so the card's link opens from anywhere rather than only from AnythingLLM's own chat. Where the public folder can't be written (AnythingLLM Desktop), artifacts work from the chat and have no page.
+`anywherellm-suite install` puts it in, or import it from AnythingLLM's Community Hub (see the [README](../../../README.md)); then switch on Artifacts under Agent Skills. Each artifact's page is published as it's made; set Artifacts' ANYTHINGLLM_URL to the address your browser and phone reach AnythingLLM at, so the card's link opens from anywhere rather than only from AnythingLLM's own chat. Where the public folder can't be written (AnythingLLM Desktop), artifacts work from the chat and have no page.
 
 **The artifacts manager** (`static/pages/manager.html`, `src/manager.ts`) is one page for every workspace's artifacts, made at the skill's first chat call and opened from AnywhereLLM Lite's Apps row (the bridge's `GET /pages` gives its path), from `anywherellm-suite pages`, or from the link `list` ends with while the links are given to the agent. For each artifact it shows its card's summary, its page, its newest changes and its earlier app.json and page.html: the user renames it (its title; its name stays), takes back its newest change (held 5 s for Undo), puts back an earlier file, and moves it to the trash; on Trash, restores one into its workspace with a new page address, refused while that workspace has another artifact of the name. Each is an event the skill applies at once while AnythingLLM's process watches, else at its next call, and the agent hears of it at the workspace's next chat call. Like the Library page, anyone with its link can act on it; New link replaces it.
 
@@ -42,11 +42,11 @@ To ask you something a chat can't show well (pick a worktop from three, with a n
 
 To keep an artifact up on a schedule, ask the agent ("every morning at 6, put a new puzzle in it"): it lets the artifact take a job's changes (app.json's `"jobs": true`) and adds an AnythingLLM scheduled job with the tool `@@apps-lean` (guide topic `schedules`). A job has no workspace of its own, so it names the artifact's; in a workspace it names it can only list, read and change the data of an artifact that takes it, never make, rewrite, take back or delete one. A deleted artifact stays in the trash 30 days in case it was a mistake.
 
-A page posts each change with its artifact's secret, and the skill applies it to that artifact alone, so one artifact's link changes no other. Once per process the skill writes again every page that isn't as the current parts would make it.
+A page posts each change with its artifact's secret, and the skill applies it to that artifact alone, so one artifact's link changes no other. Once per process, and again when the pages' key changes, the skill writes again every page that isn't as the current parts and key would make it.
 
 ## What it needs of AnythingLLM
 
-The storage folder; the public folder, which AnythingLLM serves without a sign-in; the browser-extension upload its pages post to, with the key install keeps (`#shared/pages`); and the invocation's workspace. Each is listed in `docs/.scratch/TODO.md`.
+The storage folder; the public folder, which AnythingLLM serves without a sign-in; the browser-extension upload its pages post to, with the key the skills find or make (`#shared/pagekey`), which `models/browserExtensionApiKey` makes when there's none; and the invocation's workspace. Each is listed in `docs/.scratch/TODO.md`.
 
 ## Check
 
