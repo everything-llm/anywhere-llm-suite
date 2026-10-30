@@ -113,7 +113,7 @@
         "type": "password",
         "default": "",
         "placeholder": "brx-...",
-        "hint": "Optional. Leave it empty: the suite finds the key its pages post with, or makes one. Fill it only if the chat asks, with a key from Settings › Browser Extension."
+        "hint": "Optional. Make a key once in Settings › Browser Extension and paste it here. Every suite skill finds it after that, so one skill is enough."
       }
     }
   }

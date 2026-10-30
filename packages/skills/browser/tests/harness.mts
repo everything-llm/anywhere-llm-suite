@@ -24,10 +24,9 @@ export const publicDir = path.join(tmp, "public");
 process.env.STORAGE_DIR = storage;
 process.env.ANYTHINGLLM_PUBLIC_DIR = publicDir;
 writeAtomic(pageKeyFile(storage), "brx-test\n"); // the pages' key, as `install --page-key` keeps it
-// No AnythingLLM to ask about it, or to make one with: the check's port is closed and there's no
-// server folder, so the key install keeps is taken as good (#shared/pagekey).
+// No AnythingLLM to ask about it: the check's port is closed, so the key install keeps is taken as
+// good (#shared/pagekey), and an AnythingLLM on this machine's :3001 isn't asked.
 process.env.ANYTHINGLLM_URL = "http://127.0.0.1:1";
-process.env.ANYTHINGLLM_SERVER_DIR = path.join(tmp, "no-server");
 process.env.BROWSER_LEAN_PUPPETEER = path.join(testsDir, "fixtures", "puppeteer", "index.js");
 process.env.BROWSER_LEAN_CHROME = process.execPath; // a file that is there: the stand-in runs no Chrome
 

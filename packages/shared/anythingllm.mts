@@ -2,7 +2,6 @@
 // code is not a public API: each skill types what it uses of it (its host.ts).
 
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 
 /** AnythingLLM's storage folder: STORAGE_DIR, which AnythingLLM sets, else the folder three above
@@ -17,12 +16,6 @@ export function storageDir(): string {
 /** AnythingLLM's server folder, where its public folder is: ANYTHINGLLM_SERVER_DIR, else the working
  *  directory AnythingLLM runs in (/app/server in its image). */
 export const serverDir = (): string => process.env.ANYTHINGLLM_SERVER_DIR || process.cwd();
-
-/** One of AnythingLLM's server modules ("models/browserExtensionApiKey"), required from its server
- *  folder: an internal, so a caller feature-detects what it uses of it and has a way on without it. */
-export function serverRequire<T>(what: string): T {
-  return createRequire(path.join(serverDir(), "index.js"))(path.join(serverDir(), what)) as T;
-}
 
 /** One value per process, made the first time: kept on globalThis, since AnythingLLM loads a
  *  skill's handler.js afresh for each agent run, and shared by every skill's bundled copy, and by

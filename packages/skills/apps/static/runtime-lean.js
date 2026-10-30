@@ -46,7 +46,7 @@ var AppsLean = (() => {
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
       body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.eventTitle, docSource: "apps-lean page" } }),
     });
-    if (r.status === 403) return answer(403, { error: "AnythingLLM refused the pages' key: the skill finds or makes another at its next call in the chat; then reload this page." });
+    if (r.status === 403) return answer(403, { error: "AnythingLLM refused the pages' key: make a new one in Settings › Browser Extension, paste it into a suite skill's PAGE_KEY, then reload this page." });
     if (!r.ok) return answer(r.status >= 500 ? 503 : r.status, { error: "AnythingLLM answered " + r.status + "." });
     pending.push({ id, patch: body.patch });
     keep();

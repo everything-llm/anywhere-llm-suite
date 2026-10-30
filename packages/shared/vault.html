@@ -891,7 +891,7 @@ input::placeholder{color:var(--muted);opacity:1}
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: "vault-lean-" + section, docSource: "vault-lean page" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: the skill finds or makes another at its next call in the chat; then reload this page" : "AnythingLLM answered " + res.status), false;
+      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + res.status), false;
       toast("Sent");
       setTimeout(load, 1500);
       return true;

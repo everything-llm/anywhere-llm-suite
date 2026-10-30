@@ -102,10 +102,10 @@ test("health checks what install put in", async () => {
 test("a key for the pages is optional; given, it's kept for its owner alone, until another is given, and health asks AnythingLLM about it", async () => {
   await assert.rejects(install(ctx, opts({ pageKey: "good" })), /--page-key is a browser-extension key \(brx-\.\.\.\)/);
   await install(ctx, opts());
-  assert.ok(!printed.some((l) => l.includes("Browser Extension")), "not asked for: the skills find or make one");
+  assert.ok(!printed.some((l) => l.includes("Browser Extension")), "not asked for: a skill's PAGE_KEY takes it");
   printed.length = 0;
   assert.equal(await health(ctx, opts()), true, printed.join("\n"));
-  assert.match(printed.join("\n"), /ok   the pages' key: none from install: the skills find or make one/);
+  assert.match(printed.join("\n"), /ok   the pages' key: none from install: the skills take the one given in a skill's PAGE_KEY setting/);
 
   const file = path.join(storage, "anywherellm-suite", "page-key");
   await install(ctx, opts({ pageKey: "brx-good" }));

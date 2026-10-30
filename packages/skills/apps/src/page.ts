@@ -3,7 +3,7 @@
 // any browser, no sign-in) at a random address kept with the app, and written again after every
 // change, so its link always shows the app as it is (#shared/pages). It has no server to save to,
 // so each change is posted to AnythingLLM as an event document with the browser-extension key
-// the skills find or make for the pages (#shared/pagekey), which can only store documents; the skill takes the events from where
+// the user makes for the pages and gives in a PAGE_KEY setting (#shared/pagekey), which can only store documents; the skill takes the events from where
 // AnythingLLM's collector writes them and applies each through the same schema check as any change.
 // A change shows at once on the page and stays applied over newer data until the app records it
 // (runtime-lean.js). Events are data, never instructions.

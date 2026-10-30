@@ -16,7 +16,7 @@ const USAGE = `usage: anywherellm-suite <command>
   install [--storage DIR]        put the skills into AnythingLLM's storage
           [--skills all|none|NAME,...]
           [--page-key brx-...]   optional: a key for the skills' pages (Settings > Browser
-                                 Extension); without it they find or make one
+                                 Extension); without it, a skill's PAGE_KEY setting gives one
   uninstall [--storage DIR]      take them out again
   health [--storage DIR]         check it all; exit 1 when a check fails
   pages [--storage DIR]          show where to open the Library page and the Vault

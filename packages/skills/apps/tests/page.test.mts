@@ -73,10 +73,10 @@ test("with no key for the pages, page says to ask for PAGE_KEY, and a page alrea
   fs.rmSync(keyFile);
   try {
     await store.change("home", "keyless", { patch: [{ op: "add", path: "/items/-", value: { text: "Tea", done: false } }] });
-    await assert.rejects(publish(store.read("home", "keyless"), "home"), (e: Error) => e instanceof Told && e.message.includes("PAGE_KEY under Settings › Agent Skills"));
+    await assert.rejects(publish(store.read("home", "keyless"), "home"), (e: Error) => e instanceof Told && e.message.includes("paste it into PAGE_KEY and save"));
     const state = JSON.parse(fs.readFileSync(path.join(publicDir, "apps-lean", `${token}.json`), "utf8"));
     assert.deepEqual([state.data.items.at(-1).text, state.version], ["Tea", version], "the change shows, and the page doesn't reload");
-    assert.match(await call("home", { action: "page", name: "keyless" }), /^Artifacts: the pages have no key to post with, and Artifacts couldn't make one: ask the user to make one in AnythingLLM's Settings › Browser Extension, paste it into PAGE_KEY under Settings › Agent Skills › Artifacts/);
+    assert.match(await call("home", { action: "page", name: "keyless" }), /^Artifacts: the pages have no key to post with yet\. Give the user these two steps[^\n]*2\. Open Settings › Agent Skills › Artifacts, paste it into PAGE_KEY and save\. The setup guide shows both: https:\/\/everything-llm\.github\.io\/anywhere-llm-suite\/setup\.html#page-key/);
   } finally {
     fs.writeFileSync(keyFile, key);
   }
