@@ -14,6 +14,7 @@
 import { Told } from "#shared/errors";
 import { remember, repeated, setSettings, setting } from "#shared/settings";
 import * as vault from "#shared/vault";
+import { LibraryError } from "./errors";
 import type { HandlerContext } from "./host";
 import * as page from "./page";
 import * as secrets from "./secrets";
@@ -62,7 +63,6 @@ export async function collect(self: HandlerContext): Promise<{ text: string; tak
     if (!site) throw new Told("KEY_FOR doesn't say which site it is for, and no key was asked for: ask for it with secret first");
     const need = keyFor ? needs.filter((n) => n.site === site).at(-1) : newest;
     taken = { site, label: need?.label ?? secrets.labelOf(site) };
-    if (!need) secrets.assertKeyName(taken.label);
   } catch (e) {
     if (!(e instanceof Told)) throw e;
     empty();
@@ -74,12 +74,14 @@ export async function collect(self: HandlerContext): Promise<{ text: string; tak
       remember(v, HUB_ID, "NEW_KEY", value);
     });
   } catch (e) {
-    if (!(e instanceof vault.VaultError)) {
-      if (!(e instanceof Told)) throw e;
+    // The library's own refusal (a name that is another secret's) is final; the vault's (closed,
+    // busy) passes, so the key waits in NEW_KEY for the next call.
+    if (e instanceof LibraryError) {
       empty();
       return { text: `The key in NEW_KEY (${SETTINGS}) wasn't kept: ${e.message.replace(/\.$/, "")}. NEW_KEY and KEY_FOR are empty again.`, taken: null };
     }
-    return { text: `The key in NEW_KEY (${SETTINGS}) can't be kept yet: ${e.message.replace(/\.$/, "")}. It stays in NEW_KEY until the vault opens.`, taken: null };
+    if (!(e instanceof Told)) throw e;
+    return { text: `The key in NEW_KEY (${SETTINGS}) can't be kept yet: ${e.message.replace(/\.$/, "")}. It stays in NEW_KEY for the next call.`, taken: null };
   }
   await page.met(taken.label);
   let after = "NEW_KEY and KEY_FOR are empty again";

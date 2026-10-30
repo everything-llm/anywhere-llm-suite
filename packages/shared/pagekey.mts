@@ -38,8 +38,13 @@ const BRX = /^brx-\S+$/;
 
 type Verdict = "good" | "refused" | "unknown";
 
-/** What AnythingLLM said of each key lately, and the keys it refused (passed over from then on). */
-const known = () => perBuild("pagekey", () => ({ checked: new Map<string, { verdict: Verdict; at: number }>(), refused: new Set<string>() }));
+/** How many keys a process makes in an hour at most: a key refused as soon as it's made would
+ *  otherwise make one at every call. */
+const MADE_PER_HOUR = 3;
+
+/** What AnythingLLM said of each key lately, the keys it refused (passed over from then on), and
+ *  when this process made one. */
+const known = () => perBuild("pagekey", () => ({ checked: new Map<string, { verdict: Verdict; at: number }>(), refused: new Set<string>(), made: [] as number[] }));
 
 /** The skill this bundle is, as the last find named it: pageKey's refusal names its settings. */
 let asking: Skill | null = null;
@@ -90,12 +95,13 @@ async function checked(key: string): Promise<Verdict> {
   return verdict;
 }
 
-/** The pages' key in the vault, or "" (also where the vault can't be opened: install's is next). */
-function inVault(): string {
+/** The pages' key in the vault, or ""; null where the vault can't be opened (install's is next, and
+ *  none is made: it couldn't be kept). */
+function inVault(): string | null {
   try {
     return String(vault.entries().find((e) => e.kind === KIND)?.value ?? "");
   } catch {
-    return "";
+    return null;
   }
 }
 
@@ -176,8 +182,14 @@ export function find(skill: Skill, given: string | undefined, log: (message: str
         if ((await checked(installed)) !== "refused") return said;
         refused.add(installed);
       }
+      if (kept === null) return said; // the vault is closed: a key made now couldn't be kept
+      const { made: lately } = known();
+      const hour = Date.now() - 60 * 60 * 1000;
+      while (lately.length && lately[0] < hour) lately.shift();
+      if (lately.length >= MADE_PER_HOUR) return log(`${skill.hubId} made ${lately.length} keys for the pages in the last hour, all refused since: it makes no more, and the chat asks for PAGE_KEY`), said;
       const made = await make();
       if (made) {
+        lately.push(Date.now());
         await keep(made);
         said.push(`The pages had no key to post with, so ${skill.name} made one with AnythingLLM. Tell the user they'll see it under Settings › Browser Extension, where they can revoke it (a skill then makes another at its next call, unless they give one in PAGE_KEY).`);
       }

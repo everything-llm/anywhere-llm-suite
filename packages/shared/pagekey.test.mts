@@ -20,7 +20,7 @@ const SKILL = { hubId: "test-lean", name: "Test" };
 
 // AnythingLLM's keys, as its model and its browser extension's check see them: the stand-in model in
 // a server folder of its own (ANYTHINGLLM_SERVER_DIR), and the check on a port of its own.
-type Allm = { valid: Set<string>; made: { key: string; user: number | null }[]; multi: boolean; admins: { id: number; suspended?: number }[]; checks: number };
+type Allm = { valid: Set<string>; made: { key: string; user: number | null }[]; multi: boolean; admins: { id: number; suspended?: number }[]; checks: number; refuseMade?: boolean };
 const allm: Allm = ((globalThis as unknown as { __pageKeys: Allm }).__pageKeys = { valid: new Set(), made: [], multi: false, admins: [], checks: 0 });
 const server = path.join(tmp, "server");
 fs.mkdirSync(path.join(server, "models"), { recursive: true });
@@ -28,7 +28,7 @@ fs.writeFileSync(
   path.join(server, "models", "browserExtensionApiKey.js"),
   `const a = globalThis.__pageKeys;
 module.exports = { BrowserExtensionApiKey: {
-  create: async (userId = null) => { const key = "brx-made-" + (a.made.length + 1); a.made.push({ key, user: userId }); a.valid.add(key); return { apiKey: { id: a.made.length, key, user_id: userId }, error: null }; },
+  create: async (userId = null) => { const key = "brx-made-" + (a.made.length + 1); a.made.push({ key, user: userId }); if (!a.refuseMade) a.valid.add(key); return { apiKey: { id: a.made.length, key, user_id: userId }, error: null }; },
   validate: async (key) => (a.valid.has(key) ? { key } : false),
 } };`,
 );
@@ -59,7 +59,7 @@ const kept = () => entries().filter((e) => e.kind === "page-key");
 
 beforeEach(() => {
   fs.rmSync(storage, { recursive: true, force: true });
-  Object.assign(allm, { valid: new Set(), made: [], multi: false, admins: [], checks: 0 });
+  Object.assign(allm, { valid: new Set(), made: [], multi: false, admins: [], checks: 0, refuseMade: false });
   process.env.ANYTHINGLLM_URL = CHECK;
   process.env.ANYTHINGLLM_SERVER_DIR = server;
   forget();
@@ -162,4 +162,22 @@ test("two calls at once make one key", async () => {
   await Promise.all([find(SKILL, undefined), find({ hubId: "other-lean", name: "Other" }, undefined)]);
   assert.equal(allm.made.length, 1);
   assert.equal(keyStamp().length, 8);
+});
+
+test("with a vault this skill can't read (a newer format, a lost key), no key is made: it couldn't be kept", async () => {
+  allm.valid.add("brx-given");
+  setPageKey("brx-given");
+  await find(SKILL, undefined); // the vault is made, and holds it
+  fs.writeFileSync(path.join(vaultDir(), "vault.json"), JSON.stringify({ v: 99, pub: null, box: {} }));
+  forget();
+  assert.deepEqual(await find(SKILL, undefined), []);
+  assert.equal(allm.made.length, 0);
+  assert.throws(pageKey, Told);
+});
+
+test("keys refused as soon as they're made are made three times an hour at most, not at every call", async () => {
+  allm.refuseMade = true;
+  for (let i = 0; i < 6; i++) await find(SKILL, undefined);
+  assert.equal(allm.made.length, 3);
+  assert.throws(pageKey, Told, "and the chat asks for PAGE_KEY");
 });

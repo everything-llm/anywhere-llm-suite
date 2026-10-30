@@ -117,3 +117,16 @@ test("KEY_FOR is emptied once nothing is asked for it any more: the key given on
   await call({ action: "library" });
   assert.equal(page.value("KEY_FOR"), "");
 });
+
+test("a key the vault can't keep (one of a newer format) stays in NEW_KEY for a call that can", async (t) => {
+  const page = settingsPage(t);
+  await call({ action: "secret", site: "api.example.com", label: "ex" });
+  const file = path.join(storage, "vault-lean", "vault.json");
+  const kept = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, JSON.stringify({ v: 99, pub: null, box: {} }));
+  page.save({ NEW_KEY: KEY });
+  await call({ action: "guide" });
+  assert.equal(page.value("NEW_KEY"), KEY, "not emptied: it would be lost");
+  fs.writeFileSync(file, kept);
+  assert.match(await call({ action: "guide" }), /^Saved the key "ex"/);
+});
