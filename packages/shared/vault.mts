@@ -200,6 +200,9 @@ export const load = (dir: string = vaultDir()): Vault => structuredClone(current
 /** The vault's entries as they are now, without a copy: only to read. */
 export const entries = (dir: string = vaultDir()): readonly Readonly<Entry>[] => current(dir).vault.entries;
 
+/** What the settings slots last gave (#shared/settings), as they are now, without a copy: only to read. */
+export const slots = (dir: string = vaultDir()): Readonly<Record<string, string>> => current(dir).vault.slots;
+
 /** Changes the vault: `change` gets it as the file holds it now and changes it in place; what it
  *  answers is answered. Nothing is written when it throws. One change at a time, across this
  *  process's skills and across processes. A file of an older format is written in this one. */
