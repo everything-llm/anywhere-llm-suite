@@ -178,7 +178,6 @@ async function secret(args: Args, self: HandlerContext, took: slot.Taken | null)
   secrets.assertKeyName(label);
   const waiting = page.keyNeeds().some((n) => n.label === label && n.site === site);
   await page.need(label, site);
-  slot.ask(site);
   const lead = waiting
     ? `NEW_KEY is still empty, so nothing was saved for "${label}" (${site}). ${slot.steps(site, label)}`
     : `The user gives the key in the library's own settings, so it never passes through the chat. ${slot.steps(site, label)}`;

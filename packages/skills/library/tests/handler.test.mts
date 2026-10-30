@@ -201,7 +201,8 @@ test("with the pages' links kept from the agent, library, secret and target carr
   assert.match(machine, where);
   const tokens = [pageConfig().token, vaultConfig().token];
   for (const said of answers) {
-    assert.ok(!/library-lean\/|vault-lean\/|\.html/.test(said), `no page address in: ${said.slice(0, 120)}`);
+    const pages = said.replaceAll("https://everything-llm.github.io/anywhere-llm-suite/setup.html", "the guide"); // the setup guide is no page of the skill's
+    assert.ok(!/library-lean\/|vault-lean\/|\.html/.test(pages), `no page address in: ${said.slice(0, 120)}`);
     for (const token of tokens) assert.ok(!said.includes(token), "no page token");
   }
   assert.ok(fs.existsSync(path.join(publicDir, "library-lean", `${tokens[0]}.html`)), "the Library page is written");

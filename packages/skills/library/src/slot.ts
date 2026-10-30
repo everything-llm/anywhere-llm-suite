@@ -1,16 +1,17 @@
-// The library's key slot: two settings of its own (#shared/settings), KEY_FOR (text) and NEW_KEY (a
-// password field), so a key is given in AnythingLLM's own settings, with no page and no second skill.
-// When the agent asks for a key (secret), the library writes the site into KEY_FOR, and the answer
-// tells the user to paste the key into NEW_KEY under Settings › Agent Skills › Library, save, and say
-// done: the key never passes through the chat, and the model never sees it.
+// The library's key slot: one setting of its own (#shared/settings), NEW_KEY (a password field), so a
+// key is given in AnythingLLM's own settings, with no page and no second skill. When the agent asks for
+// a key (secret), the answer names the key's site and tells the user to paste it into NEW_KEY under
+// Settings › Agent Skills › Library, save, and say done: the key never passes through the chat, and
+// the model never sees it.
 //
-// At the start of every call, a chat's or a scheduled job's, a filled NEW_KEY is taken: sealed into
-// the vault as an API key, for the need whose site KEY_FOR names (the newest need where KEY_FOR is
-// empty, as a settings page opened before the ask saves it), else under the site's host; the need is
-// met, and both settings are emptied. Until then the key is in plain text in plugin.json. The same
-// value saved again, from a settings page left open, is only emptied (#shared/settings repeated). The
+// At the start of every call, a chat's or a scheduled job's, a filled NEW_KEY is taken for the newest
+// key the agent asked for that is still waiting: sealed into the vault, the need met, and NEW_KEY
+// emptied in the skill's own plugin.json. Until then the key is in plain text there. With no key
+// asked for, there's no site to send it to: it stays in NEW_KEY, and the answer says so. The same value
+// saved again, from a settings page left open, is only emptied (#shared/settings repeated). The
 // Vault's Keys (page.ts) stay a second way to give a key, where pages work.
 
+import { guideAt } from "#shared/pagekey";
 import { Told } from "#shared/errors";
 import { remember, repeated, setSettings, setting } from "#shared/settings";
 import * as vault from "#shared/vault";
@@ -29,45 +30,26 @@ export interface Taken {
   site: string;
 }
 
-/** Writes `site` into KEY_FOR, for the key just asked for. */
-export const ask = (site: string): boolean => setSettings(HUB_ID, { KEY_FOR: site });
-
-/** Empties the slot: NEW_KEY, and KEY_FOR unless `keyFor` says what it should hold now. */
-const empty = (keyFor = ""): boolean => setSettings(HUB_ID, { NEW_KEY: "", KEY_FOR: keyFor });
+/** Empties NEW_KEY. */
+const empty = (): boolean => setSettings(HUB_ID, { NEW_KEY: "" });
 
 /** What the user is told to do to give the key for `site`, `label`'s, in the slot. */
 export const steps = (site: string, label: string): string =>
-  `Tell them to open ${SETTINGS} in AnythingLLM, paste the key for ${site} into NEW_KEY (KEY_FOR says ${site}), save, and say "done" here. When they do, call secret again with the same site and label: it says whether "${label}" was saved.`;
+  `Tell them to open ${SETTINGS} in AnythingLLM, paste the key for ${site} into NEW_KEY, save, and say "done" here; the setup guide shows it: ${guideAt("service-key")}. When they say done, call secret again with the same site and label: it says whether "${label}" was saved.`;
 
 /** Takes a key from the slot, if NEW_KEY holds one (see above): what to tell the user, and the key
- *  taken, if one was. A refusal (a site that isn't one, a name that is another secret's) empties the
- *  slot and says why; where the vault can't keep it, the key stays in NEW_KEY for the next call. */
+ *  taken, if one was. A name that is another secret's empties the slot and says why; with no key
+ *  asked for, or where the vault can't keep it, the key stays in NEW_KEY for a later call. */
 export async function collect(self: HandlerContext): Promise<{ text: string; taken: Taken | null } | null> {
   const value = setting(HUB_ID, "NEW_KEY", self.runtimeArgs?.NEW_KEY);
-  const keyFor = setting(HUB_ID, "KEY_FOR", self.runtimeArgs?.KEY_FOR);
-  const needs = page.keyNeeds();
-  const newest = needs.at(-1);
-  if (!value) {
-    // A need met on the Vault, or run out: KEY_FOR names nothing asked for any more.
-    if (keyFor && !needs.some((n) => n.site === secrets.publicSite(keyFor))) setSettings(HUB_ID, { KEY_FOR: "" });
-    return null;
-  }
+  if (!value) return null;
   if (repeated(HUB_ID, "NEW_KEY", value)) {
-    // A page left open saved it again, with the KEY_FOR it showed then.
-    empty(newest?.site ?? "");
+    empty(); // a page left open saved it again
     return null;
   }
-  let taken: Taken;
-  try {
-    const site = keyFor ? secrets.siteChecked(keyFor) : newest?.site;
-    if (!site) throw new Told("KEY_FOR doesn't say which site it is for, and no key was asked for: ask for it with secret first");
-    const need = keyFor ? needs.filter((n) => n.site === site).at(-1) : newest;
-    taken = { site, label: need?.label ?? secrets.labelOf(site) };
-  } catch (e) {
-    if (!(e instanceof Told)) throw e;
-    empty();
-    return { text: `The key in NEW_KEY (${SETTINGS}) wasn't kept: ${e.message.replace(/\.$/, "")}. NEW_KEY and KEY_FOR are empty again.`, taken: null };
-  }
+  const need = page.keyNeeds().at(-1);
+  if (!need) return { text: `NEW_KEY (${SETTINGS}) holds a key, but the library didn't ask for one, so it doesn't know which site it goes to: it stays there. Ask with secret for the service the user means, and the next call takes it.`, taken: null };
+  const taken: Taken = { site: need.site, label: need.label };
   try {
     await vault.update((v) => {
       secrets.putKey(v, taken.site, taken.label, value);
@@ -78,13 +60,13 @@ export async function collect(self: HandlerContext): Promise<{ text: string; tak
     // busy) passes, so the key waits in NEW_KEY for the next call.
     if (e instanceof LibraryError) {
       empty();
-      return { text: `The key in NEW_KEY (${SETTINGS}) wasn't kept: ${e.message.replace(/\.$/, "")}. NEW_KEY and KEY_FOR are empty again.`, taken: null };
+      return { text: `The key in NEW_KEY (${SETTINGS}) wasn't kept: ${e.message.replace(/\.$/, "")}. NEW_KEY is empty again.`, taken: null };
     }
     if (!(e instanceof Told)) throw e;
     return { text: `The key in NEW_KEY (${SETTINGS}) can't be kept yet: ${e.message.replace(/\.$/, "")}. It stays in NEW_KEY for the next call.`, taken: null };
   }
   await page.met(taken.label);
-  let after = "NEW_KEY and KEY_FOR are empty again";
+  let after = "NEW_KEY is empty again";
   try {
     empty();
   } catch (e) {

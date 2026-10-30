@@ -4,7 +4,7 @@ A key or a token is the user's, and never yours to see. A name is one secret, a 
 
 API keys and tokens:
 
-- Ask for one with secret: site (where the key is sent, like "api.github.com" or "github.com") and label (a short name, like "github"). The answer says what to tell the user: they paste the key into NEW_KEY in the library's own settings (Settings › Agent Skills › Library, where KEY_FOR names the site), save, and say done. Pass that on. The library takes the key at its next call, seals it in the vault and empties the field: you never see it.
+- Ask for one with secret: site (where the key is sent, like "api.github.com" or "github.com") and label (a short name, like "github"). The answer says what to tell the user: they paste the key for that site into NEW_KEY in the library's own settings (Settings › Agent Skills › Library), save, and say done. Pass that on. The library takes the key at its next call, for the newest key you asked for, seals it in the vault and empties the field: you never see it. Ask for one key at a time.
 - When they say done, call secret again with the same site and label: it says the key was saved, or that NEW_KEY is still empty, with the steps again. Where the skills' pages work, the Vault is a second place to give a key: the answer says so.
 - Tell the user where to make the key (the service's settings page), and which permissions (scopes) the task needs: the fewest that do it.
 - Name it in the toolkit's secrets: { "label": "github", "as": "bearer" }. as says where it goes: `bearer` (Authorization: Bearer), `basic` or `basic:<user>` (HTTP Basic, the key as the password), `authorization:<scheme>`, `header:<name>` (like `header:X-Api-Key`), or `query:<name>`.
