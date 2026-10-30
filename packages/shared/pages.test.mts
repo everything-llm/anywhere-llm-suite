@@ -85,6 +85,21 @@ test("the watch applies events as they land, until it's told to stop", async () 
   until = 0;
 });
 
+test("a watch kept on a folder that went is made again when another made the folder again, which ext4 gives the old inode", async () => {
+  const seen: unknown[] = [];
+  let until = Date.now() + 60_000;
+  const pass = async () => void seen.push(...take("re"));
+  watch("re", pass, () => until);
+  fs.rmSync(eventsDir(), { recursive: true, force: true });
+  fs.mkdirSync(eventsDir(), { recursive: true }); // as the other page's watch, or the collector, makes it
+  watch("re", pass, () => until); // the next call: the folder is there, not made by it
+  await new Promise((r) => setTimeout(r, 200)); // macOS's watch starts a moment after it's made
+  posted("re", { n: 1 });
+  for (let i = 0; i < 100 && !seen.length; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(seen, [{ n: 1 }], "applied as it landed, not at the next poll");
+  until = 0;
+});
+
 test("passes for a title run one at a time, whoever asks, and one that fails doesn't stop the next", async () => {
   const seen: string[] = [];
   const pass = (name: string, fail = false) => async () => {

@@ -170,7 +170,7 @@ export function putBack(title: string, event: unknown): void {
   writeAtomic(path.join(eventsDir(), `raw-${title}-again-${stamp.last}-${process.pid}.json`), JSON.stringify({ pageContent: JSON.stringify(event) }), 0o600);
 }
 
-type Watch = { pass: () => Promise<void>; until: () => number; queued: boolean; seen: number; dir: number; watcher?: fs.FSWatcher; timer?: NodeJS.Timeout; stop: () => void };
+type Watch = { pass: () => Promise<void>; until: () => number; queued: boolean; seen: number; dir: number; held?: number; watcher?: fs.FSWatcher; timer?: NodeJS.Timeout; stop: () => void };
 
 /** Runs `pass` for `title` after the one before it, whoever asked for it (the watch, or a call): one
  *  pass at a time, so two never split a page's events between them, and a call reads the page after
@@ -218,8 +218,20 @@ export function watch(title: string, pass: () => Promise<void>, until: () => num
   w.stop = () => {
     w.watcher?.close();
     clearInterval(w.timer);
+    // Once only: a stop again would close whatever has the number since.
+    const held = w.held;
+    w.held = undefined;
+    try {
+      if (held !== undefined) fs.closeSync(held);
+    } catch {}
     if (watches.get(title) === w) watches.delete(title);
   };
+  try {
+    // Held open while it's watched, so a folder made again by another (the other page's watch, the
+    // collector) after it went has another inode, not this one's: ext4 gives a removed folder's to the
+    // next, unless it's still open. Not where a folder can't be opened (Windows).
+    w.held = fs.openSync(eventsDir(), "r");
+  } catch {}
   try {
     w.watcher = fs.watch(eventsDir(), { persistent: false }, (kind, name) => {
       if (!name || String(name).startsWith(`raw-${title}-`)) run();
