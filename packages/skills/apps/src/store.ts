@@ -41,7 +41,7 @@ function folder(workspace: string): string {
 }
 
 /** Why `name` can't be an app's name, or null. */
-const nameProblem = (name: unknown): string | null => (typeof name === "string" && NAME.test(name) ? null : "an app's name is 1-63 lowercase letters, digits and hyphens, such as groceries");
+const nameProblem = (name: unknown): string | null => (typeof name === "string" && NAME.test(name) ? null : "an artifact's name is 1-63 lowercase letters, digits and hyphens, such as groceries");
 
 function fileOf(workspace: string, name: unknown): string {
   const why = nameProblem(name);
@@ -50,14 +50,14 @@ function fileOf(workspace: string, name: unknown): string {
 }
 
 /** Runs `fn` holding the app's lock: one change to an app at a time, in any process. */
-const withLock = <T,>(workspace: string, name: unknown, fn: () => T): Promise<T> => locked(`${fileOf(workspace, name)}.lock`, `the app ${name}`, fn);
+const withLock = <T,>(workspace: string, name: unknown, fn: () => T): Promise<T> => locked(`${fileOf(workspace, name)}.lock`, `the artifact ${name}`, fn);
 
 // For the owner alone: an app holds its page's secret.
 const save = (workspace: string, app: Json): void => writeAtomic(fileOf(workspace, app.name), JSON.stringify(app, null, 1) + "\n", 0o600);
 
 export function read(workspace: string, name: unknown): Json {
   return readJson(fileOf(workspace, name), () => {
-    throw new AppError(`this workspace has no app named ${name}; list shows its apps`);
+    throw new AppError(`this workspace has no artifact named ${name}; list shows its artifacts`);
   });
 }
 
@@ -138,7 +138,7 @@ async function definitionProblems(app: Json, page: boolean): Promise<string[]> {
 /** `app`, unless it or `earlier` has a problem: then all of them, in one error. */
 async function checked(app: Json, earlier: string[] = [], what = "saved", page = true): Promise<Json> {
   const found = [...earlier, ...(await definitionProblems(app, page))];
-  if (found.length) throw new AppError(`the app can't be ${what}:\n- ${found.join("\n- ")}`);
+  if (found.length) throw new AppError(`the artifact can't be ${what}:\n- ${found.join("\n- ")}`);
   return app;
 }
 
@@ -192,7 +192,7 @@ export async function create(workspace: string, name: unknown, definition: Json,
     const found = [...earlier];
     const why = nameProblem(name);
     if (why) found.push(why);
-    else if (fs.existsSync(fileOf(workspace, name))) found.push(`this workspace already has an app named ${name}`);
+    else if (fs.existsSync(fileOf(workspace, name))) found.push(`this workspace already has an artifact named ${name}`);
     const t = now();
     const app = await checked({ name, rules: [], ...definition, line: 0, made: t, changed: t, history: [], secret: newSecret() }, found, "made");
     save(workspace, app);
@@ -227,7 +227,7 @@ function applyChange(app: Json, { patch, ev, fields, by, id }: Change): Json {
     throw e;
   }
   const found = problems(data, app.schema);
-  if (found.length) throw new AppError(`the change breaks the app's schema:\n- ${found.join("\n- ")}`);
+  if (found.length) throw new AppError(`the change breaks the artifact's schema:\n- ${found.join("\n- ")}`);
   const line = (app.line || 0) + 1;
   // Each change keeps the line it made: an undo also takes a line, so the newest changes' lines
   // can't be worked out from where they stand in the history.
@@ -326,7 +326,7 @@ const fileText = (app: Json, file: string): string | null => (file === "app.json
 /** Refuses a `file` that isn't one of the app's own, to be read. */
 function readableCheck(file: unknown): asserts file is string {
   if (["app.js", "app.css", "parts.js"].includes(file as string))
-    throw new AppError(`${file} isn't one of the app's files: every page gets it inline. guide runtime explains App, guide styles is app.css, and guide <part> gives a part's code`);
+    throw new AppError(`${file} isn't one of the artifact's files: every page gets it inline. guide runtime explains App, guide styles is app.css, and guide <part> gives a part's code`);
   if (!FILES.includes(file as string)) throw new AppError(`file is ${FILES.join(" or ")}`);
 }
 
@@ -469,7 +469,7 @@ export async function remove(workspace: string, name: unknown): Promise<void> {
       if (held.length >= TRASH_MAX) {
         const frees = deletedAt(held[0]);
         throw new AppError(
-          `the trash is full: it holds ${held.length} deleted apps, each kept ${TRASH_DAYS} days, so ${name} stays${frees ? `; the oldest leaves the trash on ${new Date(frees + TRASH_DAYS * DAY_MS).toISOString().slice(0, 10)}` : ""}. The user can empty it by hand (apps-lean/.trash)`,
+          `the trash is full: it holds ${held.length} deleted artifacts, each kept ${TRASH_DAYS} days, so ${name} stays${frees ? `; the oldest leaves the trash on ${new Date(frees + TRASH_DAYS * DAY_MS).toISOString().slice(0, 10)}` : ""}. The user can empty it by hand (apps-lean/.trash)`,
         );
       }
       // Named by when it was deleted, to the millisecond, so the trash's names sort oldest first.
@@ -529,14 +529,14 @@ export function trashed(): Trashed[] {
  *  Refused while the workspace has another app of that name. Answers where it went, and the app. */
 export async function restore(id: string): Promise<{ workspace: string; app: Json }> {
   const found = trashedOf(id);
-  if (!found) throw new AppError("that app is no longer in the trash");
+  if (!found) throw new AppError("that artifact is no longer in the trash");
   const { workspace, name } = found;
   // The app's lock, then the trash's, in the order remove takes them.
   return withLock(workspace, name, () =>
     locked(`${trash()}.lock`, "the trash", () => {
       const now = trashedOf(id);
-      if (!now) throw new AppError("that app is no longer in the trash");
-      if (fs.existsSync(fileOf(workspace, name))) throw new AppError(`${workspace} already has an app named ${name}: move that one to the trash first`);
+      if (!now) throw new AppError("that artifact is no longer in the trash");
+      if (fs.existsSync(fileOf(workspace, name))) throw new AppError(`${workspace} already has an artifact named ${name}: move that one to the trash first`);
       fs.mkdirSync(folder(workspace), { recursive: true });
       const { pageToken: _token, version: _version, ...app } = now.app;
       save(workspace, app);

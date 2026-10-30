@@ -9,21 +9,21 @@ const add = (text: string) => JSON.stringify([{ op: "add", path: "/items/-", val
 
 test("a chat can't name a workspace: it works on its own", async () => {
   await call("home", { action: "create", name: "shop", title: "Shop", starter: "checklist" });
-  assert.match(await call("work", { action: "list", workspace: "home" }), /^Apps: workspace is for a scheduled job/);
+  assert.match(await call("work", { action: "list", workspace: "home" }), /^Artifacts: workspace is for a scheduled job/);
 });
 
 test("a job works in its own workspace as a chat would, but deletes nothing", async () => {
-  assert.match(await asJob({ action: "create", name: "digest", title: "Digest", starter: "checklist" }), /^Made the app digest/);
+  assert.match(await asJob({ action: "create", name: "digest", title: "Digest", starter: "checklist" }), /^Made the artifact digest/);
   assert.match(await asJob({ action: "do", name: "digest", ev: "add", patch: add("Item") }), /^Done: add on digest\./);
   assert.equal(store.read("_jobs", "digest").history.at(-1).by, "job");
-  assert.match(await asJob({ action: "delete", name: "digest" }), /^Apps: a scheduled job can't delete:/);
+  assert.match(await asJob({ action: "delete", name: "digest" }), /^Artifacts: a scheduled job can't delete:/);
   assert.ok(store.read("_jobs", "digest"));
 });
 
 test("a job naming a workspace may list and read there, and do only on an app the user let take it", async () => {
   assert.match(await asJob({ action: "list", workspace: "home" }), /- shop: /);
   assert.match(await asJob({ action: "read", workspace: "home", name: "shop" }), /^shop's app\.json/);
-  assert.match(await asJob({ action: "do", workspace: "home", name: "shop", ev: "add", patch: add("Milk") }), /^Apps: shop doesn't take changes from scheduled jobs: the user lets it from a chat/);
+  assert.match(await asJob({ action: "do", workspace: "home", name: "shop", ev: "add", patch: add("Milk") }), /^Artifacts: shop doesn't take changes from scheduled jobs: the user lets it from a chat/);
   for (const action of ["create", "edit", "undo", "page", "delete"])
     assert.match(await asJob({ action, workspace: "home", name: "shop", file: "page.html", text: "x" }), action === "delete" ? /can't delete:/ : /in a workspace it names, a scheduled job may list, do, read, guide, not /, action);
   // The user lets it, from a chat.
@@ -31,16 +31,16 @@ test("a job naming a workspace may list and read there, and do only on an app th
   assert.match(await asJob({ action: "do", workspace: "home", name: "shop", ev: "add", patch: add("Milk") }), /^Done: add on shop\./);
   const app = store.read("home", "shop");
   assert.deepEqual([app.data.items.at(-1).text, app.history.at(-1).by], ["Milk", "job"]);
-  assert.match(await asJob({ action: "do", workspace: "nowhere", name: "shop", patch: add("x") }), /^Apps: this workspace has no app named shop/);
-  assert.match(await asJob({ action: "list", workspace: "../etc" }), /^Apps: not a workspace/);
+  assert.match(await asJob({ action: "do", workspace: "nowhere", name: "shop", patch: add("x") }), /^Artifacts: this workspace has no artifact named shop/);
+  assert.match(await asJob({ action: "list", workspace: "../etc" }), /^Artifacts: not a workspace/);
 });
 
 test("a job naming no workspace is told where the user's app is, not given a copy of its own", async () => {
   // shop is the user's, in home, and takes jobs (the test before let it).
-  assert.match(await asJob({ action: "read", name: "shop" }), /^Apps: this job's own workspace \(_jobs\) has no app named shop; the user's is in workspace "home": name the workspace to work on it/);
-  assert.match(await asJob({ action: "create", name: "shop", title: "Shop", starter: "checklist" }), /^Made the app shop/, "a job may still make its own");
+  assert.match(await asJob({ action: "read", name: "shop" }), /^Artifacts: this job's own workspace \(_jobs\) has no artifact named shop; the user's is in workspace "home": name the workspace to work on it/);
+  assert.match(await asJob({ action: "create", name: "shop", title: "Shop", starter: "checklist" }), /^Made the artifact shop/, "a job may still make its own");
   for (const action of ["read", "do"])
-    assert.match(await asJob({ action, name: "shop", ev: "add", patch: add("Eggs") }), /^Apps: two apps are named shop: this job's own, in _jobs, which the user's chats don't see, and the user's is in workspace "home": name the workspace/, action);
+    assert.match(await asJob({ action, name: "shop", ev: "add", patch: add("Eggs") }), /^Artifacts: two artifacts are named shop: this job's own, in _jobs, which the user's chats don't see, and the user's is in workspace "home": name the workspace/, action);
   assert.ok(!store.read("_jobs", "shop").data.items.some((i: { text: string }) => i.text === "Eggs"), "its own copy was left alone");
   assert.match(await asJob({ action: "do", workspace: "home", name: "shop", ev: "add", patch: add("Eggs") }), /^Done: add on shop\./);
   assert.match(await asJob({ action: "edit", name: "shop", file: "app.json", find: '"title": "Shop"', text: '"title": "Own shop"' }), /^Changed shop's app\.json\./, "what only its own workspace allows is unchanged");
@@ -53,8 +53,8 @@ test("a job naming no workspace is told where the user's app is, not given a cop
 
 test("what pages did is told to a chat, never to a job", async () => {
   from("home", "shop", { id: "p1", ev: "add", fields: { text: "Jam" }, patch: [{ op: "add", path: "/items/-", value: { text: "Jam", done: false } }] });
-  assert.doesNotMatch(await asJob({ action: "read", workspace: "home", name: "shop" }), /Changes made on app pages/);
-  assert.match(await call("home", { action: "list" }), /^Changes made on app pages and the apps manager since the last call[^\n]*\n- add Jam on shop\n/);
+  assert.doesNotMatch(await asJob({ action: "read", workspace: "home", name: "shop" }), /Changes made on artifact pages/);
+  assert.match(await call("home", { action: "list" }), /^Changes made on artifact pages and the artifacts manager since the last call[^\n]*\n- add Jam on shop\n/);
 });
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -69,7 +69,7 @@ const emptyTrash = () => fs.rmSync(trashDir(), { recursive: true, force: true })
 test("delete moves the app to the trash", async () => {
   emptyTrash();
   await call("home", { action: "create", name: "gone", title: "Gone", starter: "checklist" });
-  assert.match(await call("home", { action: "delete", name: "gone" }), /^Deleted the app gone, its changes and its page\. It stays in the trash 30 days, and the user restores it from there on the apps manager/);
+  assert.match(await call("home", { action: "delete", name: "gone" }), /^Deleted the artifact gone, its changes and its page\. It stays in the trash 30 days, and the user restores it from there on the artifacts manager/);
   assert.deepEqual(fs.readdirSync(trashDir()).map((f) => f.replace(/^\d{13}-home-/, "")), ["gone.json"]);
   assert.ok(!store.list("home").some((a) => a.name === "gone"));
 });
@@ -96,13 +96,13 @@ test("a trash full of apps within their 30 days refuses a delete and keeps the a
   emptyTrash();
   for (let i = 0; i < store.TRASH_MAX; i++) trashed(1 + (i % 20), `held-${i}`);
   await call("home", { action: "create", name: "keep", title: "Keep", starter: "checklist" });
-  assert.match(await call("home", { action: "delete", name: "keep" }), /^Apps: the trash is full: it holds 100 deleted apps, each kept 30 days, so keep stays; the oldest leaves the trash on \d{4}-\d\d-\d\d\./);
+  assert.match(await call("home", { action: "delete", name: "keep" }), /^Artifacts: the trash is full: it holds 100 deleted artifacts, each kept 30 days, so keep stays; the oldest leaves the trash on \d{4}-\d\d-\d\d\./);
   assert.equal(fs.readdirSync(trashDir()).length, store.TRASH_MAX, "none was dropped");
   assert.ok(store.list("home").some((a) => a.name === "keep"), "the app is still there");
   fs.rmSync(path.join(trashDir(), fs.readdirSync(trashDir()).find((f) => f.endsWith("-home-held-0.json"))!));
   trashed(31, "stale");
   assert.equal(fs.readdirSync(trashDir()).length, store.TRASH_MAX, "still full, but one of them is past its days");
-  assert.match(await call("home", { action: "delete", name: "keep" }), /^Deleted the app keep/, "a place frees once one is past its days");
+  assert.match(await call("home", { action: "delete", name: "keep" }), /^Deleted the artifact keep/, "a place frees once one is past its days");
   const names = fs.readdirSync(trashDir()).map((f) => f.replace(/^\d{13}-home-/, ""));
   assert.equal(names.length, store.TRASH_MAX, "the stale one went, the new one came");
   assert.ok(names.includes("keep.json") && !names.includes("stale.json"));

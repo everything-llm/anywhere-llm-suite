@@ -75,7 +75,7 @@ Details: [skills/browser](skills/browser/README.md).
 - **Cookies** are saved through the browser's own DevTools session after a step and as it closes, only when they changed. localStorage and IndexedDB aren't kept: a site that keeps its sign-in there signs in again with the saved login. Chrome's profile is a temporary folder removed in the background and with retries, because a throw from that handler would take AnythingLLM down.
 - **Choices from the eval.** A check that a person is at the browser is the user's: act refuses to click one by its own name, and real reCAPTCHA, hCaptcha and Turnstile sit in cross-origin frames a read never sees, so the guide covers those. An identity provider's Allow for the asked sign-in is the agent's to press.
 
-## Apps
+## Artifacts (the apps skill)
 
 Details: [skills/apps](skills/apps/README.md).
 

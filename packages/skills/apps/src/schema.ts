@@ -61,7 +61,7 @@ export function schemaProblems(schema: Json, at = ""): string[] {
   for (const [k, v] of Object.entries(schema as Record<string, Json>)) {
     if (ANNOTATIONS.has(k)) continue;
     const rule = KEYWORDS[k];
-    if (!Object.hasOwn(KEYWORDS, k)) found.push(`${at}/${k}: not a keyword apps check; use type, properties, required, items, enum, minimum and the like`);
+    if (!Object.hasOwn(KEYWORDS, k)) found.push(`${at}/${k}: not a keyword artifacts check; use type, properties, required, items, enum, minimum and the like`);
     else if (rule && !rule[0](v)) found.push(`${at}/${k}: ${rule[1]}`);
     else if (k === "properties") for (const [p, s] of Object.entries(v)) found.push(...schemaProblems(s, `${at}/properties/${p}`));
     else if (k === "items" || (k === "additionalProperties" && typeof v === "object")) found.push(...schemaProblems(v, `${at}/${k}`));

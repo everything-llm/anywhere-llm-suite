@@ -23,7 +23,7 @@ test("problems name the path and what is wrong", () => {
 });
 
 test("an unknown keyword is reported where it is", () => {
-  assert.deepEqual(schemaProblems({ type: "object", properties: { a: { oneOf: [] } } }), ["/properties/a/oneOf: not a keyword apps check; use type, properties, required, items, enum, minimum and the like"]);
+  assert.deepEqual(schemaProblems({ type: "object", properties: { a: { oneOf: [] } } }), ["/properties/a/oneOf: not a keyword artifacts check; use type, properties, required, items, enum, minimum and the like"]);
 });
 
 test("an object's keys are counted against minProperties and maxProperties", () => {

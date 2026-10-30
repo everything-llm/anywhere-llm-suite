@@ -50,7 +50,7 @@ const names = tokenPage<ManagerFile>({
   folder: HUB_ID,
   prefix: PREFIX,
   file: () => path.join(root(), ".manager.json"),
-  what: "the apps manager",
+  what: "the artifacts manager",
   fresh: (n) => n,
   pattern: /^manager-([\w-]{24})(\.html|\.json)$/,
 });
@@ -115,7 +115,7 @@ export function refresh(): void {
   try {
     names.refresh((p) => [names.put(`${PREFIX}${p.token}.json`, JSON.stringify(state(p)))]);
   } catch (e) {
-    console.error(`apps-lean couldn't refresh the apps manager: ${(e as Error).message}`);
+    console.error(`apps-lean couldn't refresh the artifacts manager: ${(e as Error).message}`);
   }
 }
 whenApplied(refresh);
@@ -135,7 +135,7 @@ export async function show(base: string | null): Promise<string | null> {
     } else rel = await write();
     return `${base ?? ""}${rel}`;
   } catch (e) {
-    if (!(e instanceof Told)) console.error(`apps-lean couldn't write the apps manager: ${(e as Error).message}`);
+    if (!(e instanceof Told)) console.error(`apps-lean couldn't write the artifacts manager: ${(e as Error).message}`);
     return null;
   }
 }
@@ -145,7 +145,7 @@ export async function show(base: string | null): Promise<string | null> {
 export async function line(base: string | null): Promise<string | null> {
   const url = await show(base);
   if (!url) return null;
-  return linksHidden() ? `The user manages every workspace's apps, and the trash, on the apps manager, ${OPEN_PAGES}.` : `The user manages every workspace's apps, and the trash, at ${url}`;
+  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, at ${url}`;
 }
 
 /** What every call does before its own work: the manager's names made to fit the switch (#shared/
@@ -234,7 +234,7 @@ async function drain(): Promise<void> {
     } catch (err) {
       // The events are taken already: one that breaks (not a refusal) is logged, and the rest go on.
       const told = err instanceof Told;
-      if (!told) console.error(`apps-lean couldn't apply an apps manager event (${ev}): ${(err as Error).message}`);
+      if (!told) console.error(`apps-lean couldn't apply an artifacts manager event (${ev}): ${(err as Error).message}`);
       result = { title: text(e.title ?? e.app, 120), error: `${NOT_DONE[ev] ?? "Not done"}: ${told ? firstLine(err).slice(0, 400) : "couldn't do that (see the log)"}` };
     }
   }

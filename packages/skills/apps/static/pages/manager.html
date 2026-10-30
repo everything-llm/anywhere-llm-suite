@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
-<title>Apps</title>
+<title>Artifacts</title>
 <style>
 /* The apps manager (src/manager.ts): every workspace's apps on one page, and the trash. What's done
    here is posted under the manager's title and applied by the apps skill. The look is the Vault's
@@ -863,11 +863,11 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 <body class="hu-root">
 <header class="top">
   <button class="rb" id="close" aria-label="Close"></button>
-  <div class="name"><h1 id="title">Apps</h1><small id="sub" hidden></small></div>
+  <div class="name"><h1 id="title">Artifacts</h1><small id="sub" hidden></small></div>
   <button class="pill" id="bin" type="button"></button>
 </header>
 <main>
-  <div class="chips" role="group" aria-label="Show apps from" id="chips"></div>
+  <div class="chips" role="group" aria-label="Show artifacts from" id="chips"></div>
   <section id="apps"></section>
   <section id="trash" hidden></section>
   <section id="one" hidden></section>
@@ -993,7 +993,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   // Every app, newest first; the workspace chosen, or all where it has none now.
   const everyApp = () => now.workspaces.flatMap((w) => w.apps.map((a) => ({ workspace: w.workspace, app: a }))).sort((p, q) => (q.app.changed > p.app.changed) - (q.app.changed < p.app.changed));
   const chosen = () => (now.workspaces.some((w) => w.workspace === ws) ? ws : "all");
-  const count = (n) => `${n} app${n === 1 ? "" : "s"}`;
+  const count = (n) => `${n} artifact${n === 1 ? "" : "s"}`;
   // A workspace by its name in AnythingLLM, which the state doesn't carry: read once with the page's
   // key, and its folder name until then, or where AnythingLLM has none (the scheduled jobs' own).
   let names = {};
@@ -1013,8 +1013,8 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const deep = !!(one || view.trash), sub = $("sub");
     $("close").replaceChildren(icon(deep ? BACK : CLOSE));
     $("close").classList.toggle("back", deep);
-    $("close").setAttribute("aria-label", deep ? "Back to Apps" : "Close");
-    $("title").textContent = one ? one.app.title : view.trash ? "Trash" : "Apps";
+    $("close").setAttribute("aria-label", deep ? "Back to Artifacts" : "Close");
+    $("title").textContent = one ? one.app.title : view.trash ? "Trash" : "Artifacts";
     sub.classList.toggle("mono", !!one);
     const shown = chosen(), n = everyApp().filter((x) => shown === "all" || x.workspace === shown).length;
     sub.textContent = one ? `${named(one.workspace)} · ${one.app.name}` : view.trash ? count(now.trash.length) : `${shown === "all" ? "All" : named(shown)} · ${count(n)} · newest first`;
@@ -1054,8 +1054,8 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
       return el("li", { className: "tile" }, open, more);
     });
     const list = el("ul", { className: "grid" }, ...tiles);
-    list.setAttribute("aria-label", `${shown === "all" ? "All apps" : `${named(shown)} apps`}, newest first`);
-    $("apps").replaceChildren(tiles.length ? list : el("div", { className: "card" }, el("p", { className: "empty", textContent: "No apps yet. Ask the agent in a chat to make one." })));
+    list.setAttribute("aria-label", `${shown === "all" ? "All artifacts" : `${named(shown)} artifacts`}, newest first`);
+    $("apps").replaceChildren(tiles.length ? list : el("div", { className: "card" }, el("p", { className: "empty", textContent: "No artifacts yet. Ask the agent in a chat to make one." })));
   }
 
   function pick(key) {
@@ -1073,7 +1073,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
       return el("div", { className: "row" }, el("div", { className: "who" }, el("b", { textContent: x.title }), el("small", { textContent: `${named(x.workspace)} · ${left} day${left === 1 ? "" : "s"} left` })),
         el("button", { className: "act", type: "button", textContent: "Restore", ariaLabel: `Restore ${x.title}`, onclick: () => post("restore", { id: x.id, title: x.title }) && toast("Restoring " + x.title) }));
     });
-    $("trash").replaceChildren(el("p", { className: "lead", textContent: `Apps moved to the trash, each in its own workspace. Each stays ${now.trashDays} days, then it’s gone.` }),
+    $("trash").replaceChildren(el("p", { className: "lead", textContent: `Artifacts moved to the trash, each in its own workspace. Each stays ${now.trashDays} days, then it’s gone.` }),
       el("div", { className: "card" }, ...(rows.length ? rows : [el("p", { className: "empty", textContent: "The trash is empty." })])),
       el("p", { className: "cap", textContent: `The trash holds ${now.trashMax}. When it’s full, a delete is refused until one goes, rather than drop one early.` }));
   }
@@ -1115,7 +1115,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const me = sheet("acts", head, [
       el("div", { className: "hd" }, el("span", { className: "chip big", ariaHidden: "true", textContent: initial(app.title) }),
         el("div", { className: "name" }, head, el("small", { textContent: `${named(workspace)} · ${app.name}` })), shut),
-      app.page ? openPage(app, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the app." }),
+      app.page ? openPage(app, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" },
         el("button", { className: "btn", type: "button", onclick: () => rename(one, from) }, icon(PEN, 16), "Rename"),
         el("button", { className: "btn", type: "button", ariaLabel: "History: changes and earlier versions", onclick: later(() => openApp(`${workspace}/${app.name}`)) }, icon(CLOCK, 16), "History")),
@@ -1136,7 +1136,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     renameButton.onclick = () => rename(one, renameButton);
     const open = app.page ? openPage(app, "Open the page") : null;
     const top = el("div", { className: "card solo" }, app.summary ? el("p", { className: "sum", textContent: app.summary }) : null,
-      app.page ? null : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the app." }),
+      app.page ? null : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" }, open, renameButton));
     const changes = app.changes.map((c, i) => el("div", { className: "row" },
       el("div", { className: "who" }, el("b", { textContent: changeText(c) }), el("small", { textContent: `${when(c.t, true)} · ${WHO[c.by] ?? c.by}` })),

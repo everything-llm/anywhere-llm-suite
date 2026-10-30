@@ -1,4 +1,4 @@
-// app.js: an app page's way to its data, which the host inlines into every app's page.
+// app.js: an artifact page's way to its data, which the host inlines into every artifact's page.
 // The page loads it and starts it with what the host embedded:
 //
 //   <script src="app.js"></script>
@@ -6,7 +6,7 @@
 //
 //   App.start(app)          takes {title, card, data, line, append, sync}; returns
 //                           App.data, the one object for good: every change is made in it
-//   App.data, App.title, App.card, App.line   the app as this page has it now
+//   App.data, App.title, App.card, App.line   the artifact as this page has it now
 //   App.patch(ops, event)   change the data: a JSON patch (RFC 6902) on the data, applied
 //                           here at once and saved shortly after; a promise of whether it
 //                           was saved. `event` is optional: {ev, ...fields}, logged with the
