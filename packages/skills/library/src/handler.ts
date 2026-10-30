@@ -5,9 +5,9 @@
 // One library for the whole AnythingLLM, kept in its storage (<storage>/library-lean/), so every
 // workspace and every scheduled job shares it. What is tuned rather than coded (the guide, the
 // snippets, the prelude every function runs after, the pages) is in static/, which the user can
-// override file by file on their instance. Its two pages (page.ts) are the user's own view of it: the
-// Vault, every secret by name, where they give a key, and the Library page, the toolkits and their
-// runs.
+// override file by file on their instance. The user gives a key in the skill's own settings (slot.ts).
+// Its two pages (page.ts) are the user's own view of it: the Vault, every secret by name, where they
+// can give a key too, and the Library page, the toolkits and their runs.
 //
 // esbuild bundles this into the one handler.js AnythingLLM loads.
 
@@ -30,6 +30,7 @@ import * as runs from "./runs";
 import { check as compiles, failureText } from "./sandbox";
 import * as secrets from "./secrets";
 import * as signing from "./signing";
+import * as slot from "./slot";
 import * as store from "./store";
 import * as targets from "./targets";
 
@@ -165,17 +166,34 @@ function signingLines(): string[] {
   return ["", "Signing keys (kit.secret.sign; the user makes them on the Vault, under Keys):", ...keys.map(line)];
 }
 
-/** Asks the user for a key, which they give on the Vault, sealed on their device: AnythingLLM's
- *  question card would show it in the chat once answered. */
-async function secret(args: Args, self: HandlerContext): Promise<string> {
+/** Asks the user for a key, which they paste into the library's own settings (slot.ts), or give on
+ *  the Vault where pages work: AnythingLLM's question card would show it in the chat once answered.
+ *  Asked again while it's still waiting (after the user said done), it says whether the key came. */
+async function secret(args: Args, self: HandlerContext, took: slot.Taken | null): Promise<string> {
   const named = clean(args.label);
   if (clean(args.kind).toLowerCase() === "ssh") return target(args, self);
   const site = secrets.siteChecked(args.site);
   const label = secrets.labelOf(named || site);
+  if (took && took.label.toLowerCase() === label.toLowerCase()) return `The key "${took.label}" for ${took.site} is saved. Call library: it shows as saved.`;
   secrets.assertKeyName(label);
+  const waiting = page.keyNeeds().some((n) => n.label === label && n.site === site);
   await page.need(label, site);
-  const vault = await page.showVault(baseOf(self));
-  return `${linksHidden() ? `The user gives the key on the Vault (they open it ${OPEN_PAGES}).` : `The user gives the key on the Vault. ${giveCard(vaultCard(vault))}`}\n\nTell them to open it and enter the key for ${site} there, at the top of Keys (it's saved without you seeing it), and to tell you when it's done; then call library: "${label}" shows as saved. Never ask for the key in the chat. Name it in the toolkit's secrets as { "label": "${label}", "as": "bearer" } or however the API's docs say it goes.`;
+  slot.ask(site);
+  const lead = waiting
+    ? `NEW_KEY is still empty, so nothing was saved for "${label}" (${site}). ${slot.steps(site, label)}`
+    : `The user gives the key in the library's own settings, so it never passes through the chat. ${slot.steps(site, label)}`;
+  return `${lead} Never ask for the key in the chat; if they write one there, don't repeat it or put it in a call.${await onVault(self)}\n\nName it in the toolkit's secrets as { "label": "${label}", "as": "bearer" } or however the API's docs say it goes.`;
+}
+
+/** The Vault, as a second place to give a key, where its page can be shown; nothing where it can't. */
+async function onVault(self: HandlerContext): Promise<string> {
+  try {
+    const vault = await page.showVault(baseOf(self));
+    if (linksHidden()) return ` Where they'd rather, they can give it on the Vault instead, at the top of Keys (they open it ${OPEN_PAGES}).`;
+    return ` Where they'd rather, they can give it on the Vault instead, at the top of Keys. If they ask for it, ${giveCard(vaultCard(vault)).replace(/^G/, "g")}`;
+  } catch {
+    return "";
+  }
 }
 
 /** Asks the user to register a target, a machine the library's functions run commands on: its
@@ -315,7 +333,9 @@ async function run(args: Args, self: HandlerContext): Promise<string> {
   return told(self, runs.runText(record));
 }
 
-const ACTIONS: Record<string, (args: Args, self: HandlerContext) => Promise<string> | string> = { guide, library, secret, call, save, run };
+/** An action: what the agent asked (`args`), the call's `this`, and the key the slot gave in this call, if one. */
+type Action = (args: Args, self: HandlerContext, took: slot.Taken | null) => Promise<string> | string;
+const ACTIONS: Record<string, Action> = { guide, library, secret, call, save, run };
 
 /** The skill, as Settings › Agent Skills names it. */
 const SKILL = { hubId: "library-lean", name: "Library" };
@@ -347,13 +367,16 @@ export const runtime = {
     const action = clean(args.action).toLowerCase() || "guide";
     const act = ACTIONS[action];
     if (!act) return `The library's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
-    // The pages' key, found or made (#shared/pagekey), before anything shows a page.
+    // The pages' key, found or made (#shared/pagekey), before anything shows a page; then a key in the
+    // slot, whatever the call (slot.ts): it's in plain text until it's taken.
     const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
+    const took = await slot.collect(this).catch((e) => void this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`));
+    if (took) said.push(took.text);
     try {
       const base = baseOf(this);
       noteBase(base);
       await fromPage(this, base);
-      return pageKeys.ahead(said, await act(args, this));
+      return pageKeys.ahead(said, await act(args, this, took?.taken ?? null));
     } catch (e) {
       if (e instanceof Told) return pageKeys.ahead(said, `Library: ${page.plain(e.message)}.`);
       this.logger?.(`library-lean ${action} failed: ${(e as Error)?.stack || e}`);

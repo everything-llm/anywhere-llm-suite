@@ -53,9 +53,10 @@ async function demo(): Promise<void> {
 
 test.beforeEach(reset);
 
-test("the user's key is given on the Vault, never on the card, kept unseen, and goes with a function's requests", async () => {
+test("the user's key is given in the library's settings, or on the Vault, never on the card, kept unseen, and goes with a function's requests", async () => {
   const said = await giveKey("demo", "https://127.0.0.1/", KEY);
-  assert.match(said, new RegExp(`^The user gives the key on the Vault\\. Give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\nTell them to open it`));
+  assert.match(said, /^The user gives the key in the library's own settings, so it never passes through the chat\. Tell them to open Settings › Agent Skills › Library in AnythingLLM, paste the key for 127\.0\.0\.1 into NEW_KEY/);
+  assert.match(said, new RegExp(`Where they'd rather, they can give it on the Vault instead, at the top of Keys\\. If they ask for it, give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\n`));
   assert.ok(!said.includes(KEY));
   assert.equal(cardsShown.length, 0, "a question card would show the key in the chat once answered");
   assert.ok(!fs.readFileSync(path.join(storage, "vault-lean", "vault.json"), "utf8").includes(KEY), "the vault holds it encrypted");
@@ -193,7 +194,7 @@ test("with the pages' links kept from the agent, library, secret and target carr
   const answers = [await call({ action: "library" }), await giveKey("demo", "https://127.0.0.1/", KEY), await call({ action: "secret", kind: "ssh", label: "box" })];
   const [listing, key, machine] = answers;
   assert.match(listing, /The Vault \(every key and browser login, by name\) and the Library page \(the toolkits and runs\) are the user's own pages: they open them in AnywhereLLM Lite, or with `anywherellm-suite pages` on the AnythingLLM host\. You are never given their links: don't ask the user for them, and never fetch them\./);
-  assert.match(key, /^The user gives the key on the Vault \(they open it /);
+  assert.match(key, /^The user gives the key in the library's own settings/);
   assert.equal((key.match(/at the top of Keys/g) ?? []).length, 1, "said once");
   assert.match(key, where);
   assert.match(machine, /^The user registers the target "box" on the Library page, under Targets \(/);
@@ -205,7 +206,7 @@ test("with the pages' links kept from the agent, library, secret and target carr
   }
   assert.ok(fs.existsSync(path.join(publicDir, "library-lean", `${tokens[0]}.html`)), "the Library page is written");
   assert.ok(fs.existsSync(path.join(publicDir, "vault-lean", `${tokens[1]}.html`)), "the Vault is written");
-  assert.match(key, /Tell them to open it and enter the key for 127\.0\.0\.1 there/, "the rest of the instructions stay");
+  assert.match(key, /paste the key for 127\.0\.0\.1 into NEW_KEY/, "the rest of the instructions stay");
 });
 
 test("the switch is read on every call: turned off, the links are in the answers again", async () => {

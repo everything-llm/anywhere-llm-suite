@@ -9,6 +9,26 @@
   "license": "UNLICENSED",
   "imported": true,
   "setup_args": {
+    "KEY_FOR": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "text",
+        "default": "",
+        "placeholder": "api.example.com",
+        "hint": "The site the key is for. The library fills this in when it asks for a key; leave it as it is."
+      }
+    },
+    "NEW_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "",
+        "hint": "Paste the key, save, and say “done” in the chat. The library moves it into the Vault, encrypted, and empties this field. The model never sees it."
+      }
+    },
     "ANYTHINGLLM_URL": {
       "type": "string",
       "required": false,

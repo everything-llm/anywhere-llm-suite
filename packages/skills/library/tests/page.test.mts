@@ -61,7 +61,7 @@ test("a key and a target asked for under one label are on their own pages, and o
 
 test("a key is asked for on the Vault, given there, and the agent is told", async () => {
   const asked = await call({ action: "secret", site: "api.example.com", label: "ex" });
-  assert.match(asked, new RegExp(`^The user gives the key on the Vault\\. Give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\nTell them to open it`));
+  assert.match(asked, new RegExp(`on the Vault instead, at the top of Keys\\. If they ask for it, give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\n`));
   assert.deepEqual(vaultState().needs, [{ label: "ex", site: "api.example.com" }]);
   postVault({ ev: "key-save", label: "ex", site: "api.example.com", sealed: seal(KEY) });
   await call({ action: "library" });
