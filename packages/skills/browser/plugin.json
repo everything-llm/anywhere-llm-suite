@@ -28,6 +28,16 @@
         "placeholder": "https://html.duckduckgo.com/html/?q={q}",
         "hint": "The search engine search uses, with {q} where the query goes. Empty: DuckDuckGo's plain HTML search."
       }
+    },
+    "PAGE_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "brx-...",
+        "hint": "Optional. Leave it empty: the suite finds the key its pages post with, or makes one. Fill it only if the chat asks, with a key from Settings › Browser Extension."
+      }
     }
   },
   "examples": [

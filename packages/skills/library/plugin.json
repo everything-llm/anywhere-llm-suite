@@ -38,6 +38,16 @@
         "placeholder": "tk_...",
         "hint": "Optional: the access token, if the topic needs one."
       }
+    },
+    "PAGE_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "brx-...",
+        "hint": "Optional. Leave it empty: the suite finds the key its pages post with, or makes one. Fill it only if the chat asks, with a key from Settings › Browser Extension."
+      }
     }
   },
   "examples": [

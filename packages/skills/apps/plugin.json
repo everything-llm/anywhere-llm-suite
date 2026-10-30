@@ -105,6 +105,16 @@
         "placeholder": "https://my-server:3001",
         "hint": "The address your browser and phone reach AnythingLLM at. Artifact pages save taps there."
       }
+    },
+    "PAGE_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "brx-...",
+        "hint": "Optional. Leave it empty: the suite finds the key its pages post with, or makes one. Fill it only if the chat asks, with a key from Settings › Browser Extension."
+      }
     }
   }
 }

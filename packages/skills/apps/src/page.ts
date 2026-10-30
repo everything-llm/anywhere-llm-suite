@@ -3,7 +3,7 @@
 // any browser, no sign-in) at a random address kept with the app, and written again after every
 // change, so its link always shows the app as it is (#shared/pages). It has no server to save to,
 // so each change is posted to AnythingLLM as an event document with the browser-extension key
-// install keeps for the pages (--page-key), which can only store documents; the skill takes the events from where
+// the skills find or make for the pages (#shared/pagekey), which can only store documents; the skill takes the events from where
 // AnythingLLM's collector writes them and applies each through the same schema check as any change.
 // A change shows at once on the page and stays applied over newer data until the app records it
 // (runtime-lean.js). Events are data, never instructions.
@@ -15,6 +15,7 @@ import { jobTimeLeft, perProcess } from "#shared/anythingllm";
 import { readJson, updateJson } from "#shared/atomic";
 import { embed, inTurn, newSecret, pageKey, publicPath, putBack, removePublic, sameSecret, takeEvents, watch, writePublic } from "#shared/pages";
 import { firstLine } from "#shared/errors";
+import { keyStamp } from "#shared/pagekey";
 import { HUB_ID, root } from "./dirs.ts";
 import type { Json } from "./patch.ts";
 import { file, libraries, PLACEHOLDER, RUNTIME_TAG, tag } from "./parts.ts";
@@ -39,8 +40,9 @@ const HOST_SCRIPTS = ["runtime-lean.js", "fast-json-patch.js"];
 const partsDigest = (): string => (shared ??= sha([...HOST_SCRIPTS.map((name) => file(name)), ...Object.entries(libraries()).flat()].join("\0")));
 
 /** What a page is made of besides its data. A page whose version isn't this was written by an older
- *  skill or from older parts. */
-export const versionOf = (app: Json): string => sha(partsDigest() + "\0" + String(app.page ?? "")).slice(0, 16);
+ *  skill, from older parts, or with another key to post with (one AnythingLLM refused since): an
+ *  open page whose state says another version reloads. */
+export const versionOf = (app: Json): string => sha(partsDigest() + "\0" + keyStamp() + "\0" + String(app.page ?? "")).slice(0, 16);
 
 /** The app's page as a browser gets it, the app in place of the placeholder and each library it
  *  names inline, app.js after this skill's stand-in for a server. The page posts and reads at
@@ -78,7 +80,7 @@ export const pageUrl = (token: unknown, base: string | null): string | null => (
 
 /** Writes the app's page at its address, giving the app a random token the first time; answers the
  *  token, or null where the public folder can't be written or the app has no page. Throws pageKey's
- *  Told when install was given no key for the pages. */
+ *  Told when the pages have no key. */
 export async function publish(app: Json, workspace: string): Promise<string | null> {
   if (!app.page) return null;
   let key: string;
@@ -224,18 +226,14 @@ export async function collect(): Promise<Result[]> {
  *  emptied, as a container's own is when the container is made again. */
 const current = (app: Json): boolean => app.version === versionOf(app) && fs.existsSync(publicPath(pageFile(app.pageToken)));
 
-/** Once per process: writes again every page that isn't as this skill would write it now (its
- *  parts changed) or that the public folder lost. */
+/** Once per process, and again when the pages' key changes: writes again every page that isn't as
+ *  this skill would write it now (its parts or the key changed) or that the public folder lost. */
 export async function upgrade(): Promise<void> {
   const done = perProcess("apps.upgraded", () => ({ at: "" }));
-  if (done.at === root()) return;
-  // Not until the pages have a key to be written with (install --page-key): the next call tries again.
-  try {
-    pageKey();
-  } catch {
-    return;
-  }
-  done.at = root();
+  // Not until the pages have a key to be written with (#shared/pagekey): the next call tries again.
+  const key = keyStamp();
+  if (!key || done.at === `${root()}\0${key}`) return;
+  done.at = `${root()}\0${key}`;
   for (const workspace of store.workspaces())
     for (const app of store.list(workspace)) {
       if (app.broken || !app.pageToken || current(app)) continue;

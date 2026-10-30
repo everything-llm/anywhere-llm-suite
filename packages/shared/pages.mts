@@ -1,9 +1,9 @@
 // A skill's own web pages, which AnythingLLM serves itself: the files go into its public folder
 // (served to any browser without a sign-in), and a page has no server of its own to answer to.
 // It posts each thing the user does as a raw-text document titled after the skill through
-// AnythingLLM's browser-extension upload, with the browser-extension key install keeps for the pages
-// (`install --page-key`, one the user made in Settings > Browser Extension; it can store documents,
-// never read chats or documents). AnythingLLM's collector writes each one
+// AnythingLLM's browser-extension upload, with the pages' browser-extension key, which the skills find
+// or make (#shared/pagekey; it can store documents, never read chats or documents). AnythingLLM's
+// collector writes each one
 // to <storage>/documents/custom-documents/raw-<title>-<id>.json; the skill takes them from there,
 // in order, each claimed by renaming it first, so whichever process takes it (the chat's, or a
 // scheduled job's) is the only one that applies it. Ported from the lean browser skill's key.js, page.js and
@@ -12,9 +12,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { pageKeyFile, perBuild, perProcess, readPageKey, serial, serverDir, storageDir } from "./anythingllm.mts";
-import { Told } from "./errors.mts";
+import { perBuild, perProcess, serial, serverDir, storageDir } from "./anythingllm.mts";
 import { PAGE_FOLDERS } from "./fence.mts";
+import { pageKey } from "./pagekey.mts";
 import { listDir, readText, writeAtomic } from "./atomic.mts";
 import { publicKey } from "./vault.mts";
 
@@ -93,13 +93,7 @@ export async function pageHtml(template: string, cfg: Record<string, unknown>): 
   return template.replace("/*CONFIG*/null", embed({ ...cfg, key: pageKey(), pub: await publicKey() }));
 }
 
-/** The key the skills' pages post with, which install keeps in the storage; a refusal that says how
- *  to set it when there's none. */
-export function pageKey(): string {
-  const key = readPageKey(storageDir());
-  if (!key) throw new Told(`the skills' pages have no key to post with (${pageKeyFile(storageDir())}): make one in AnythingLLM's Settings > Browser Extension, then run \`anywherellm-suite install --page-key <key>\``);
-  return key;
-}
+export { pageKey } from "./pagekey.mts";
 
 /** Where AnythingLLM's collector writes what a page posts, in the storage `storage`. */
 export const eventsDir = (storage: string = storageDir()): string => path.join(storage, "documents", "custom-documents");

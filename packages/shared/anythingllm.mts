@@ -2,6 +2,7 @@
 // code is not a public API: each skill types what it uses of it (its host.ts).
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 
 /** AnythingLLM's storage folder: STORAGE_DIR, which AnythingLLM sets, else the folder three above
@@ -16,6 +17,12 @@ export function storageDir(): string {
 /** AnythingLLM's server folder, where its public folder is: ANYTHINGLLM_SERVER_DIR, else the working
  *  directory AnythingLLM runs in (/app/server in its image). */
 export const serverDir = (): string => process.env.ANYTHINGLLM_SERVER_DIR || process.cwd();
+
+/** One of AnythingLLM's server modules ("models/browserExtensionApiKey"), required from its server
+ *  folder: an internal, so a caller feature-detects what it uses of it and has a way on without it. */
+export function serverRequire<T>(what: string): T {
+  return createRequire(path.join(serverDir(), "index.js"))(path.join(serverDir(), what)) as T;
+}
 
 /** One value per process, made the first time: kept on globalThis, since AnythingLLM loads a
  *  skill's handler.js afresh for each agent run, and shared by every skill's bundled copy, and by
@@ -45,11 +52,12 @@ export function serial<T>(key: string, fn: () => T | Promise<T>): Promise<T> {
   return run;
 }
 
-/** The suite's own folder in the storage: the pages' key. */
+/** The suite's own folder in the storage: the pages' key install was given. */
 export const SUITE_DIR = "anywherellm-suite";
 
-/** The browser-extension key the skills' pages post with, which install keeps in the storage
- *  (`install --page-key`): one the user made in AnythingLLM's Settings > Browser Extension. */
+/** The browser-extension key install keeps in the storage when it's given one (`install --page-key`):
+ *  one the user made in AnythingLLM's Settings > Browser Extension, which the skills' pages post
+ *  with when they find none in the vault (#shared/pagekey). */
 export const pageKeyFile = (storage: string): string => path.join(storage, SUITE_DIR, "page-key");
 
 /** The pages' key, or "" when install was given none. */

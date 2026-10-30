@@ -33,6 +33,10 @@ export const library = path.join(storage, "library-lean");
 process.env.STORAGE_DIR = storage;
 process.env.ANYTHINGLLM_PUBLIC_DIR = publicDir;
 writeAtomic(pageKeyFile(storage), "brx-test\n"); // the pages' key, as `install --page-key` keeps it
+// No AnythingLLM to ask about it, or to make one with: the check's port is closed and there's no
+// server folder, so the key install keeps is taken as good (#shared/pagekey).
+process.env.ANYTHINGLLM_URL = "http://127.0.0.1:1";
+process.env.ANYTHINGLLM_SERVER_DIR = path.join(tmp, "no-server");
 process.env.FENCE_ALLOW = "127.0.0.1";
 
 // The targets' made-up hosts (box.internal...) are not found here, at once, as they are by a resolver

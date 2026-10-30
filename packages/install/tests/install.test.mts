@@ -99,13 +99,13 @@ test("health checks what install put in", async () => {
   assert.match(printed.join("\n"), /FAIL the library skill: handler\.js not this version's/);
 });
 
-test("the pages' key is kept for its owner alone, until another is given; health asks AnythingLLM about it", async () => {
+test("a key for the pages is optional; given, it's kept for its owner alone, until another is given, and health asks AnythingLLM about it", async () => {
   await assert.rejects(install(ctx, opts({ pageKey: "good" })), /--page-key is a browser-extension key \(brx-\.\.\.\)/);
   await install(ctx, opts());
-  assert.match(printed.join("\n"), /- The skills' pages need a key to post with: make one in AnythingLLM's Settings > Browser Extension/);
+  assert.ok(!printed.some((l) => l.includes("Browser Extension")), "not asked for: the skills find or make one");
   printed.length = 0;
-  assert.equal(await health(ctx, opts()), false);
-  assert.match(printed.join("\n"), /FAIL the pages' key: none: make one/);
+  assert.equal(await health(ctx, opts()), true, printed.join("\n"));
+  assert.match(printed.join("\n"), /ok   the pages' key: none from install: the skills find or make one/);
 
   const file = path.join(storage, "anywherellm-suite", "page-key");
   await install(ctx, opts({ pageKey: "brx-good" }));
@@ -114,12 +114,12 @@ test("the pages' key is kept for its owner alone, until another is given; health
   printed.length = 0;
   await install(ctx, opts());
   assert.equal(fs.readFileSync(file, "utf8"), "brx-good\n", "kept when install isn't given one");
-  assert.ok(!printed.some((l) => l.includes("need a key")), printed.join("\n"));
+  assert.ok(!printed.some((l) => l.includes("Browser Extension")), printed.join("\n"));
 
   fake.extensionKeys.delete("brx-good"); // revoked in AnythingLLM's settings
   printed.length = 0;
   assert.equal(await health(ctx, opts()), false);
-  assert.match(printed.join("\n"), /FAIL the pages' key: AnythingLLM refuses it \(403\)/);
+  assert.match(printed.join("\n"), /FAIL the pages' key: AnythingLLM refuses the one install kept \(403\), so the skills pass it over/);
 
   printed.length = 0;
   uninstall(ctx, opts());
@@ -127,10 +127,9 @@ test("the pages' key is kept for its owner alone, until another is given; health
   assert.ok(!fs.existsSync(file));
 });
 
-test("with no skill that has pages, no key is asked for or checked", async () => {
+test("with no skill that has pages, no key is checked", async () => {
   const quiet: Ctx = { ...ctx, payload: { ...PAYLOAD, skills: [{ ...PAYLOAD.skills[0], pages: false }] } };
   await install(quiet, opts());
-  assert.ok(!printed.some((l) => l.includes("need a key")), printed.join("\n"));
   printed.length = 0;
   assert.equal(await health(quiet, opts()), true, printed.join("\n"));
   assert.ok(!printed.some((l) => l.includes("the pages' key")), printed.join("\n"));

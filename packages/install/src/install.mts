@@ -1,7 +1,8 @@
 // Putting the suite on this machine.
 //
 // install     the skills into an AnythingLLM's storage folder, where AnythingLLM runs them
-//             itself (addons.mts), and the key their pages post with when given one (--page-key)
+//             itself (addons.mts), and a key for their pages to post with when given one
+//             (--page-key; without it the skills find or make one, #shared/pagekey)
 // uninstall   all of that taken out again
 // health      every check; false when one fails
 //
@@ -32,7 +33,8 @@ export interface Options {
   storage?: string;
   /** Skill names, "all" or "none"; all when not given. */
   skills?: string[];
-  /** The browser-extension key the skills' pages post with, made in AnythingLLM's Settings > Browser Extension. */
+  /** A browser-extension key for the skills' pages to post with, made in AnythingLLM's Settings >
+   *  Browser Extension; without one the skills find or make one. */
   pageKey?: string;
 }
 
@@ -57,14 +59,13 @@ export async function install(ctx: Ctx, opts: Options): Promise<void> {
   for (const line of put(storage, skills)) ctx.print(line);
   if (opts.pageKey) ctx.print(putPageKey(storage, opts.pageKey));
   ctx.print(putThisHost(storage, ctx.host));
-  leftForYou(ctx, needsPageKey(storage, ctx.payload) && !readPageKey(storage));
+  leftForYou(ctx);
 }
 
-/** What install could not do for the owner. */
-function leftForYou(ctx: Ctx, askKey: boolean): void {
+/** What install could not do for the owner. The pages' key isn't one: the skills find or make it. */
+function leftForYou(ctx: Ctx): void {
   ctx.print("\nLeft for you:");
   ctx.print("- In AnythingLLM, Settings > Agent Skills: switch on the skills you want.");
-  if (askKey) ctx.print(`- The skills' pages need a key to post with: make one in AnythingLLM's Settings > Browser Extension, then run install again with --page-key <key>.`);
 }
 
 export function uninstall(ctx: Ctx, opts: { storage?: string } = {}): void {
@@ -83,14 +84,15 @@ export async function health(ctx: Ctx, opts: { storage?: string } = {}): Promise
   return found.every(([, ok]) => ok);
 }
 
-/** Whether install kept a key for the pages, and AnythingLLM takes it (the browser extension's own check). */
+/** Whether AnythingLLM takes the key install kept for the pages (the browser extension's own check);
+ *  with none kept, there is nothing to check: the skills find the one in the vault, or make one. */
 async function pageKeyCheck(storage: string, anythingllmUrl: string): Promise<Check> {
   const name = "the pages' key";
   const key = readPageKey(storage);
-  if (!key) return [name, false, "none: make one in AnythingLLM's Settings > Browser Extension, then run install --page-key <key>"];
+  if (!key) return [name, true, "none from install: the skills find or make one (or take one given in their PAGE_KEY setting)"];
   try {
     const { status } = await request(`${anythingllmUrl}/api/browser-extension/check`, { token: key, timeout: 5_000 });
-    return [name, status === 200, status === 200 ? "" : `AnythingLLM refuses it (${status}): make a new one and run install --page-key again`];
+    return [name, status === 200, status === 200 ? "" : `AnythingLLM refuses the one install kept (${status}), so the skills pass it over: run install --page-key with a new one, or leave it to the skills`];
   } catch (e) {
     return [name, false, `not checked: ${(e as Error).message} (${anythingllmUrl}; set ANYTHINGLLM_URL)`];
   }

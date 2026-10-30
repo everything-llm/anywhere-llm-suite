@@ -121,9 +121,9 @@ test("embedded JSON can't end a script or start markup", () => {
   assert.deepEqual(JSON.parse(text), { x: "</script><script>alert(1)</script>&\u2028" });
 });
 
-test("the pages' key is the one install keeps; with none, the refusal says how to set it", () => {
+test("the pages' key, with none in the vault, is the one install keeps; with none, the refusal says to ask for PAGE_KEY", () => {
   const file = pageKeyFile(process.env.STORAGE_DIR!);
-  assert.throws(() => pageKey(), (e: Error) => e instanceof Told && e.message.includes("install --page-key"));
+  assert.throws(() => pageKey(), (e: Error) => e instanceof Told && e.message.includes("PAGE_KEY"));
   writeAtomic(file, "brx-1\n");
   assert.equal(pageKey(), "brx-1");
 });

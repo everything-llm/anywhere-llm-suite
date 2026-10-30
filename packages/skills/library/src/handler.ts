@@ -18,6 +18,7 @@ import { Told } from "#shared/errors";
 import { checkUrl } from "#shared/fence";
 import { notify, topicUrl, type Ntfy } from "#shared/notify";
 import { OPEN_PAGES, linksHidden } from "#shared/page-links";
+import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
 import { LibraryError } from "./errors";
 import type { HandlerContext } from "./host";
@@ -316,6 +317,9 @@ async function run(args: Args, self: HandlerContext): Promise<string> {
 
 const ACTIONS: Record<string, (args: Args, self: HandlerContext) => Promise<string> | string> = { guide, library, secret, call, save, run };
 
+/** The skill, as Settings › Agent Skills names it. */
+const SKILL = { hubId: "library-lean", name: "Library" };
+
 /** Applies what the user did on the Library page since the last call, before a call from a chat (a
  *  scheduled job's leaves it to the chat's watch); `base` is AnythingLLM's address as the call has
  *  it. With no public folder where AnythingLLM runs, there's no page and nothing to apply. */
@@ -343,15 +347,17 @@ export const runtime = {
     const action = clean(args.action).toLowerCase() || "guide";
     const act = ACTIONS[action];
     if (!act) return `The library's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
+    // The pages' key, found or made (#shared/pagekey), before anything shows a page.
+    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
     try {
       const base = baseOf(this);
       noteBase(base);
       await fromPage(this, base);
-      return await act(args, this);
+      return pageKeys.ahead(said, await act(args, this));
     } catch (e) {
-      if (e instanceof Told) return `Library: ${page.plain(e.message)}.`;
+      if (e instanceof Told) return pageKeys.ahead(said, `Library: ${page.plain(e.message)}.`);
       this.logger?.(`library-lean ${action} failed: ${(e as Error)?.stack || e}`);
-      return `Library ${action} failed: ${page.plain(String((e as Error)?.message || e))}. Tell the user what went wrong; don't retry on your own.`;
+      return pageKeys.ahead(said, `Library ${action} failed: ${page.plain(String((e as Error)?.message || e))}. Tell the user what went wrong; don't retry on your own.`);
     } finally {
       // Whatever the call changed (a save, a run's end, runs shown, an address refused), even one that
       // failed partway.

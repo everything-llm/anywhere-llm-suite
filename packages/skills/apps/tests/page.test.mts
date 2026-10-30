@@ -64,7 +64,7 @@ test("where the public folder can't be written there is no address", async () =>
   }
 });
 
-test("with no key for the pages, page says how to set one, and a page already there still keeps up", async () => {
+test("with no key for the pages, page says to ask for PAGE_KEY, and a page already there still keeps up", async () => {
   await store.create("home", "keyless", { ...definitionFor("list", { title: "Keyless" }), page: listPage() });
   const token = (await publish(store.read("home", "keyless"), "home"))!;
   const { version } = store.read("home", "keyless");
@@ -73,10 +73,10 @@ test("with no key for the pages, page says how to set one, and a page already th
   fs.rmSync(keyFile);
   try {
     await store.change("home", "keyless", { patch: [{ op: "add", path: "/items/-", value: { text: "Tea", done: false } }] });
-    await assert.rejects(publish(store.read("home", "keyless"), "home"), (e: Error) => e instanceof Told && e.message.includes("install --page-key"));
+    await assert.rejects(publish(store.read("home", "keyless"), "home"), (e: Error) => e instanceof Told && e.message.includes("PAGE_KEY under Settings › Agent Skills"));
     const state = JSON.parse(fs.readFileSync(path.join(publicDir, "apps-lean", `${token}.json`), "utf8"));
     assert.deepEqual([state.data.items.at(-1).text, state.version], ["Tea", version], "the change shows, and the page doesn't reload");
-    assert.match(await call("home", { action: "page", name: "keyless" }), /^Artifacts: the skills' pages have no key to post with/);
+    assert.match(await call("home", { action: "page", name: "keyless" }), /^Artifacts: the pages have no key to post with, and Artifacts couldn't make one: ask the user to make one in AnythingLLM's Settings › Browser Extension, paste it into PAGE_KEY under Settings › Agent Skills › Artifacts/);
   } finally {
     fs.writeFileSync(keyFile, key);
   }

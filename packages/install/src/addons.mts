@@ -1,8 +1,8 @@
 // What install puts into AnythingLLM's storage folder, where AnythingLLM finds it and runs it itself:
 //
 //   plugins/agent-skills/<hubId>/             each skill (packages/skills)
-//   anywherellm-suite/page-key                the browser-extension key the skills' pages post
-//                                             with, when install is given one (--page-key)
+//   anywherellm-suite/page-key                a browser-extension key for the skills' pages to
+//                                             post with, when install is given one (--page-key)
 //
 // Files are written in place, not renamed over, since a file in AnythingLLM's storage may belong to
 // its user and group.
