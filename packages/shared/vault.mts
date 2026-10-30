@@ -17,7 +17,8 @@
 // child process) write it, so a change goes through update(): changes in one process wait their
 // turn on a queue all copies share, and the processes take turns by a lock folder beside the file.
 // A change is synchronous, so the lock is held for milliseconds: what needs the network is done
-// first, and the change then checks that what it read is still there.
+// first, and the change then checks that what it read is still there. The skills are released apart,
+// so the file says its format (FORMAT): a newer one is refused, an older one upgraded.
 // Ported from the lean browser skill's vault.js, which kept one vault per workspace.
 
 import crypto from "node:crypto";
@@ -44,7 +45,19 @@ export interface Vault {
   pub: string | null;
   priv: string | null;
   entries: Entry[];
+  /** What each settings slot last gave (#shared/settings), as a digest, by `<hubId>.<setting>`. */
+  slots: Record<string, string>;
 }
+
+/** The vault file's format. The file is where skills released apart meet, so a skill refuses a newer
+ *  format than its own (writing it again would lose what it doesn't know of) and upgrades an older
+ *  one in place, at its next change. 2 (2026-10-30): `slots`. */
+export const FORMAT = 2;
+
+/** What makes a vault of each format the next one's, from 1 up: the vault as read, changed in place. */
+const UPGRADES: Record<number, (vault: Vault) => void> = {
+  1: (vault) => void (vault.slots = {}),
+};
 
 const MAX_ENTRIES = 500;
 const generateKeyPair = promisify(crypto.generateKeyPair);
@@ -142,13 +155,18 @@ function openBox(dir: string, box: Box): unknown {
   }
 }
 
-/** The vault as its file holds it, opened; an empty one when there's no file. */
+/** The vault as its file holds it, opened and in this format (FORMAT); an empty one when there's no file. */
 function read(dir: string): Vault {
-  const saved = readJson<{ v: number; pub: string | null; box: Box } | null>(fileOf(dir), () => null);
-  if (!saved) return { pub: null, priv: null, entries: [] };
-  if (saved.v !== 1) throw new VaultError(`the vault is version ${saved.v}, which this skill can't read; update the suite`);
-  const inner = openBox(dir, saved.box) as { priv: string | null; entries: Entry[] };
-  return { pub: saved.pub, priv: inner.priv, entries: inner.entries };
+  const saved = readJson<{ v: unknown; pub: string | null; box: Box } | null>(fileOf(dir), () => null);
+  if (!saved) return { pub: null, priv: null, entries: [], slots: {} };
+  const format = saved.v;
+  if (typeof format !== "number" || !Number.isInteger(format) || format < 1) throw new VaultError(`${fileOf(dir)} has no format this skill knows (${JSON.stringify(format)}); nothing was changed`);
+  if (format > FORMAT)
+    throw new VaultError(`the vault (${fileOf(dir)}) is format ${format}, newer than this skill reads (${FORMAT}): a later release of a suite skill wrote it. Update this skill (from the Community Hub, or with anywherellm-suite install); nothing was changed`);
+  const inner = openBox(dir, saved.box) as { priv: string | null; entries: Entry[]; slots?: Record<string, string> };
+  const vault: Vault = { pub: saved.pub, priv: inner.priv, entries: inner.entries, slots: inner.slots ?? {} };
+  for (let at = format; at < FORMAT; at++) UPGRADES[at](vault);
+  return vault;
 }
 
 // What was read or written last, by the file's stamp and the key it's opened with: a change
@@ -163,8 +181,8 @@ const stampOf = (dir: string): string => [dir, fileStamp(fileOf(dir)) ?? "none",
 
 function store(dir: string, vault: Vault): void {
   if (vault.entries.length > MAX_ENTRIES) throw new VaultError(`the vault keeps at most ${MAX_ENTRIES} entries`);
-  const box = seal(sealKey(dir), { priv: vault.priv, entries: vault.entries });
-  writeAtomic(fileOf(dir), JSON.stringify({ v: 1, pub: vault.pub, box }), 0o600);
+  const box = seal(sealKey(dir), { priv: vault.priv, entries: vault.entries, slots: vault.slots });
+  writeAtomic(fileOf(dir), JSON.stringify({ v: FORMAT, pub: vault.pub, box }), 0o600);
   cache().last = { at: stampOf(dir), vault: structuredClone(vault) };
 }
 
@@ -184,7 +202,7 @@ export const entries = (dir: string = vaultDir()): readonly Readonly<Entry>[] =>
 
 /** Changes the vault: `change` gets it as the file holds it now and changes it in place; what it
  *  answers is answered. Nothing is written when it throws. One change at a time, across this
- *  process's skills and across processes. */
+ *  process's skills and across processes. A file of an older format is written in this one. */
 export function update<T>(change: (vault: Vault) => T, dir: string = vaultDir()): Promise<T> {
   return locked(path.join(dir, "vault.lock"), "the vault", () => {
     const vault = read(dir);
