@@ -108,7 +108,7 @@ test("a key for the pages is optional; given, it's kept for its owner alone, unt
   assert.match(printed.join("\n"), /ok   the pages' key: none from install: the skills take the one given in a skill's PAGE_KEY setting/);
 
   const file = path.join(storage, "anywherellm-suite", "page-key");
-  await install(ctx, opts({ pageKey: "brx-good" }));
+  await install(ctx, opts({ pageKey: "http://127.0.0.1:3001/api|brx-good" })); // as Copy API Key copies it
   assert.equal(fs.readFileSync(file, "utf8"), "brx-good\n");
   if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600); // Windows has no modes
   printed.length = 0;

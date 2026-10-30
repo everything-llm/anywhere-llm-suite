@@ -39,6 +39,11 @@ const CHECKED_MS = 60 * 1000;
 const CHECK_TIMEOUT_MS = 3000;
 const BRX = /^brx-\S+$/;
 
+/** The key in what the user pasted: Settings › Browser Extension's Copy API Key copies its connection
+ *  string, AnythingLLM's address and the key ("http://host:3001/api|brx-..."), so the key is what
+ *  follows the last "|". */
+export const keyIn = (pasted: string): string => pasted.trim().split("|").at(-1)!.trim();
+
 type Verdict = "good" | "refused" | "unknown";
 
 /** What AnythingLLM said of each key lately, and the keys it refused (passed over from then on). */
@@ -94,8 +99,9 @@ const drop = (key: string): Promise<void> =>
 /** What to tell the user about the skill's PAGE_KEY setting, which held `given`: kept, refused, or
  *  nothing for a value saved again. The field is emptied once that's decided; where the vault can't
  *  keep it, it stays for the next call (find logs why). */
-async function fromSetting(skill: Skill, given: string): Promise<string | null> {
+async function fromSetting(skill: Skill, pasted: string): Promise<string | null> {
   const where = `PAGE_KEY (Settings › Agent Skills › ${skill.name})`;
+  const given = keyIn(pasted);
   const told = await (async () => {
     if (repeated(skill.hubId, SETTING, given)) return null;
     if (!BRX.test(given)) return `The key in ${where} isn't a browser-extension key (those start "brx-"), so it wasn't kept; the field is empty again. Tell the user to copy one from AnythingLLM's Settings › Browser Extension (${guideAt("page-key")}).`;

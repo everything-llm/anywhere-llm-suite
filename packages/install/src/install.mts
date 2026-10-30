@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readPageKey } from "#shared/anythingllm";
+import { keyIn } from "#shared/pagekey";
 import { Told } from "#shared/errors";
 import { desktopStorage, expandHome, type Place } from "./paths.mts";
 import { anythingllmUrl, request } from "#shared/upstream";
@@ -52,6 +53,7 @@ export function storageFor(ctx: Ctx, asked: string | undefined): string {
 }
 
 export async function install(ctx: Ctx, opts: Options): Promise<void> {
+  if (opts.pageKey !== undefined) opts = { ...opts, pageKey: keyIn(opts.pageKey) }; // Copy API Key copies "<address>|brx-..."
   if (opts.pageKey !== undefined && !/^brx-\S+$/.test(opts.pageKey)) throw new Told(`--page-key is a browser-extension key (brx-...), as AnythingLLM's Settings > Browser Extension makes one`);
   const skills = chosen(ctx.payload, opts.skills);
   const storage = storageFor(ctx, opts.storage);

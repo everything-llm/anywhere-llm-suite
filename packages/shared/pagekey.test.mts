@@ -7,7 +7,7 @@ import { after, beforeEach, test } from "node:test";
 import { pageKeyFile } from "./anythingllm.mts";
 import { writeAtomic } from "./atomic.mts";
 import { Told } from "./errors.mts";
-import { find, keyStamp, pageKey } from "./pagekey.mts";
+import { find, keyIn, keyStamp, pageKey } from "./pagekey.mts";
 import { pluginFile } from "./settings.mts";
 import { close, listen } from "./test-helpers.mts";
 import { entries, vaultDir } from "./vault.mts";
@@ -138,4 +138,16 @@ test("with a vault this skill can't read (a newer format), install's key is stil
   writeAtomic(pageKeyFile(storage), "brx-installed\n");
   await find(SKILL, undefined);
   assert.equal(pageKey(), "brx-installed");
+});
+
+test("what Settings › Browser Extension's Copy API Key copies, its connection string, gives the key after its last |", async () => {
+  assert.equal(keyIn(" http://127.0.0.1:3001/api|brx-ABC-DEF "), "brx-ABC-DEF");
+  assert.equal(keyIn("brx-ABC"), "brx-ABC");
+  allm.valid.add("brx-copied");
+  const value = setPageKey("http://127.0.0.1:3001/api|brx-copied");
+  assert.match((await find(SKILL, undefined)).join("\n"), /is kept in the Vault/);
+  assert.equal(pageKey(), "brx-copied");
+  assert.equal(value(), "");
+  setPageKey("http://127.0.0.1:3001/api|brx-copied"); // the page left open, saved again
+  assert.deepEqual(await find(SKILL, undefined), []);
 });
