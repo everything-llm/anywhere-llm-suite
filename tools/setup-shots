@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# tools/setup-shots <folder>: the setup guide's screenshots (setup.html on the gh-pages branch), taken
+# again from the real thing, as after an AnythingLLM update. Starts a throwaway AnythingLLM (the image
+# in tools/versions.env, no password) on fresh storage, installs the library into it with no key for
+# the pages, and runs tools/setup-shots.js inside the container, in the Chrome the image ships for its
+# collector, at a phone's size: it writes the pictures into <folder> (the guide's setup/). Every value
+# in them is the throwaway's, and the key a picture shows is replaced by "brx-…" before it's taken.
+# The container and the temporary folder are removed afterwards, pass or fail. Run it alone, as the
+# e2e is: `flock ~/.cache/suite/e2e.lock tools/setup-shots <folder>`.
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+need_engine
+
+out=$(cd "${1:?usage: tools/setup-shots <folder for the pictures>}" && pwd)
+name="allm-setup-shots-$$"
+work=$(mktemp -d)
+port=$(free_port)
+cleanup() {
+  status=$?
+  [ "$status" -eq 0 ] || { echo "--- the container log" >&2; "$engine" logs --tail 20 "$name" >&2 2>&1 || true; }
+  open_storage
+  "$engine" stop -t 1 "$name" >/dev/null 2>&1 || true
+  rm -rf "$work"
+  exit "$status"
+}
+trap cleanup EXIT
+
+# up: AnythingLLM has set its database up and answers ("Primary server" in its log).
+up() {
+  local log
+  log=$("$engine" logs "$name" 2>&1) && [[ $log == *"Primary server"* ]] && curl -fs "http://127.0.0.1:$port/api/ping"
+}
+
+mkdir "$work/storage"
+echo "[setup-shots] AnythingLLM ($IMAGE) on :$port"
+# shellcheck disable=SC2086 # the podman flag is one word, or nothing
+"$engine" run -d --rm --name "$name" -p "127.0.0.1:$port:$INNER_PORT" ${podman:+--userns=keep-id:uid=1000,gid=1000} \
+  --memory 3g -v "$work/storage:$INNER_STORAGE" -v "$ROOT/tools:/tools:ro,Z" -v "$out:/shots:Z" -e STORAGE_DIR="$INNER_STORAGE" \
+  -e JWT_SECRET="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" "$IMAGE" >/dev/null
+wait_until "AnythingLLM" up
+open_storage
+
+(cd "$ROOT/packages" && node build.mjs install >/dev/null)
+node "$ROOT/packages/install/dist/anywherellm-suite.cjs" install --storage "$work/storage" --skills library >/dev/null
+"$engine" exec -w /app/server "$name" node /tools/setup-shots.js
+echo "tools/setup-shots: ok, in $out"
