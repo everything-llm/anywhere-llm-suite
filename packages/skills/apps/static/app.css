@@ -1,4 +1,4 @@
-/* app.css: every app page's styles, inlined by the host for <link rel="stylesheet" href="app.css">.
+/* app.css: every artifact page's styles, inlined by the host for <link rel="stylesheet" href="app.css">.
    Plain HTML comes out styled; the parts (parts/) add a few classes. Customise with
    tokens, never by renaming them: --accent-h (0-360) on :root or on any element, --radius,
    and data-density="compact" or "roomy" on <html>. The accent colours are worked out on every

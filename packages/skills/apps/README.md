@@ -1,48 +1,48 @@
-# apps-lean
+# Artifacts (`apps-lean`)
 
-Small apps a user keeps in a workspace, such as a shopping list, daily habits or a focus timer, as one AnythingLLM agent skill with no server of its own. Each app is a JSON file of its data and its page; the page is built from the shipped parts (templates, components, figures), published into AnythingLLM's public folder, and saves taps back as event documents the skill applies at its next call. Ported from the lean edition (`anythingllm-lean/skills/apps`, 0.17); the in-chat form, the file-card fallback and the bundled font were left behind.
+Small artifacts (apps) a user keeps in a workspace, such as a shopping list, daily habits or a focus timer, as one AnythingLLM agent skill with no server of its own. Each artifact is a JSON file of its data and its page; the page is built from the shipped parts (templates, components, figures), published into AnythingLLM's public folder, and saves taps back as event documents the skill applies at its next call. Ported from the lean edition (`anythingllm-lean/skills/apps`, 0.17); the in-chat form, the file-card fallback and the bundled font were left behind.
 
 | Action | Does |
 | --- | --- |
-| `list` | this workspace's apps, each with its card's first line, then how to make a new one |
-| `create` | an app from a starter, or from a template with `parts` (components composed in, their schemas merged) and `text` (app.json); without a starter it needs a `plan` |
+| `list` | this workspace's artifacts, each with its card's first line, then how to make a new one |
+| `create` | an artifact from a starter, or from a template with `parts` (components composed in, their schemas merged) and `text` (app.json); without a starter it needs a `plan` |
 | `do` | a JSON Patch (RFC 6902) on the data, with `ev` naming what happened |
 | `read` | with `file`, `app.json` or `page.html`; without, app.json, the data and the newest changes |
 | `edit` | `app.json` or `page.html`: replaces text found exactly once (`find`), or with no `find` the whole file |
 | `undo` | takes back the newest change, to the data or a file; with `file`, that file's newest change |
-| `page` | publishes the app's page; the card's title is its link |
-| `delete` | moves the app to the trash, where it stays 30 days (a full trash of 100 refuses the delete rather than drop one), and the user restores it on the apps manager; never in a scheduled job |
+| `page` | publishes the artifact's page; the card's title is its link |
+| `delete` | moves the artifact to the trash, where it stays 30 days (a full trash of 100 refuses the delete rather than drop one), and the user restores it on the artifacts manager; never in a scheduled job |
 | `guide` | this edition's notes, the starters, the parts and design rules; with `query`, each topic or part it names |
 
 ## Where it keeps things
 
 | What | Where |
 | --- | --- |
-| Each app: app.json's keys, page.html, data, its newest 20 changes and 10 earlier files, its page's token and secret | `apps-lean/<workspace>/<name>.json` in AnythingLLM's storage, changed under its lock |
+| Each artifact: app.json's keys, page.html, data, its newest 20 changes and 10 earlier files, its page's token and secret | `apps-lean/<workspace>/<name>.json` in AnythingLLM's storage, changed under its lock |
 | The key every page posts with (a browser-extension key: it can store documents, never read them) | `anywherellm-suite/page-key`, which install keeps (`--page-key`) |
-| Each app's page, at a random address | `public/apps-lean/<token>.html` beside AnythingLLM's server (`ANYTHINGLLM_PUBLIC_DIR` to move it) |
+| Each artifact's page, at a random address | `public/apps-lean/<token>.html` beside AnythingLLM's server (`ANYTHINGLLM_PUBLIC_DIR` to move it) |
 | What a page posts, until the skill applies it | `documents/custom-documents/raw-apps-lean-event-*.json`, as AnythingLLM's collector writes it |
-| What pages and the apps manager did since a workspace's last chat call (20 lines) | `apps-lean/<workspace>/.news.json` |
-| The apps manager, at a random address, and its names | `public/apps-lean/manager-<token>.html` and `.json`; `apps-lean/.manager.json`; its path in `anywherellm-suite/page-links.json` as `apps` |
-| What the apps manager posts, until the skill applies it | `documents/custom-documents/raw-apps-lean-manage-*.json` |
-| Deleted apps, 30 days each, at most 100 | `apps-lean/.trash/<ms>-<workspace>-<name>.json` |
+| What pages and the artifacts manager did since a workspace's last chat call (20 lines) | `apps-lean/<workspace>/.news.json` |
+| The artifacts manager, at a random address, and its names | `public/apps-lean/manager-<token>.html` and `.json`; `apps-lean/.manager.json`; its path in `anywherellm-suite/page-links.json` as `apps` |
+| What the artifacts manager posts, until the skill applies it | `documents/custom-documents/raw-apps-lean-manage-*.json` |
+| Deleted artifacts, 30 days each, at most 100 | `apps-lean/.trash/<ms>-<workspace>-<name>.json` |
 | Your own versions of the parts, topics and runtime | `apps-lean/.static/`, at the same paths as `static/`: they win over the shipped ones |
 
 ## Using it
 
-`anywherellm-suite install` puts it in (see the [README](../../../README.md)); then switch on Apps under Agent Skills. Each app's page is published as it's made; set Apps' ANYTHINGLLM_URL to the address your browser and phone reach AnythingLLM at, so the card's link opens from anywhere rather than only from AnythingLLM's own chat. Where the public folder can't be written (AnythingLLM Desktop), apps work from the chat and have no page.
+`anywherellm-suite install` puts it in (see the [README](../../../README.md)); then switch on Artifacts under Agent Skills. Each artifact's page is published as it's made; set Artifacts' ANYTHINGLLM_URL to the address your browser and phone reach AnythingLLM at, so the card's link opens from anywhere rather than only from AnythingLLM's own chat. Where the public folder can't be written (AnythingLLM Desktop), artifacts work from the chat and have no page.
 
-**The apps manager** (`static/pages/manager.html`, `src/manager.ts`) is one page for every workspace's apps, made at the skill's first chat call and opened from AnywhereLLM Lite's Apps row (the bridge's `GET /pages` gives its path), from `anywherellm-suite pages`, or from the link `list` ends with while the links are given to the agent. For each app it shows its card's summary, its page, its newest changes and its earlier app.json and page.html: the user renames it (its title; its name stays), takes back its newest change (held 5 s for Undo), puts back an earlier file, and moves it to the trash; on Trash, restores one into its workspace with a new page address, refused while that workspace has another app of the name. Each is an event the skill applies at once while AnythingLLM's process watches, else at its next call, and the agent hears of it at the workspace's next chat call. Like the Library page, anyone with its link can act on it; New link replaces it.
+**The artifacts manager** (`static/pages/manager.html`, `src/manager.ts`) is one page for every workspace's artifacts, made at the skill's first chat call and opened from AnywhereLLM Lite's Apps row (the bridge's `GET /pages` gives its path), from `anywherellm-suite pages`, or from the link `list` ends with while the links are given to the agent. For each artifact it shows its card's summary, its page, its newest changes and its earlier app.json and page.html: the user renames it (its title; its name stays), takes back its newest change (held 5 s for Undo), puts back an earlier file, and moves it to the trash; on Trash, restores one into its workspace with a new page address, refused while that workspace has another artifact of the name. Each is an event the skill applies at once while AnythingLLM's process watches, else at its next call, and the agent hears of it at the workspace's next chat call. Like the Library page, anyone with its link can act on it; New link replaces it.
 
-Taps reach the app as they land: the skill watches where AnythingLLM's collector writes what pages post, from its first call after AnythingLLM starts until AnythingLLM stops (not in a scheduled job, whose process ends within minutes), and each workspace's next chat call is told what its pages did. Until that first call, taps show on the device that made them and reach the app at the call. Where the folder watch doesn't see changes (Docker Desktop's bind mounts on macOS and Windows), a 30 s poll does.
+Taps reach the artifact as they land: the skill watches where AnythingLLM's collector writes what pages post, from its first call after AnythingLLM starts until AnythingLLM stops (not in a scheduled job, whose process ends within minutes), and each workspace's next chat call is told what its pages did. Until that first call, taps show on the device that made them and reach the artifact at the call. Where the folder watch doesn't see changes (Docker Desktop's bind mounts on macOS and Windows), a 30 s poll does.
 
-A page opened in AnywhereLLM has Comment, beside its first heading (in the top right corner of a page with none): tap it, tap up to five things on the page (taps pick then, they don't press), say one thing about them, a question or a change, and send. AnywhereLLM sends it in the chat as your message, naming the app and what marks each pick in page.html, and the agent answers there. Nothing is kept: a page opened anywhere else, which has no chat to send to, has no Comment.
+A page opened in AnywhereLLM has Comment, beside its first heading (in the top right corner of a page with none): tap it, tap up to five things on the page (taps pick then, they don't press), say one thing about them, a question or a change, and send. AnywhereLLM sends it in the chat as your message, naming the artifact and what marks each pick in page.html, and the agent answers there. Nothing is kept: a page opened anywhere else, which has no chat to send to, has no Comment.
 
-To ask you something a chat can't show well (pick a worktop from three, with a note), the agent makes a question app from the `question` starter and its turn ends with the card; you answer on the page, and the agent reads your answer at its next call, as data. The app is kept.
+To ask you something a chat can't show well (pick a worktop from three, with a note), the agent makes a question artifact from the `question` starter and its turn ends with the card; you answer on the page, and the agent reads your answer at its next call, as data. The artifact is kept.
 
-To keep an app up on a schedule, ask the agent ("every morning at 6, put a new puzzle in it"): it lets the app take a job's changes (app.json's `"jobs": true`) and adds an AnythingLLM scheduled job with the tool `@@apps-lean` (guide topic `schedules`). A job has no workspace of its own, so it names the app's; in a workspace it names it can only list, read and change the data of an app that takes it, never make, rewrite, take back or delete one. A deleted app stays in the trash 30 days in case it was a mistake.
+To keep an artifact up on a schedule, ask the agent ("every morning at 6, put a new puzzle in it"): it lets the artifact take a job's changes (app.json's `"jobs": true`) and adds an AnythingLLM scheduled job with the tool `@@apps-lean` (guide topic `schedules`). A job has no workspace of its own, so it names the artifact's; in a workspace it names it can only list, read and change the data of an artifact that takes it, never make, rewrite, take back or delete one. A deleted artifact stays in the trash 30 days in case it was a mistake.
 
-A page posts each change with its app's secret, and the skill applies it to that app alone, so one app's link changes no other. Once per process the skill writes again every page that isn't as the current parts would make it.
+A page posts each change with its artifact's secret, and the skill applies it to that artifact alone, so one artifact's link changes no other. Once per process the skill writes again every page that isn't as the current parts would make it.
 
 ## What it needs of AnythingLLM
 

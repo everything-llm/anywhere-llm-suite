@@ -28,9 +28,9 @@ function baseOf(ctx: Ctx): string | null {
   }
 }
 
-const names = { library: "Library page", vault: "Vault", apps: "Apps manager" } as const;
+const names = { library: "Library page", vault: "Vault", apps: "Artifacts manager" } as const;
 /** What makes each page again, as the agent calls it. */
-const NEXT_CALL = { library: "library call", vault: "library call or browser step", apps: "apps call" } as const;
+const NEXT_CALL = { library: "library call", vault: "library call or browser step", apps: "artifacts call" } as const;
 
 /** Per page, whether its link was made before the switch (so the agent was given it, and it changes
  *  at the agent's next call): said for that page alone, from when the links file says it was last
@@ -55,7 +55,7 @@ export function pages(ctx: Ctx, opts: PagesOptions = {}): number {
     const waiting = waitingEvents(storage);
     const total = waiting.reduce((sum, w) => sum + w.count, 0);
     if (total) {
-      ctx.print(`${total} page event${total === 1 ? " waits" : "s wait"} to be applied (${waiting.map((w) => `${w.where}: ${w.count}`).join(", ")}): ask the agent to call library and apps and open a tab first, or they're dropped when the links change`);
+      ctx.print(`${total} page event${total === 1 ? " waits" : "s wait"} to be applied (${waiting.map((w) => `${w.where}: ${w.count}`).join(", ")}): ask the agent to call library and artifacts and open a tab first, or they're dropped when the links change`);
     }
   } else if (opts.show) {
     ctx.print(show(storage) ? `gave the pages' links to the agent again: removed ${hiddenFile(storage)}` : `unchanged: the pages' links are not kept from the agent (no ${hiddenFile(storage)})`);
@@ -69,7 +69,7 @@ export function pages(ctx: Ctx, opts: PagesOptions = {}): number {
   const at = (rel?: string) => (rel ? `${base ?? ""}${rel}` : null);
   ctx.print(`Library page: ${at(links.library) ?? "none (the library skill isn't installed, or hasn't shown it yet)"}`);
   ctx.print(`Vault:        ${at(links.vault) ?? "none (no skill has shown it yet)"}`);
-  ctx.print(`Apps manager: ${at(links.apps) ?? "none (the apps skill isn't installed, or hasn't made it yet)"}`);
+  ctx.print(`Artifacts manager: ${at(links.apps) ?? "none (the Artifacts skill, apps, isn't installed, or hasn't made it yet)"}`);
   if (!base) ctx.print("(root-relative: set ANYTHINGLLM_URL to AnythingLLM's address to print full ones)");
   const since = hiddenSince(storage);
   if (since) {

@@ -45,7 +45,7 @@ test("a chat call makes the manager beside the apps' pages, keeps its path as ap
   const page = files.find((f) => MANAGER.test(f))!;
   assert.ok(page, files.join(", "));
   assert.equal(links().apps, `/apps-lean/${page}`);
-  assert.ok(listed.endsWith(`The user manages every workspace's apps, and the trash, at /apps-lean/${page}`), listed);
+  assert.ok(listed.endsWith(`The user manages every workspace's artifacts, and the trash, at /apps-lean/${page}`), listed);
   const html = fs.readFileSync(path.join(pub(), page), "utf8");
   assert.ok(html.includes(`"token":"manager-${names().token}"`) && html.includes('"key":"brx-test"'), "the page reads its state and posts with the pages' key");
   assert.ok(!html.includes("/*CONFIG*/null"));
@@ -60,7 +60,7 @@ test("with the links kept from the agent, the manager is still made and kept in 
   const listed = await settled();
   assert.match(links().apps, /^\/apps-lean\/manager-[\w-]{24}\.html$/);
   assert.ok(!listed.includes("manager-"), listed);
-  assert.match(listed, /on the apps manager, in AnywhereLLM Lite/);
+  assert.match(listed, /on the artifacts manager, in AnywhereLLM Lite/);
 });
 
 test("rename changes the title only, and keeps the old one among the earlier versions", async () => {
@@ -72,7 +72,7 @@ test("rename changes the title only, and keeps the old one among the earlier ver
   assert.equal(app.versions.at(-1).file, "app.json");
   assert.match(app.versions.at(-1).before, /"title": "Groceries"/);
   assert.match(state().result.title, /^renamed Groceries to Shopping list$/);
-  assert.match(listed, /apps manager since the last call[^\n]*\n- renamed Groceries to Shopping list\n/, "the agent is told, at its next chat call");
+  assert.match(listed, /artifacts manager since the last call[^\n]*\n- renamed Groceries to Shopping list\n/, "the agent is told, at its next chat call");
 });
 
 test("take back takes back the newest change only while it is the one the page showed", async () => {
@@ -110,7 +110,7 @@ test("trash moves an app out, and restore brings it back with a new page, refuse
   const token = store.read("home", "groceries").pageToken;
   manage({ ev: "trash", workspace: "home", app: "groceries", title: "Groceries" });
   await settled();
-  assert.throws(() => store.read("home", "groceries"), /no app named groceries/);
+  assert.throws(() => store.read("home", "groceries"), /no artifact named groceries/);
   const [held] = state().trash;
   assert.deepEqual([held.workspace, held.name, held.title], ["home", "groceries", "Groceries"]);
   assert.ok(Date.parse(held.until) > Date.now() + 29 * 86_400_000);
@@ -118,7 +118,7 @@ test("trash moves an app out, and restore brings it back with a new page, refuse
   await store.create("home", "groceries", { ...definitionFor("list", { title: "Another" }), data: { items: [] } });
   manage({ ev: "restore", id: held.id, title: "Groceries" });
   await settled();
-  assert.match(state().result.error, /home already has an app named groceries: move that one to the trash first/);
+  assert.match(state().result.error, /home already has an artifact named groceries: move that one to the trash first/);
   await store.remove("home", "groceries");
 
   manage({ ev: "restore", id: held.id, title: "Groceries" });

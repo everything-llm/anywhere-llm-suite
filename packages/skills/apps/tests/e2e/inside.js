@@ -53,7 +53,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.deepEqual(Object.keys(await state()).sort(), ["data", "line", "refused", "seen", "version"]);
 
   assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Bread", done: false } }] }), /\| ☐ \| Bread \|/);
-  assert.match(await call("work", { action: "list" }), /^This workspace has no apps yet\./);
+  assert.match(await call("work", { action: "list" }), /^This workspace has no artifacts yet\./);
 
   // A tap, posted as the page posts it, twice (a page may send one again), and one claiming the app
   // without its secret; the watch the calls started applies them as the collector writes them.
@@ -72,7 +72,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.deepEqual(after.data.items.map((i) => [i.text, i.done]), [["Bread", true]], "the tap reached the app and its state file with no call");
   await sleep(1000);
   const listed = await call("home", { action: "list" });
-  assert.match(listed, /Changes made on app pages since the last call[^\n]*\n- tick Bread on groceries\n\n/, listed);
+  assert.match(listed, /Changes made on artifact pages and the artifacts manager since the last call[^\n]*\n- tick Bread on groceries\n\n/, listed);
   assert.match(listed, /0 of 1 left/, "the untick without the app's secret was refused");
   const saved = JSON.parse(fs.readFileSync(path.join(STORAGE_DIR, HUB_ID, "home", "groceries.json"), "utf8"));
   assert.equal(saved.history.filter((h) => h.by === "page").length, 1, "the tap sent twice applies once");
@@ -110,7 +110,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await inTray('[data-a="send"]');
     const { comment } = JSON.parse(await tab.evaluate(() => window.posted));
     assert.equal(comment.workspace, "home");
-    assert.match(comment.message, /^Comment on my Reading app's page \(apps-lean app `reading`\), about what I picked there:\n1\. `button[^\n]*part `counter`, data-ref `more`[^\n]*\n\nMake the plus bigger$/);
+    assert.match(comment.message, /^Comment on my Reading artifact's page \(apps-lean artifact `reading`\), about what I picked there:\n1\. `button[^\n]*part `counter`, data-ref `more`[^\n]*\n\nMake the plus bigger$/);
     await tab.evaluate(() => window.dispatchEvent(new CustomEvent("anywherellm-comment", { detail: { ok: true } })));
     await sleep(100);
     await tab.click('[data-ref="more"]');
@@ -125,16 +125,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   while (Date.now() < landed && !JSON.parse(fs.readFileSync(readingFile, "utf8")).history.some((h) => h.by === "page")) await sleep(200);
   let news = "";
   while (Date.now() < landed && !news.includes("on reading")) news = await call("home", { action: "list" });
-  assert.match(news, /Changes made on app pages since the last call[^\n]*\n- [^\n]* on reading/, news);
+  assert.match(news, /Changes made on artifact pages and the artifacts manager since the last call[^\n]*\n- [^\n]* on reading/, news);
 
   // The page check, reading the bundled parser on this Node.
   const refused = await call("home", { action: "edit", name: "groceries", file: "page.html", find: "<!--scripts-->", text: "<script>App.onchange(draw);</script>\n<!--scripts-->" });
   assert.match(refused, /page\.html uses draw, which no script declares/);
 
-  assert.match(await call("home", { action: "delete", name: "groceries" }), /^Deleted the app groceries, its changes and its page\./);
+  assert.match(await call("home", { action: "delete", name: "groceries" }), /^Deleted the artifact groceries, its changes and its page\./);
   assert.deepEqual(await state(), { gone: true }, "a page still open is told");
   assert.ok(!fs.existsSync(path.join(APP, "public", HUB_ID, url.split("/").pop())), "the page is gone");
-  assert.match(await call("home", { action: "guide" }), /^# Apps/);
+  assert.match(await call("home", { action: "guide" }), /^# Artifacts/);
   console.log("ok");
   process.exit(0);
 })().catch((e) => {

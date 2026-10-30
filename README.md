@@ -4,7 +4,7 @@ Agent skills that a stock AnythingLLM runs itself, and the command that installs
 
 | Part | Folder | Runs | Toolchain |
 | --- | --- | --- | --- |
-| Agent skills (library, browser, notebook, apps, wake) | `packages/skills/<name>` | inside AnythingLLM's own process | Node 18+; nothing installed beside them (library bundles QuickJS and ssh2; browser bundles Puppeteer and runs the Chrome AnythingLLM's image ships, or the system's) |
+| Agent skills (library, browser, notebook, Artifacts, wake) | `packages/skills/<name>` (Artifacts is `apps`) | inside AnythingLLM's own process | Node 18+; nothing installed beside them (library bundles QuickJS and ssh2; browser bundles Puppeteer and runs the Chrome AnythingLLM's image ships, or the system's) |
 | The installer | `packages/install` | the command you run | Node 18+, no dependencies shipped |
 
 `packages/` holds what runs inside AnythingLLM and what puts it there. `docs/browser-tab.md` and `docs/page-links.md` are what the parts agree on with the phone app and the bridge; `docs/fence-lean.md` is the fence's own files.
@@ -21,7 +21,7 @@ node anywherellm-suite.cjs install --page-key brx-...  # once: the key the skill
 
 It writes the skills into AnythingLLM's storage folder, and AnythingLLM runs them itself: nothing runs beside it, so there is no service or socket to set up. Then, in AnythingLLM, open Settings > Agent Skills and switch on what you want. The agent's chat and scheduled-job tools (the control server) are anywherellm-bridge's: `anywherellm-bridge install --control`.
 
-The skills' pages (the browser's tab, the Vault, the Library page, the apps) send what the user does there through AnythingLLM's browser-extension upload, so they need a browser-extension key: make one in AnythingLLM's Settings > Browser Extension and give it to install once with `--page-key`. Install keeps it in the storage (`anywherellm-suite/page-key`, readable by its owner alone) until it's given another; `health` asks AnythingLLM whether it still takes it. The key sits in every page, which anyone with a page's address can read: it can add documents (and embed them in a workspace), list the workspaces and revoke itself, never read a chat or a document. A skill applies what it posts only with a page's own secret. Revoke it in the same settings and give install a new one.
+The skills' pages (the browser's tab, the Vault, the Library page, the artifacts) send what the user does there through AnythingLLM's browser-extension upload, so they need a browser-extension key: make one in AnythingLLM's Settings > Browser Extension and give it to install once with `--page-key`. Install keeps it in the storage (`anywherellm-suite/page-key`, readable by its owner alone) until it's given another; `health` asks AnythingLLM whether it still takes it. The key sits in every page, which anyone with a page's address can read: it can add documents (and embed them in a workspace), list the workspaces and revoke itself, never read a chat or a document. A skill applies what it posts only with a page's own secret. Revoke it in the same settings and give install a new one.
 
 Install also records the machine it runs on, in `anywherellm-suite/this-host.json`: the fingerprints of its SSH host keys (`/etc/ssh/ssh_host_*_key.pub`) and all its addresses. The library reads it to refuse an SSH target that is this machine (a container doesn't see the host's tailnet address, but a machine showing the host's key is the host), and refuses every target while it is missing or holds no key. Run install on the host, and again when its addresses or host keys change; `health` says when it is missing or out of date.
 
@@ -64,7 +64,7 @@ dist/               build output, ignored
 
 ## Status
 
-Moved in: the `library` and `browser` skills (see their READMEs), the `notebook` skill, which took the place of the `memory` skill (archived on the branch `archive/memory-skill`), and the `apps` skill (on the branch `apps-port`, from the lean edition's 0.17). Moved out: the bridge, to anywherellm-bridge (2026-10-19), and the control server, to the same repository (2026-10-20). Not yet: a run on real macOS and Windows machines.
+Moved in: the `library` and `browser` skills (see their READMEs), the `notebook` skill, which took the place of the `memory` skill (archived on the branch `archive/memory-skill`), and the `apps` skill, named Artifacts since 2026-10-30 (on the branch `apps-port`, from the lean edition's 0.17). Moved out: the bridge, to anywherellm-bridge (2026-10-19), and the control server, to the same repository (2026-10-20). Not yet: a run on real macOS and Windows machines.
 
 ## License
 

@@ -76,7 +76,7 @@ test("with no key for the pages, page says how to set one, and a page already th
     await assert.rejects(publish(store.read("home", "keyless"), "home"), (e: Error) => e instanceof Told && e.message.includes("install --page-key"));
     const state = JSON.parse(fs.readFileSync(path.join(publicDir, "apps-lean", `${token}.json`), "utf8"));
     assert.deepEqual([state.data.items.at(-1).text, state.version], ["Tea", version], "the change shows, and the page doesn't reload");
-    assert.match(await call("home", { action: "page", name: "keyless" }), /^Apps: the skills' pages have no key to post with/);
+    assert.match(await call("home", { action: "page", name: "keyless" }), /^Artifacts: the skills' pages have no key to post with/);
   } finally {
     fs.writeFileSync(keyFile, key);
   }
@@ -171,11 +171,11 @@ test("a page whose parts changed reloads, unless the user is typing; a deleted a
   const busy = browser(render(app, "home", "brx-k")!, { served: newer, typing: true });
   await settle(200);
   assert.equal(busy.seen.reloads, 0, "not while the user is typing");
-  assert.deepEqual(busy.seen.bars, ["This app's page changed.Reload"]);
+  assert.deepEqual(busy.seen.bars, ["This artifact's page changed.Reload"]);
   busy.close();
   const deleted = browser(render(app, "home", "brx-k")!, { served: () => JSON.stringify({ gone: true }) });
   await settle(200);
-  assert.deepEqual(deleted.seen.bars, ["This app was deleted."]);
+  assert.deepEqual(deleted.seen.bars, ["This artifact was deleted."]);
   deleted.close();
 });
 

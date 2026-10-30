@@ -16,12 +16,12 @@ test("an app is made, changed, undone and kept apart by workspace", async () => 
   assert.equal(undone?.ev, "add");
   assert.deepEqual(back.data.items.map((i: any) => i.text), ["Eggs"]);
   assert.deepEqual(store.list("work"), []);
-  assert.throws(() => store.read("work", "groceries"), /no app named groceries/);
+  assert.throws(() => store.read("work", "groceries"), /no artifact named groceries/);
 });
 
 test("a change that breaks the schema or doesn't apply is refused and saves nothing", async () => {
   await store.create("home", "chores", definitionFor("list", { title: "Chores" }));
-  await assert.rejects(store.change("home", "chores", { patch: [{ op: "add", path: "/items/-", value: { text: "" } }] }), /breaks the app's schema/);
+  await assert.rejects(store.change("home", "chores", { patch: [{ op: "add", path: "/items/-", value: { text: "" } }] }), /breaks the artifact's schema/);
   await assert.rejects(store.change("home", "chores", { patch: [{ op: "remove", path: "/items/4" }] }), /doesn't apply/);
   assert.equal(store.read("home", "chores").history.length, 0);
 });
@@ -66,7 +66,7 @@ test("edit replaces text found exactly once, and changes advance the line", asyn
   await store.create("home", "edited", { ...definitionFor("list", { title: "Edited" }), page });
   await assert.rejects(store.editFile("home", "edited", "page.html", "<b>x</b>", "y"), /more than once/);
   await assert.rejects(store.editFile("home", "edited", "page.html", "nope", "y"), /doesn't hold that text\. It is now:\n<script src="app\.js"><\/script>/);
-  await assert.rejects(store.editFile("home", "edited", "app.js", "a", "b"), /isn't one of the app's files/);
+  await assert.rejects(store.editFile("home", "edited", "app.js", "a", "b"), /isn't one of the artifact's files/);
   assert.match((await store.editFile("home", "edited", "page.html", "<b>x</b><b>x</b>", "<b>y</b>")).page, /<b>y<\/b>$/);
   assert.equal(store.read("home", "edited").line, 0);
   await store.change("home", "edited", { patch: [{ op: "add", path: "/items/-", value: { text: "a", done: false } }] });
@@ -101,7 +101,7 @@ test("an app keeps its last ten versions, and a revert its data no longer fits i
   const json = JSON.parse(store.readFile("home", "many-pages", "app.json")!);
   await store.writeFile("home", "many-pages", "app.json", JSON.stringify({ ...json, schema: { type: "object" } }));
   await store.change("home", "many-pages", { patch: [{ op: "add", path: "/extra", value: 1 }, { op: "remove", path: "/items" }] });
-  await assert.rejects(store.revert("home", "many-pages", "app.json"), /the app can't be saved:\n- data \/: needs items/);
+  await assert.rejects(store.revert("home", "many-pages", "app.json"), /the artifact can't be saved:\n- data \/: needs items/);
   assert.equal(store.read("home", "many-pages").versions.at(-1).file, "app.json", "kept for a revert once the data fits");
 });
 
@@ -157,7 +157,7 @@ test("undo refuses data its app.json no longer fits, and an app with no history 
   const file = `${root}/home/narrowed.json`;
   const { versions, ...kept } = JSON.parse(fs.readFileSync(file, "utf8"));
   fs.writeFileSync(file, JSON.stringify(kept));
-  await assert.rejects(store.undo("home", "narrowed"), /the app can't be undone:\n- data \/: needs extra/);
+  await assert.rejects(store.undo("home", "narrowed"), /the artifact can't be undone:\n- data \/: needs extra/);
   assert.equal(store.read("home", "narrowed").data.extra, 1, "nothing was changed");
 
   const { history, ...rest } = kept;

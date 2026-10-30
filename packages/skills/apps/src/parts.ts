@@ -104,7 +104,7 @@ export function starterNamed(name: unknown): string | undefined {
 /** The index the agent reads: the starters, then each part's name and line, by kind. */
 function index(): string {
   const all = Object.values(parts());
-  const made = ["Starters, for create with starter (a working app and page in one call; adjust it after):", ...Object.entries(starters()).map(([name, s]) => `${name} - ${s.line}`)];
+  const made = ["Starters, for create with starter (a working artifact and page in one call; adjust it after):", ...Object.entries(starters()).map(([name, s]) => `${name} - ${s.line}`)];
   return [...made, ...Object.values(KINDS).flatMap(([kind, head]) => [head, ...all.filter((p) => p.kind === kind).map((p) => `${p.name} - ${p.line}`)])].join("\n") + "\n";
 }
 
@@ -122,7 +122,7 @@ function runtime(): string {
   const head = source.slice(0, source.indexOf('"use strict"')).split("\n").map((l) => l.replace(/^\/\/ ?/, "")).join("\n").trim();
   return `${head}
 
-In this edition (apps-lean), the page has no server of its own: a change is saved to AnythingLLM and reaches the app as it lands; changes from elsewhere (another device, the agent) show within a few seconds while the page is open. App.log(since) gives the newest 20 changes only.
+In this edition (apps-lean), the page has no server of its own: a change is saved to AnythingLLM and reaches the artifact as it lands; changes from elsewhere (another device, the agent) show within a few seconds while the page is open. App.log(since) gives the newest 20 changes only.
 `;
 }
 
@@ -362,7 +362,7 @@ export async function pageProblems(page: unknown): Promise<string[]> {
   const out: string[] = [];
   if (Buffer.byteLength(page) > 1 << 20) out.push("page.html is at most 1 MB");
   if (!page.includes(RUNTIME_TAG)) out.push(`page.html must load the runtime: ${RUNTIME_TAG}`);
-  if (page.split(PLACEHOLDER).length !== 2) out.push(`page.html must start the app once: App.start(${PLACEHOLDER})`);
+  if (page.split(PLACEHOLDER).length !== 2) out.push(`page.html must start the artifact once: App.start(${PLACEHOLDER})`);
   const scripts = scriptsOf(page);
   let parses = true; // a script that doesn't parse can't be read for its names (compiled here, never run)
   scripts.forEach((code, i) => {

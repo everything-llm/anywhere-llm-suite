@@ -99,14 +99,14 @@ var AppsLean = (() => {
       const next = await (await native(stateUrl, { cache: "no-cache" })).json();
       if (next && next.gone) {
         gone = true;
-        bar("This app was deleted.");
+        bar("This artifact was deleted.");
         return new Promise(() => {});
       }
       if (next && next.version && next.version !== cfg.version) {
         // The page itself changed: a reload gets it. This page's unrecorded changes are kept in
         // the browser's storage, so they come back over it.
         if (!typing()) location.reload();
-        else bar("This app's page changed.", "Reload", () => location.reload());
+        else bar("This artifact's page changed.", "Reload", () => location.reload());
       }
       if (!next || typeof next.line !== "number") return answer(200, { line: body.since, lines: [] });
       // A change the app saw is recorded, or was refused, which leaves the line as it was: either
@@ -189,7 +189,7 @@ var AppsLean = (() => {
    *  page.html, then their words. */
   function message() {
     const code = (v) => "`" + String(v).replace(/`/g, "'") + "`";
-    const about = `Comment on my ${cfg.title || cfg.app} app's page (apps-lean app ${code(cfg.app)})`;
+    const about = `Comment on my ${cfg.title || cfg.app} artifact's page (apps-lean artifact ${code(cfg.app)})`;
     const said = text.trim();
     if (!picks.length) return `${about}:\n\n${said}`;
     const described = ({ tag, id, cls, part, ref, at, figure, shown }) =>

@@ -1,10 +1,10 @@
 {
   "active": true,
   "hubId": "apps-lean",
-  "name": "Apps",
+  "name": "Artifacts",
   "schema": "skill-1.0.0",
   "version": "0.20.0",
-  "description": "Makes and keeps small apps in this workspace, each with its own page that works on the user's phone and keeps its data: lists, grids, boards, trackers, logs, timers, calculators, flashcards, explainers. Whatever the user would tap, fill in or come back to (\"a \u2026 timer\", \"a \u2026 log\", \"a grid for \u2026\", \"let me \u2026\", \"track \u2026\", \"remember my choice\") is an app: make it here with create, and keep their entries in it. Start with list: it names the apps and how to make a new one. read gives an app's data and newest changes. A data change is a do: a JSON patch with ev; test a list item before patching it by place. edit changes app.json or page.html. undo takes back the newest change. Follow app.json's rules; the user's words beat the design rules. page gives an app's page: the card's title is the link. Put any Card in your reply exactly as given.",
+  "description": "Makes and keeps small artifacts (apps) in this workspace, each with its own page that works on the user's phone and keeps its data: lists, grids, boards, trackers, logs, timers, calculators, flashcards, explainers. Whatever the user would tap, fill in or come back to (\"a \u2026 timer\", \"a \u2026 log\", \"a grid for \u2026\", \"let me \u2026\", \"track \u2026\", \"remember my choice\") is an artifact: make it here with create, and keep their entries in it. Start with list: it names the artifacts and how to make a new one. read gives an artifact's data and newest changes. A data change is a do: a JSON patch with ev; test a list item before patching it by place. edit changes app.json or page.html. undo takes back the newest change. Follow app.json's rules; the user's words beat the design rules. page gives an artifact's page: the card's title is the link. Put any Card in your reply exactly as given.",
   "author": "anywherellm-suite",
   "license": "UNLICENSED",
   "imported": true,
@@ -34,11 +34,11 @@
         "type": "string"
       },
       "name": {
-        "description": "The app's name, e.g. groceries.",
+        "description": "The artifact's name, e.g. groceries.",
         "type": "string"
       },
       "workspace": {
-        "description": "Scheduled job only: the workspace of the user's app. Without it a job works on its own apps, in _jobs, which the user's chats don't see.",
+        "description": "Scheduled job only: the workspace of the user's artifact. Without it a job works on its own artifacts, in _jobs, which the user's chats don't see.",
         "type": "string"
       },
       "title": {
@@ -46,7 +46,7 @@
         "type": "string"
       },
       "starter": {
-        "description": "For create: a starter, a whole app and page.",
+        "description": "For create: a starter, a whole artifact and page.",
         "type": "string"
       },
       "template": {
@@ -103,7 +103,7 @@
         "type": "text",
         "default": "",
         "placeholder": "https://my-server:3001",
-        "hint": "The address your browser and phone reach AnythingLLM at. App pages save taps there."
+        "hint": "The address your browser and phone reach AnythingLLM at. Artifact pages save taps there."
       }
     }
   }

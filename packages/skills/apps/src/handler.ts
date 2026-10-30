@@ -51,9 +51,9 @@ const advice = (app: Json): string[] => [parts.colourNote(app.page, app.rules)].
 
 /** How to make a new app, which list answers with, since the agent lists first. */
 const MAKING = (): string[] => [
-  `To make one: if a starter fits (${Object.keys(parts.starters()).join(", ")}), create with starter, title and the user's first data: a whole app, ready to give them.`,
+  `To make one: if a starter fits (${Object.keys(parts.starters()).join(", ")}), create with starter, title and the user's first data: a whole artifact, ready to give them.`,
   "Otherwise guide, then guide once with every part you'll use, then create with a template, the parts, text (app.json: about, rules, card) and a plan, and fit it with edit.",
-  "Make one app; a second only if the user asks.",
+  "Make one artifact; a second only if the user asks.",
 ];
 
 const PLAN_MIN = 40;
@@ -61,7 +61,7 @@ const PLAN_MAX = 600;
 /** What a plan covers, which a create without a starter is refused with when it has none: the
  *  things an agent building from scratch overlooks, since nothing else makes it stop. */
 const PLAN_NEEDS =
-  `plan: ${PLAN_MIN}-${PLAN_MAX} characters on how you'll build this, covering what the app keeps; data it needs from outside (a word list, rules) and how you'll get it: with the workspace's web skills first if it has them, or by the page fetching it, rather than from memory; ` +
+  `plan: ${PLAN_MIN}-${PLAN_MAX} characters on how you'll build this, covering what the artifact keeps; data it needs from outside (a word list, rules) and how you'll get it: with the workspace's web skills first if it has them, or by the page fetching it, rather than from memory; ` +
   "how time works (nothing runs while the page is closed: something daily is worked out from the date in the page); whether it is used on more than one device (each open page shows the others' changes within seconds); " +
   "logic you can't run here (there is no browser check) and how you checked it by hand; and anything to tell the user";
 
@@ -71,8 +71,8 @@ const ACTIONS = {
   list: async ({ workspace }, _p, self) => {
     const apps = store.list(workspace);
     const listed = apps.length
-      ? ["This workspace's apps (change one that fits rather than making another):", ...apps.map((a) => (a.broken ? `- ${a.name}: can't be read` : `- ${a.name}: ${headline(a, urlOf(self, a))}`))]
-      : ["This workspace has no apps yet."];
+      ? ["This workspace's artifacts (change one that fits rather than making another):", ...apps.map((a) => (a.broken ? `- ${a.name}: can't be read` : `- ${a.name}: ${headline(a, urlOf(self, a))}`))]
+      : ["This workspace has no artifacts yet."];
     const all = await manager.line(baseOf(self));
     return [...listed, "", ...MAKING(), ...(all ? ["", all] : [])].join("\n");
   },
@@ -141,7 +141,7 @@ const ACTIONS = {
     // says to stop, since an agent told to fit an app goes on editing one that already works.
     if (named !== undefined)
       return [
-        `Made the app ${made.name}: ${made.title}, ${how} It's ready: give the user the card and one sentence on what it does. Change it (do for the data, edit for page.html) only for something they asked that it doesn't do yet.`,
+        `Made the artifact ${made.name}: ${made.title}, ${how} It's ready: give the user the card and one sentence on what it does. Change it (do for the data, edit for page.html) only for something they asked that it doesn't do yet.`,
         ...defaults,
         ...at,
         "",
@@ -150,7 +150,7 @@ const ACTIONS = {
         ...cardBlock(made, url),
       ].join("\n");
     return [
-      `Made the app ${made.name}: ${made.title}, ${how} Fit it to what the user asked with edit (page.html, app.json) and do (the data)${url ? "." : ", then give them the page."}`,
+      `Made the artifact ${made.name}: ${made.title}, ${how} Fit it to what the user asked with edit (page.html, app.json) and do (the data)${url ? "." : ", then give them the page."}`,
       ...defaults,
       ...at,
       "",
@@ -195,12 +195,12 @@ const ACTIONS = {
     const url = pageUrl(await publish(app, workspace), baseOf(self));
     if (!url)
       return [
-        `${app.title}'s page can't be published here: AnythingLLM's public folder can't be written (as in AnythingLLM Desktop). The app works from the chat with do; tell the user its page isn't available on this instance.`,
+        `${app.title}'s page can't be published here: AnythingLLM's public folder can't be written (as in AnythingLLM Desktop). The artifact works from the chat with do; tell the user its page isn't available on this instance.`,
         ...cardOf(self, app),
       ].join("\n");
-    const outside = baseOf(self) ? "" : " The link opens from AnythingLLM's own chat; for one that opens anywhere, such as a phone, the user sets AnythingLLM's address in Agent Skills, under Apps, as ANYTHINGLLM_URL.";
+    const outside = baseOf(self) ? "" : " The link opens from AnythingLLM's own chat; for one that opens anywhere, such as a phone, the user sets AnythingLLM's address in Agent Skills, under Artifacts, as ANYTHINGLLM_URL.";
     return [
-      `${app.title}'s page is at ${url}. It always shows the app as it is now, and saves taps back to AnythingLLM; they reach the app the next time any Apps action runs.${outside}`,
+      `${app.title}'s page is at ${url}. It always shows the artifact as it is now, and saves taps back to AnythingLLM; they reach the artifact the next time any Artifacts action runs.${outside}`,
       ...cardBlock(app, url),
     ].join("\n");
   },
@@ -218,7 +218,7 @@ const ACTIONS = {
     const app = store.read(workspace, p.name);
     await store.remove(workspace, app.name);
     unpublish(app);
-    return `Deleted the app ${app.name}, its changes and its page. It stays in the trash ${store.TRASH_DAYS} days, and the user restores it from there on the apps manager if they want it back.`;
+    return `Deleted the artifact ${app.name}, its changes and its page. It stays in the trash ${store.TRASH_DAYS} days, and the user restores it from there on the artifacts manager if they want it back.`;
   },
   guide: (_scope, p) => {
     const topic = String(p.query || "").trim();
@@ -267,7 +267,7 @@ function scopeFor(self: HandlerContext, action: ActionName, p: Args): Scope {
   const scope = scopeOf(self);
   const named = typeof p.workspace === "string" && p.workspace.trim() ? p.workspace.trim() : null;
   if (!scope.job) {
-    if (named) throw new AppError("workspace is for a scheduled job: a chat works on its own workspace's apps, so leave it out");
+    if (named) throw new AppError("workspace is for a scheduled job: a chat works on its own workspace's artifacts, so leave it out");
     return scope;
   }
   const { job } = RULES[action];
@@ -290,8 +290,8 @@ function towardTheUsers(name: string): void {
   const theirs = found.filter((h) => h.workspace !== "_jobs" && (own ? h.jobs : true)).map((h) => `"${h.workspace}"`);
   if (!theirs.length) return;
   const where = `the user's is in workspace ${theirs.join(" and ")}: name the workspace to work on it`;
-  if (own) throw new AppError(`two apps are named ${name}: this job's own, in _jobs, which the user's chats don't see, and ${where}`);
-  throw new AppError(`this job's own workspace (_jobs) has no app named ${name}; ${where}`);
+  if (own) throw new AppError(`two artifacts are named ${name}: this job's own, in _jobs, which the user's chats don't see, and ${where}`);
+  throw new AppError(`this job's own workspace (_jobs) has no artifact named ${name}; ${where}`);
 }
 
 async function run(self: HandlerContext, params: Args): Promise<string> {
@@ -331,9 +331,9 @@ export const runtime = {
       // Models fill parameters they don't mean with null: one left out.
       return await run(this, Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== null)));
     } catch (e) {
-      if (e instanceof Told) return `Apps: ${e.message}`;
+      if (e instanceof Told) return `Artifacts: ${e.message}`;
       this?.logger?.(`apps-lean: ${(e as Error)?.stack || e}`);
-      return `Apps failed: ${(e as Error)?.message || e}`;
+      return `Artifacts failed: ${(e as Error)?.message || e}`;
     }
   },
 };

@@ -81,7 +81,7 @@ const WAITING: [where: string, prefix: string][] = [
   ["Vault keys", "raw-vault-lean-keys-"],
   ["Vault logins", "raw-vault-lean-logins-"],
   ["Library page", "raw-library-lean-event-"],
-  ["Apps manager", "raw-apps-lean-manage-"],
+  ["Artifacts manager", "raw-apps-lean-manage-"],
 ];
 
 /** How many page events wait in AnythingLLM's documents to be applied, by where they were posted
