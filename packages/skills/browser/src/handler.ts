@@ -19,14 +19,14 @@ import * as logins from "#shared/logins";
 import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
 import { act, checkAct, element, isPassword, notTyped, reachable, settle, settled, submitted, typeIn } from "./act";
-import { existing, load, tab, through } from "./browser";
+import { chatTab, existing, load, tab, through } from "./browser";
 import { BrowserError } from "./errors";
 import type { HandlerContext } from "./host";
 import { card, caughtUp, searchGiven, settlePages } from "./page";
 import * as research from "./research";
 import { type Scope, scopeOf } from "./scope";
 import { type Read, type Snap, asksCode, asksPassword, fieldAt, readPage } from "./snapshot";
-import { NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes, threadKey } from "./state";
+import { NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes } from "./state";
 import { free } from "./takeover";
 import { render } from "./view";
 
@@ -52,7 +52,7 @@ const CODES: Record<string, string> = {
 async function reply(self: HandlerContext, at: Tab, lead: string, find = "", from: unknown = 0, read?: Read): Promise<{ text: string; page: boolean; snap: Snap }> {
   const { snap, title, url } = read ?? (await readPage(at.page));
   const drawn = await card(at, baseUrlOf(self), { snap, title });
-  const held = holder(at.entry, at.key);
+  const held = holder(at);
   const asking = at.entry.needs.has(at.key);
   const shown = render({ title, url, snap, notes: takeNotes(at.entry, at.key), find, from, secrets: at.entry.secrets });
   // A sign-in or a code on the page is login's: act never types one, and the user's is theirs to give.
@@ -206,13 +206,13 @@ const ON_TAB = new Set(["open", "act", "login", "call"]);
 /** Runs an action that changes the thread's tab, unless the user holds it (takeover.ts). */
 async function onTab(scope: Scope, run: () => Promise<string> | string): Promise<string> {
   const entry = state().browsers.get(scope.workspace);
-  const key = threadKey(scope.thread);
-  if (entry) free(entry, key);
-  entry?.busy.add(key);
+  const at = entry && chatTab(scope.workspace, entry, scope.thread);
+  if (at) free(at);
+  at?.entry.busy.add(at.key);
   try {
     return await run();
   } finally {
-    entry?.busy.delete(key);
+    at?.entry.busy.delete(at.key);
     state().browsers.get(scope.workspace)?.changed();
   }
 }
@@ -232,7 +232,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
     self.introspect?.(`Opening ${url}`);
     const at = await tab(scope.workspace, scope.thread);
     const failed = await load(at.entry, at.page, url);
-    if (failed) note(at.entry, at.key, `loading ${url} didn't finish: ${failed}`);
+    if (failed) note(at, `loading ${url} didn't finish: ${failed}`);
     return answer(self, at, `Opened ${url} in this chat's tab.`);
   },
   read: (self, scope, args) => answer(self, existing(scope.workspace, scope.thread), "This chat's tab as it is now.", clean(args.find), args.from),

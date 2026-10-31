@@ -14,7 +14,7 @@ import * as logins from "#shared/logins";
 import type { Credential } from "#shared/logins";
 import { firstLine } from "#shared/errors";
 import type { Page } from "./host";
-import { type Authenticator, type Entry, OFFER_MS, holder, note, state } from "./state";
+import { type Authenticator, OFFER_MS, type TabRef, holder, note, state } from "./state";
 
 const OPTIONS = { protocol: "ctap2", ctap2Version: "ctap2_1", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true };
 const send = (a: Authenticator, method: string, params: Record<string, unknown>) => a.cdp.send(method, { authenticatorId: a.id, ...params }).catch(() => {});
@@ -22,9 +22,10 @@ const send = (a: Authenticator, method: string, params: Record<string, unknown>)
 /** What Chrome gives as a credential, as addCredential takes it back. */
 const asCredential = (c: Partial<Credential>): Credential => ({ isResidentCredential: true, signCount: 0, ...c }) as Credential;
 
-/** Gives `page`, a tab of thread `key` in `entry`'s browser, an authenticator holding the saved
- *  passkeys. `changed` draws the tab again when its page has something new to show the user. */
-export async function attach(entry: Entry, key: string, page: Page, changed: () => void): Promise<void> {
+/** Gives `page`, a page of the tab `at`, an authenticator holding the saved passkeys. `changed` draws
+ *  the tab again when its page has something new to show the user. */
+export async function attach(at: TabRef, page: Page, changed: () => void): Promise<void> {
+  const { entry } = at;
   let a: Authenticator;
   try {
     const cdp = await page.target().createCDPSession();
@@ -32,7 +33,7 @@ export async function attach(entry: Entry, key: string, page: Page, changed: () 
     const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", { options: OPTIONS });
     a = { cdp, id: authenticatorId };
   } catch (e) {
-    return note(entry, key, `passkeys don't work in this tab (${firstLine(e)}): a site's passkey sign-in won't answer, so use its password sign-in`);
+    return note(at, `passkeys don't work in this tab (${firstLine(e)}): a site's passkey sign-in won't answer, so use its password sign-in`);
   }
   entry.authenticators.set(page, a);
   page.once("close", () => entry.authenticators.delete(page));
@@ -43,25 +44,25 @@ export async function attach(entry: Entry, key: string, page: Page, changed: () 
     // the vault can't be opened: the tab works, without passkeys
   }
   await Promise.all(saved.map((credential) => send(a, "WebAuthn.addCredential", { credential })));
-  a.cdp.on("WebAuthn.credentialAdded", ({ credential }) => void added(entry, key, a, asCredential(credential), changed));
-  a.cdp.on("WebAuthn.credentialAsserted", ({ credential }) => void asserted(entry, key, page, credential));
+  a.cdp.on("WebAuthn.credentialAdded", ({ credential }) => void added(at, a, asCredential(credential), changed));
+  a.cdp.on("WebAuthn.credentialAsserted", ({ credential }) => void asserted(at, page, credential));
 }
 
 /** A site made a passkey: offered to the user who holds the tab, else taken out again. */
-async function added(entry: Entry, key: string, a: Authenticator, credential: Credential, changed: () => void): Promise<void> {
-  const hold = holder(entry, key);
+async function added(at: TabRef, a: Authenticator, credential: Credential, changed: () => void): Promise<void> {
+  const hold = holder(at);
   if (hold) {
     const user = hold.typed && onSite(hold.typed.host, credential.rpId) ? hold.typed.user : "";
-    entry.offers.set(key, { kind: "passkey", site: credential.rpId, user, credential, until: Date.now() + OFFER_MS });
+    at.entry.offers.set(at.key, { kind: "passkey", site: credential.rpId, user, credential, until: Date.now() + OFFER_MS });
     return changed();
   }
   await send(a, "WebAuthn.removeCredential", { credentialId: credential.credentialId });
-  note(entry, key, `the page made a passkey for ${credential.rpId} while you had the tab, and it was taken out again: only the user adds a passkey, by taking the tab over on its page. Tell them, if they want one`);
+  note(at, `the page made a passkey for ${credential.rpId} while you had the tab, and it was taken out again: only the user adds a passkey, by taking the tab over on its page. Tell them, if they want one`);
 }
 
 /** A site signed in with a saved passkey: its count kept and given to the other tabs. */
-async function asserted(entry: Entry, key: string, page: Page, credential: Credential): Promise<void> {
-  note(entry, key, `the page signed in with the passkey saved for ${credential.rpId}`);
+async function asserted(at: TabRef, page: Page, credential: Credential): Promise<void> {
+  note(at, `the page signed in with the passkey saved for ${credential.rpId}`);
   const kept = await logins.counted(credential.credentialId, credential.signCount).catch(() => null);
   if (kept) await spread(kept, page);
 }

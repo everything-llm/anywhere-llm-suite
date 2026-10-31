@@ -75,8 +75,6 @@ export interface Need {
  *  kept in their own map (Entry.yours) and their own browser context, so no action of the agent's
  *  reaches one, its cookies aren't the chats', and nothing done in one is noted for the agent. */
 export const YOURS = "you-";
-/** Whether `key` names a tab the user opened themselves. */
-export const isYours = (key: string): boolean => key.startsWith(YOURS);
 
 /** The user's own tabs' browser context: their cookies apart from the chats'. */
 export interface Context {
@@ -90,14 +88,13 @@ export interface Entry {
   ready: Promise<Browser>;
   /** The chats' tabs, by thread: the only tabs the agent's actions reach. */
   tabs: Map<string, Page>;
-  /** The tabs the user opened themselves (YOURS), which the agent never reaches. */
-  yours: Map<string, Page>;
+  /** The tabs the user opened themselves (YOURS), which the agent never reaches: each one's page, and
+   *  the id the page that asked for it gave (`made`), for that page to find it. */
+  yours: Map<string, { page: Page; made: string }>;
   /** Their browser context, made with the first (browser.ts). */
   context: Promise<Context> | null;
   /** How many the user opened, for the next one's name. */
   opened: number;
-  /** The id the page gave when it asked for each of them, for that page to find it. */
-  made: Map<string, string>;
   /** What happened in a tab since its last read, for the agent. */
   notes: Map<string, string[]>;
   needs: Map<string, Need>;
@@ -154,10 +151,28 @@ export function workspaceDir(workspace: string): string {
   return path.join(skillDir(), workspace);
 }
 
-/** Notes `text` for the next read of a thread's tab; nothing for a tab the user opened, which the
- *  agent never reads. */
-export function note(entry: Entry, key: string, text: string): void {
-  if (isYours(key)) return;
+/** Whose a tab is, set once as it opens: a chat's, which its agent acts in (and the user may take
+ *  over), or the user's own, which only they use. */
+export type Owner = "chat" | "user";
+
+/** A tab of a workspace's browser: its entry, its key and whose it is. What's kept for it (its notes,
+ *  its hold, its page's line and screen) is kept in the entry by its key. */
+export interface TabRef {
+  workspace: string;
+  entry: Entry;
+  key: string;
+  owner: Owner;
+}
+
+/** A tab with its page as it is now. */
+export interface Tab extends TabRef {
+  page: Page;
+}
+
+/** Notes `text` for the next read of a chat's tab; nothing for a tab the user opened, which the agent
+ *  never reads. */
+export function note({ entry, key, owner }: TabRef, text: string): void {
+  if (owner === "user") return;
   if (!entry.notes.has(key)) entry.notes.set(key, []);
   entry.notes.get(key)!.push(text);
 }
@@ -169,35 +184,30 @@ export function takeNotes(entry: Entry, key: string): string[] {
   return notes;
 }
 
-/** The user's hold on a thread's tab, or null; one with no step for HOLD_MS lapses, and the agent
- *  is told. */
-export function holder(entry: Entry, key: string): Hold | null {
+/** The user's hold on a tab, or null; one on a chat's tab with no step for HOLD_MS lapses, and the
+ *  agent is told. */
+export function holder(at: TabRef): Hold | null {
+  const { entry, key } = at;
   // A tab the user opened is always theirs: held for good, never handed to the agent.
-  if (isYours(key)) {
+  if (at.owner === "user") {
     if (!entry.holds.has(key)) entry.holds.set(key, { last: Date.now(), typed: null });
     return entry.holds.get(key)!;
   }
   const hold = entry.holds.get(key);
   if (hold && Date.now() - hold.last > HOLD_MS) {
     entry.holds.delete(key);
-    note(entry, key, "the user took the tab over but did nothing on it for 10 minutes, so it's yours again. Read the page before going on");
+    note(at, "the user took the tab over but did nothing on it for 10 minutes, so it's yours again. Read the page before going on");
   }
   return entry.holds.get(key) ?? null;
 }
 
-/** A tab of the workspace's, a chat's or one the user opened, by its key; null when it closed. */
-export function pageOf(entry: Entry, key: string): Page | null {
-  const page = (isYours(key) ? entry.yours : entry.tabs).get(key);
-  return page && !page.isClosed() ? page : null;
-}
-
-/** A chat's tab (or, for its page alone, one the user opened): its workspace's browser entry, its
- *  page, and its key. */
-export interface Tab {
-  workspace: string;
-  entry: Entry;
-  page: Page;
-  key: string;
+/** A tab of the workspace's, the user's own or a chat's, by its key, for its page (which names it, with
+ *  its secret); null when it closed. Whose it is is the map it's in. Never for the agent's actions,
+ *  which get a tab through browser.ts chatTab only. */
+export function tabOf(workspace: string, entry: Entry, key: string): Tab | null {
+  const yours = entry.yours.get(key)?.page;
+  const page = yours ?? entry.tabs.get(key);
+  return page && !page.isClosed() ? { workspace, entry, page, key, owner: yours ? "user" : "chat" } : null;
 }
 
 /** What `map` holds for `key` while it lasts (its `until`); one that ran out is dropped. */

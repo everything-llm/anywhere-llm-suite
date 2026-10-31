@@ -18,7 +18,7 @@ import * as vault from "#shared/vault";
 import { act, element, fill, fillOn, isPassword, settle, settled } from "./act";
 import { BrowserError, StaleRef } from "./errors";
 import * as passkey from "./passkey";
-import { type Entry, type Hold, OFFER_MS, type Tab, clamp, clip, holder, isYours, note, say, screenFor } from "./state";
+import { type Entry, type Hold, OFFER_MS, type Tab, type TabRef, clamp, clip, holder, note, say, screenFor } from "./state";
 
 const MAX_TEXT = 2000;
 const MAX_SCROLL = 3000;
@@ -28,8 +28,8 @@ export const EVENTS = new Set(["take", "give", "tap", "scroll", "type", "nav", "
 const NEEDS_HOLD = new Set(["tap", "scroll", "type", "nav"]);
 
 /** A BrowserError while the user holds the tab: the agent reads it, and acts once it's handed back. */
-export function free(entry: Entry, key: string): void {
-  if (holder(entry, key)) throw new BrowserError("the user has taken the tab over on its page: you can read it, but not act in it until they hand it back. Wait for them, then read the page");
+export function free(at: TabRef): void {
+  if (holder(at)) throw new BrowserError("the user has taken the tab over on its page: you can read it, but not act in it until they hand it back. Wait for them, then read the page");
 }
 
 /** Applies a takeover event to the tab `at`; answers whether the tab changed. What can't be done is
@@ -46,7 +46,7 @@ export async function apply(e: Record<string, unknown>, at: Tab): Promise<boolea
 
 async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   const { entry, page, key } = at;
-  const hold = holder(entry, key);
+  const hold = holder(at);
   if (NEEDS_HOLD.has(String(e.ev)) && !hold) throw new BrowserError("Take over the tab first");
   if (hold) hold.last = Date.now();
   switch (e.ev) {
@@ -56,9 +56,9 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
       entry.holds.set(key, { last: Date.now(), typed: null });
       return true;
     case "give":
-      if (!hold || isYours(key)) return false; // a tab the user opened is never the agent's
+      if (!hold || at.owner === "user") return false; // a tab the user opened is never the agent's
       entry.holds.delete(key);
-      note(entry, key, "the user had the tab and handed it back to you; what they typed stays hidden. Read the page before going on");
+      note(at, "the user had the tab and handed it back to you; what they typed stays hidden. Read the page before going on");
       say(at.entry, at.key, "Handed back to the agent");
       return true;
     case "tap": {
@@ -107,7 +107,7 @@ async function typed(at: Tab, hold: Hold, e: Record<string, unknown>): Promise<v
   hold.typed[password ? "pass" : "user"] = value;
   // Hidden from the agent's reads: what was typed into a chat's tab, and a password typed anywhere
   // (a tab the user opened is never read, so words they search for there don't mask the agent's).
-  if (password || !isYours(at.key)) at.entry.secrets.add(value);
+  if (password || at.owner === "chat") at.entry.secrets.add(value);
   await (password ? fillOn(target, value, host) : fill(target, value)); // a password only into the page's own document, never as keystrokes
   if (e.then === "Tab" || e.then === "Enter") await at.page.keyboard.press(e.then);
 }
@@ -125,7 +125,7 @@ async function answerOffer(at: Tab, save: boolean): Promise<boolean> {
     }
     await logins.savePasskey(offer.site, offer.user, offer.credential);
     await passkey.spread(offer.credential, at.page);
-    note(at.entry, at.key, `the user saved the passkey ${offer.site} made; the next time its sign-in asks for a passkey, it signs in by itself`);
+    note(at, `the user saved the passkey ${offer.site} made; the next time its sign-in asks for a passkey, it signs in by itself`);
   } else if (save) await logins.save(offer.site, offer.user, offer.pass);
   say(at.entry, at.key, save ? `Saved for ${offer.site}` : "Not saved");
   return true;
@@ -137,7 +137,7 @@ async function answerOffer(at: Tab, save: boolean): Promise<boolean> {
 export async function keepOffer(at: Tab, asksPassword: boolean): Promise<void> {
   const { entry, key } = at;
   const host = hostOf(at.page.url());
-  const hold = holder(entry, key);
+  const hold = holder(at);
   if (!entry.offers.has(key) && hold?.typed?.pass && !asksPassword && onSite(host, hold.typed.host)) {
     const { host: site, user, pass } = hold.typed;
     hold.typed = null;
@@ -150,7 +150,7 @@ export async function keepOffer(at: Tab, asksPassword: boolean): Promise<void> {
   if (offer.kind !== "password" || !offer.agreed || asksPassword) return;
   entry.offers.delete(key);
   await logins.save(offer.site, offer.user, offer.pass);
-  note(entry, key, `the login the user entered was saved for ${offer.site}, for next time`);
+  note(at, `the login the user entered was saved for ${offer.site}, for next time`);
 }
 
 /** The offer the tab's page shows the user, without its password or key; null for none. */

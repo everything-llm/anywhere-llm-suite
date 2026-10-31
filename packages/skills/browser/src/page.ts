@@ -38,7 +38,7 @@ import * as passkey from "./passkey";
 import { searchAt } from "./research";
 import { JOBS } from "./scope";
 import { type Snap, asksPassword, fieldOf, isPasswordLine, lineOf, readPage } from "./snapshot";
-import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, clip, holder, isYours, live, note, pageOf, say, state, statics, workspaceDir } from "./state";
+import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, clip, holder, live, note, say, state, statics, tabOf, workspaceDir } from "./state";
 import * as takeover from "./takeover";
 
 const TITLE = "browser-lean-event";
@@ -152,12 +152,13 @@ type StripTab = { path: string; title: string; host: string; mine: boolean; agen
 function strip(workspace: string, entry: Entry, here: string, drawn?: { title: string; host: string }): StripTab[] {
   const tabs: StripTab[] = [];
   for (const key of keysOf(entry)) {
-    if (!pageOf(entry, key)) continue;
+    const at = tabOf(workspace, entry, key);
+    if (!at) continue;
     const names = namesOf(workspace, key, false);
     const st = key === here ? drawn : stateOf(workspace, key)?.st;
     if (!names || !st) continue;
-    const mine = isYours(key);
-    tabs.push({ path: `${names.token}.html`, title: clip(st.title, 200), host: clip(st.host, 300), mine, agent: !mine && !entry.holds.has(key), here: key === here, made: entry.made.get(key) ?? null });
+    const mine = at.owner === "user";
+    tabs.push({ path: `${names.token}.html`, title: clip(st.title, 200), host: clip(st.host, 300), mine, agent: !mine && !entry.holds.has(key), here: key === here, made: entry.yours.get(key)?.made ?? null });
   }
   return tabs;
 }
@@ -221,13 +222,13 @@ function tabState(at: Tab, title: string, url: string, snap: Snap, vaultLink: st
   const host = hostOf(url);
   const need = pendingNeed(at.entry, at.key);
   const screen = at.page.viewport() ?? VIEWPORT;
-  const held = !!holder(at.entry, at.key);
+  const held = !!holder(at);
   const msg = live(at.entry.msgs, at.key);
   return {
     title: title.slice(0, 200),
     url: url.slice(0, 2000),
     host,
-    mine: isYours(at.key),
+    mine: at.owner === "user",
     tabs: strip(at.workspace, at.entry, at.key, { title, host }),
     sites: sites(at.workspace, at.entry, host),
     back: nav.back,
@@ -297,8 +298,8 @@ const NOTHING_READ: Snap = { elements: [], text: "", more: false, fields: [] };
 /** Draws `at` for its page alone: read only when the user holds it (its fields) or an offer waits on
  *  the page asking for a password; the picture and the title otherwise. */
 async function redrawn(at: Tab): Promise<void> {
-  if (pageOf(at.entry, at.key) !== at.page) return; // closed meanwhile: nothing to draw, and no names to make again
-  const read = holder(at.entry, at.key) || at.entry.offers.has(at.key) ? await readPage(at.page) : { snap: NOTHING_READ, title: await at.page.title().catch(() => "") };
+  if (tabOf(at.workspace, at.entry, at.key)?.page !== at.page) return; // closed meanwhile: nothing to draw, and no names to make again
+  const read = holder(at) || at.entry.offers.has(at.key) ? await readPage(at.page) : { snap: NOTHING_READ, title: await at.page.title().catch(() => "") };
   await draw(at, false, read);
 }
 
@@ -306,8 +307,8 @@ async function redrawn(at: Tab): Promise<void> {
  *  from outside a step (a passkey a site made, say). */
 export const redraw = (workspace: string, entry: Entry, key: string): Promise<void> =>
   inTurn(TITLE, async () => {
-    const page = pageOf(entry, key);
-    if (page) await redrawn({ workspace, entry, page, key });
+    const at = tabOf(workspace, entry, key);
+    if (at) await redrawn(at);
   });
 
 const text = (v: unknown, n = MAX_TEXT) => clip(v, n);
@@ -346,8 +347,8 @@ async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
 
 /** Closes the tab `at` from its page; a chat's tab not while its agent is in the middle of a step. */
 async function closeFrom(at: Tab): Promise<boolean> {
-  if (!isYours(at.key) && at.entry.busy.has(at.key)) return say(at.entry, at.key, "The agent is busy. Try again in a moment."), true;
-  await closeTab(at.workspace, at.entry, at.key);
+  if (at.owner === "chat" && at.entry.busy.has(at.key)) return say(at.entry, at.key, "The agent is busy. Try again in a moment."), true;
+  await closeTab(at);
   return false; // gone: nothing to draw
 }
 
@@ -359,7 +360,7 @@ async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   const need = pendingNeed(at.entry, at.key);
   if (e.ev === "need-cancel") {
     const instead = e.reason === "takeover";
-    if (need) note(at.entry, at.key, instead ? "the user is taking the tab over to enter it themselves instead; wait for them to hand it back, then read the page" : "the user chose not to enter it now, so nothing was typed; tell them you can't go on without it");
+    if (need) note(at, instead ? "the user is taking the tab over to enter it themselves instead; wait for them to hand it back, then read the page" : "the user chose not to enter it now, so nothing was typed; tell them you can't go on without it");
     at.entry.needs.delete(at.key);
     return !!need;
   }
@@ -378,7 +379,7 @@ async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
     say(at.entry, at.key, oneMore(left));
   }
   const asking = need.submitRef && !isUnsent(left) ? await stillAsks(at, need) : null;
-  if (!asking) return note(at.entry, at.key, `${sent}; ${hidden}`), true;
+  if (!asking) return note(at, `${sent}; ${hidden}`), true;
   // Likely refused: a login the user asked to save isn't kept; they're asked again where the same
   // field is still there, else told on the page.
   at.entry.offers.delete(at.key);
@@ -386,10 +387,10 @@ async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   const refused = `${sent}, but the page still asks for ${it}: the site may have refused it.`;
   if (asking === "same") {
     at.entry.needs.set(at.key, { ...need, text: `${MAYBE_REFUSED} Enter it again.`, until: Date.now() + NEED_MS });
-    note(at.entry, at.key, `${refused} The user is asked again on the tab's page; wait for them, then read the page`);
+    note(at, `${refused} The user is asked again on the tab's page; wait for them, then read the page`);
   } else {
     say(at.entry, at.key, MAYBE_REFUSED);
-    note(at.entry, at.key, `${refused} Read the page, tell the user, and use login again if they want to retry`);
+    note(at, `${refused} Read the page, tell the user, and use login again if they want to retry`);
   }
   return true;
 }
@@ -475,15 +476,15 @@ async function drain(): Promise<void> {
     }
     if (!names || !sameSecret(e.secret, names.secret)) continue; // not this tab's: an old link's, or a forgery
     const entry = state().browsers.get(workspace);
-    const page = entry && pageOf(entry, key);
-    if (!entry || !page) continue; // the tab closed meanwhile
-    const at = [...changed].find((t) => t.page === page) ?? { workspace, entry, page, key };
-    entry.touch(); // the browser isn't closed under the user
+    const open = entry && tabOf(workspace, entry, key);
+    if (!open) continue; // the tab closed meanwhile
+    const at = [...changed].find((t) => t.page === open.page) ?? open;
+    open.entry.touch(); // the browser isn't closed under the user
     try {
       if (await apply(e, at)) changed.add(at);
     } catch (err) {
       if (!(err instanceof Told)) throw err;
-      note(at.entry, at.key, `what the user entered on the tab's page couldn't be used: ${err.message}`);
+      note(at, `what the user entered on the tab's page couldn't be used: ${err.message}`);
       changed.add(at);
     }
   }
