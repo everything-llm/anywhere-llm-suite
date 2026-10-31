@@ -163,6 +163,91 @@ test("a key saved in the library's settings is taken by its next call: the field
   assert.equal((await skillConfig("library-lean")).setup_args.NEW_KEY.value, "");
 });
 
+// A stand-in for the agent's model, OpenAI's chat completions on 127.0.0.1 in the container, as
+// AnythingLLM's Generic OpenAI provider asks it with native tool calling off (tools/e2e sets that):
+// each "pick a function" request takes the next step of the queue file, { name, arguments }, after
+// waiting for the file `after` names when a step has one; with none left it answers nothing, so the
+// agent makes a plain completion, which answers the last message it was given (the tools' answers
+// are in it). So an agent run goes through AnythingLLM's own agent, in its own process, as a chat's.
+const MODEL = `const fs = require("fs");
+const [port, queue] = process.argv.slice(2);
+require("http").createServer((req, res) => {
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", async () => {
+    res.setHeader("content-type", "application/json");
+    if (!req.url.endsWith("/chat/completions")) return res.end(JSON.stringify({ object: "list", data: [{ id: "stand-in", object: "model" }] }));
+    const messages = JSON.parse(body).messages || [];
+    let content = String(messages[messages.length - 1]?.content ?? "");
+    if (messages[0]?.role === "system" && /picks the most optimal function/.test(messages[0].content)) {
+      const steps = JSON.parse(fs.readFileSync(queue, "utf8"));
+      const step = steps.shift();
+      fs.writeFileSync(queue, JSON.stringify(steps));
+      if (step?.after) while (!fs.existsSync(step.after)) await new Promise((r) => setTimeout(r, 100));
+      content = step ? JSON.stringify({ name: step.name, arguments: step.arguments }) : "";
+    }
+    res.end(JSON.stringify({ id: "c", object: "chat.completion", created: 0, model: "stand-in", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] }));
+  });
+}).listen(Number(port), "127.0.0.1");`;
+
+test("NEW_KEY saved in AnythingLLM's settings while an agent run goes on is taken by the run's next call, in the server's own process, emptied in plugin.json and kept empty: as install puts the skill, and as a Hub import names its folder", run, async () => {
+  const storage = env("E2E_STORAGE");
+  const inner = "/app/server/storage";
+  fs.writeFileSync(path.join(storage, "e2e-model.js"), MODEL);
+  fs.writeFileSync(path.join(storage, "e2e-model.json"), "[]");
+  const port = 4100;
+  assert.equal(spawnSync(env("E2E_ENGINE"), ["exec", "-d", env("E2E_CONTAINER"), "node", `${inner}/e2e-model.js`, String(port), `${inner}/e2e-model.json`]).status, 0);
+  const llm = await api("POST", "/system/update-env", { LLMProvider: "generic-openai", GenericOpenAiBasePath: `http://127.0.0.1:${port}/v1`, GenericOpenAiModelPref: "stand-in", GenericOpenAiTokenLimit: "8192", GenericOpenAiKey: "none" });
+  assert.equal(llm.status, 200);
+  const key = String(((await api("POST", "/system/generate-api-key", { name: "e2e-agent" })).json as { apiKey: { secret: string } }).apiKey.secret);
+  /** An agent run in the workspace, through AnythingLLM's developer API (its own agent, in its process),
+   *  whose model calls `steps` in turn: the run's answer, which ends with the tools' answers. */
+  const agentRun = async (steps: Record<string, unknown>[]): Promise<string> => {
+    fs.writeFileSync(path.join(storage, "e2e-model.json"), JSON.stringify(steps));
+    const said = await again(() => request(`${env("E2E_ALLM_URL")}/api/v1/workspace/${env("E2E_WORKSPACE")}/chat`, { method: "POST", body: { message: "@agent go on", mode: "chat" }, token: key, timeout: 120_000 }));
+    assert.equal(said.status, 200, JSON.stringify(said.json));
+    return String((said.json as { textResponse?: unknown }).textResponse);
+  };
+  const skills = path.join(storage, "plugins", "agent-skills");
+  const onDisk = (folder: string): unknown => JSON.parse(fs.readFileSync(path.join(skills, folder, "plugin.json"), "utf8")).setup_args.NEW_KEY.value;
+  const hub = "e2e0hubitem0id"; // a Hub import's folder, and its plugin.json's hubId, are the Hub's id for it
+  try {
+    for (const [folder, label] of [["library-lean", "inst"], [hub, "hub"]]) {
+      if (folder === hub) {
+        fs.renameSync(path.join(skills, "library-lean"), path.join(skills, hub));
+        const file = path.join(skills, hub, "plugin.json");
+        fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), hubId: hub }, null, 2));
+      }
+      // One run, as a chat's agent session is: it asks for the key, and calls again once the user
+      // saved it in Settings › Agent Skills › Library, which AnythingLLM loaded the skill before.
+      const go = `e2e-go-${label}`;
+      const running = agentRun([
+        { name: folder, arguments: { action: "secret", site: "api.example.com", label } },
+        { name: folder, arguments: { action: "library" }, after: `${inner}/${go}` },
+      ]);
+      // The model has the second step, and waits: the first call (the ask) has answered.
+      for (let i = 0; i < 300 && JSON.parse(fs.readFileSync(path.join(storage, "e2e-model.json"), "utf8")).length > 0; i++) await new Promise((r) => setTimeout(r, 100));
+      await saveSettings(folder, await skillConfig(folder), { NEW_KEY: `e2e-${label}-key-0123` });
+      assert.equal(onDisk(folder), `e2e-${label}-key-0123`, `${folder}: saved, as AnythingLLM's settings page saves it`);
+      fs.writeFileSync(path.join(storage, go), "");
+      const said = await running;
+      assert.match(said, new RegExp(`Saved the key "${label}" for api\\.example\\.com from NEW_KEY \\(Settings › Agent Skills › Library\\) into the Vault, sealed; NEW_KEY is empty again\\.`), `${folder}: the run's next call took it`);
+      assert.ok(!said.includes(`e2e-${label}-key-0123`), "the key never goes to the model");
+      assert.equal(onDisk(folder), "", `${folder}: emptied in plugin.json`);
+      assert.equal((await skillConfig(folder)).setup_args.NEW_KEY.value, "", `${folder}: and as AnythingLLM's settings page shows it`);
+      const next = await agentRun([{ name: folder, arguments: { action: "guide" } }]);
+      assert.doesNotMatch(next, /Saved the key|NEW_KEY \(Settings › Agent Skills › Library\) holds a key/, `${folder}: nothing left to take`);
+      assert.equal(onDisk(folder), "", `${folder}: and it stays empty`);
+    }
+  } finally {
+    if (fs.existsSync(path.join(skills, hub))) {
+      const file = path.join(skills, hub, "plugin.json");
+      fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), hubId: "library-lean" }, null, 2));
+      fs.renameSync(path.join(skills, hub), path.join(skills, "library-lean"));
+    }
+  }
+});
+
 test("AnythingLLM lists the skills install put in", run, async () => {
   const { settings } = await allm("/admin/system-preferences-for?labels=imported_agent_skills");
   assert.ok(settings.imported_agent_skills.some((s: { hubId: string }) => s.hubId === "library-lean"), JSON.stringify(settings));

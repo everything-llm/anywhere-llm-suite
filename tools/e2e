@@ -8,6 +8,9 @@
 # temporary folder and a container of its own; both are removed on the way out, pass or fail, and
 # nothing running on this machine (an AnythingLLM on :3001, the user's settings) is touched.
 #
+# The agent's model is a stand-in the tests start in the container (tools/e2e.test.mts MODEL), which
+# AnythingLLM's Generic OpenAI provider asks with native tool calling and streaming off, as set here.
+#
 # The storage must be writable from both sides: with podman the container's user is the host user
 # (keep-id); with docker the container makes it world-writable once AnythingLLM has made it.
 # Needs podman or docker, curl and Node 22.18 or later; the first run pulls the image.
@@ -40,6 +43,7 @@ user=()
 echo "[e2e] AnythingLLM ($IMAGE) on :$allm_port, its storage in $storage"
 "$engine" run -d --rm --name "$name" -p "127.0.0.1:$allm_port:$INNER_PORT" ${user[@]+"${user[@]}"} \
   -v "$storage:$INNER_STORAGE" -e STORAGE_DIR="$INNER_STORAGE" -e AUTH_TOKEN="$password" \
+  -e PROVIDER_DISABLE_NATIVE_TOOL_CALLING=generic-openai -e GENERIC_OPENAI_STREAMING_DISABLED=true \
   -e JWT_SECRET="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" "$IMAGE" >/dev/null
 wait_until "AnythingLLM" curl -fs "$allm/api/ping"
 open_storage

@@ -68,7 +68,8 @@ export async function collect(self: HandlerContext): Promise<{ text: string; tak
   await page.met(taken.label);
   let after = "NEW_KEY is empty again";
   try {
-    empty();
+    // Nothing written and the value still there: no plugin.json was found to empty it in.
+    if (!empty() && setting(HUB_ID, "NEW_KEY", value)) after = "NEW_KEY couldn't be emptied (the library's plugin.json wasn't found): the user empties it there by hand";
   } catch (e) {
     after = `NEW_KEY couldn't be emptied (${(e as NodeJS.ErrnoException).code ?? "error"}): the user empties it there by hand`;
   }

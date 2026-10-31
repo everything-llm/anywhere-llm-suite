@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 import { pluginFile, remember, repeated, setSettings, setting } from "./settings.mts";
+import { bundle } from "./test-helpers.mts";
 import { update } from "./vault.mts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "settings-"));
@@ -40,6 +42,24 @@ test("settings are set in place of their values, only those declared, atomically
   assert.equal(setSettings("two-lean", { NEW_KEY: "" }), false, "nothing to change, nothing written");
   assert.deepEqual(fs.readdirSync(path.dirname(file)), ["plugin.json"], "no temporary file is left");
   assert.equal(setSettings("none-lean", { NEW_KEY: "" }), false, "no plugin.json, nothing written");
+});
+
+test("a skill imported from the Hub, in the folder the Hub's id for it names, finds its plugin.json beside its handler.js, not by its hubId", async () => {
+  // As AnythingLLM imports one (utils/agents/imported.js): the folder, and the plugin.json's hubId,
+  // are the Hub's item id. The module, bundled as the skills' build bundles it, is that handler.js.
+  const folder = path.join(process.env.STORAGE_DIR!, "plugins", "agent-skills", "e2e0hubitem0id");
+  fs.mkdirSync(folder, { recursive: true });
+  const built = await bundle(new URL("./settings.mts", import.meta.url));
+  fs.copyFileSync(built, path.join(folder, "handler.js"));
+  const file = path.join(folder, "plugin.json");
+  fs.writeFileSync(file, JSON.stringify({ hubId: "e2e0hubitem0id", active: true, setup_args: { NEW_KEY: arg("password", "k-hub") } }));
+  const loaded: typeof import("./settings.mts") = createRequire(import.meta.url)(path.join(folder, "handler.js"));
+  assert.equal(loaded.pluginFile("hub-lean"), file);
+  assert.equal(loaded.setting("hub-lean", "NEW_KEY", "stale"), "k-hub", "the file beside it, not the call's runtimeArgs");
+  assert.equal(loaded.setSettings("hub-lean", { NEW_KEY: "" }), true);
+  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).setup_args.NEW_KEY.value, "", "emptied there");
+  assert.ok(!fs.existsSync(pluginFile("hub-lean")), "nothing by its hubId");
+  assert.equal(createRequire(import.meta.url)(built).pluginFile("hub-lean"), pluginFile("hub-lean"), "a bundle run elsewhere goes by the hubId");
 });
 
 test("what a slot gave is remembered as a digest, by skill and setting, and the same value again is a repeat", async () => {
