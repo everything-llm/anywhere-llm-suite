@@ -13,8 +13,10 @@
    picture's room, so it fills a phone or a desktop window alike. A sign-in request, and an offer to
    save a login, rise as a card at the bottom. + and More › New tab show a new tab's home, where a
    search or an address opens a tab of the user's own. Inside AnywhereLLM Lite, which draws its own
-   bar for handing the tab back, the bar saying who holds the tab is left out. ?theme=light or dark
-   keeps it to one, as the Vault's does. */
+   bar for handing the tab back, the bar saying who holds the tab is left out. It draws no Close of
+   its own: it opens in a sheet whose toolbar shows its <title> (the tab's) and a Close (AnywhereLLM
+   Lite's Custom Tab), or in a browser tab with its own Back. ?theme=light or dark keeps it to one,
+   as the Vault's does. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
    tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
@@ -949,7 +951,6 @@ svg{flex:none}
 <section class="sheet" id="more" role="dialog" aria-modal="true" aria-label="More" hidden><span aria-hidden="true"></span><div>
   <button type="button" id="morenew"><i data-icon="plus" data-size="20"></i>New tab</button>
   <button type="button" id="moreclose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Close this tab</button>
-  <button type="button" id="morechat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>Back to the chat</button>
 </div></section>
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="gone" id="gone" hidden><b>This tab closed</b><p>Ask the agent to open the page again.</p></div>
@@ -1221,7 +1222,6 @@ svg{flex:none}
   window.browserLean = { give: () => give().then(() => host && host.postMessage('{"gave":true}')) };
   let told = null;
   const tell = (who) => host && who !== told && host.postMessage(JSON.stringify({ who: (told = who) }));
-  const toChat = () => (history.length > 1 ? history.back() : window.close());
   // The saved logins are listed and deleted on the Vault page, on this same host.
   $("logins").addEventListener("click", (e) => {
     e.preventDefault();
@@ -1316,11 +1316,11 @@ svg{flex:none}
     updating("Opening the tab…");
   }
 
-  // ---- More: New tab, Close this tab, Back to the chat.
+  // ---- More: New tab, Close this tab; none on a new tab's home. No Back to the chat: the page opens
+  // in a sheet whose toolbar has a Close (AnywhereLLM Lite's Custom Tab), or in a browser tab with its own Back.
   function openMore() {
-    $("moreclose").hidden = $("morenew").hidden = homeView;
     $("scrim").hidden = $("more").hidden = false;
-    $("more").querySelector("button:not([hidden])").focus();
+    $("more").querySelector("button").focus();
   }
   function closeMore() {
     if ($("more").hidden) return;
@@ -1331,7 +1331,6 @@ svg{flex:none}
   $("scrim").addEventListener("click", closeMore);
   addEventListener("keydown", (e) => e.key === "Escape" && closeMore());
   $("morenew").addEventListener("click", () => showHome(true));
-  $("morechat").addEventListener("click", () => (closeMore(), toChat()));
   // Closes this tab, then goes to the one before it along the top (or after it); the chat's tab
   // isn't closed while its agent is in the middle of a step, and the page says so.
   $("moreclose").addEventListener("click", () => {
@@ -1450,6 +1449,7 @@ svg{flex:none}
     $("lock").setAttribute("aria-label", secure ? "Secure" : "Not secure");
     $("lock").setAttribute("role", "img");
     $("addr").textContent = st.host || (st.url || "").replace(/^[a-z]+:(\/\/)?/i, "") || "New tab";
+    document.title = homeView ? "New tab" : st.title || st.host || "Browser"; // what the sheet's toolbar shows
     // Who holds a chat's tab; a tab the user opened is theirs, with no such bar.
     $("holdbar").hidden = homeView || st.mine || !!host;
     $("holddot").hidden = held;
@@ -1457,6 +1457,7 @@ svg{flex:none}
     $("hold").textContent = held ? "Hand back" : "Take over";
     $("navback").disabled = homeView || !st.back;
     $("navfwd").disabled = homeView || !st.forward;
+    $("morebtn").disabled = homeView;
     $("logins").hidden = !st.vault;
     if (st.vault) $("logins").href = st.vault;
     $("take").hidden = held || homeView;

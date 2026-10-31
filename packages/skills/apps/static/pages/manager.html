@@ -10,7 +10,10 @@
 /* The apps manager (src/manager.ts): every workspace's apps on one page, and the trash. What's done
    here is posted under the manager's title and applied by the apps skill. The look is the design
    canvas's (page "Apps", sections 4 and 5, 2026-10-31): each app a picture of its page, grouped by
-   workspace; ?theme keeps it to one theme, and #ws=<workspace> puts that workspace's group first. */
+   workspace; ?theme keeps it to one theme, and #ws=<workspace> puts that workspace's group first.
+   It draws no title or Close at the top: it opens in a sheet whose toolbar shows its <title> and a
+   Close (AnywhereLLM Lite's Custom Tab), or in a browser tab with its own Back; one app and the trash
+   have Back. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
    tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
@@ -804,7 +807,7 @@ a{color:inherit;text-decoration:none}
 .fld:focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 [hidden]{display:none!important}
 .top{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--ground)}
-/* The title keeps its longest word whole: where it and Trash don't fit on one line, Trash goes under it. */
+/* At the top, Trash alone; in one app or the trash, Back and the view's title, which keeps its longest word whole. */
 .top .name{flex:1 1 min-content;min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .top h1{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:break-word}
 .top small{width:0;min-width:100%;font-size:0.8125rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -888,8 +891,8 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 </head>
 <body class="hu-root" data-density="touch">
 <header class="top">
-  <button class="rb" id="close" aria-label="Close"></button>
-  <div class="name"><h1 id="title">Artifacts</h1><small id="sub" hidden></small></div>
+  <button class="rb" id="back" type="button" aria-label="Back to Artifacts" hidden></button>
+  <div class="name"><h1 id="title" hidden></h1><small id="sub" hidden></small></div>
   <button class="pill" id="bin" type="button" hidden></button>
 </header>
 <main>
@@ -1019,7 +1022,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 
   // ---- Views: the apps, the trash, or one app; the last two are entries of the browser's history,
   // so Back returns to the apps.
-  let now = null, view = history.state ?? {}, replaced = false, forward = false;
+  let now = null, view = history.state ?? {}, replaced = false;
   // #ws=<workspace> puts that workspace's group first (AnywhereLLM Lite opens the page so, on the
   // workspace it has open).
   const wsOf = () => new URLSearchParams(location.hash.slice(1)).get("ws") || null;
@@ -1049,9 +1052,10 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 
   function head(one) {
     const deep = !!(one || view.trash), sub = $("sub");
-    $("close").replaceChildren(icon(deep ? BACK : CLOSE));
-    $("close").setAttribute("aria-label", deep ? "Back to Artifacts" : "Close");
-    $("title").textContent = one ? one.app.title : view.trash ? "Trash" : "Artifacts";
+    // No title or Close at the top: the page opens in a sheet whose toolbar has its <title> and a Close
+    // (AnywhereLLM Lite's Custom Tab), or in a browser tab with its own Back. One app and the trash keep Back.
+    $("back").hidden = $("title").hidden = !deep;
+    $("title").textContent = one ? one.app.title : view.trash ? "Trash" : "";
     sub.classList.toggle("mono", !!one);
     sub.textContent = one ? `${named(one.workspace)} · ${one.app.name}` : view.trash ? count(now.trash.length) : "";
     sub.hidden = !sub.textContent;
@@ -1294,13 +1298,12 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const was = view;
     view = state ?? {};
     draw();
-    if (deep(view)) window.scrollTo(0, 0), $("close").focus();
+    if (deep(view)) window.scrollTo(0, 0), $("back").focus();
     else if (was.app) [...$("apps").querySelectorAll(".open")].find((b) => b.dataset.key === was.app)?.focus();
     else if (was.trash) $("bin").focus();
   }
   function go(state) {
     history.pushState(state, "");
-    forward = false;
     show(state);
   }
   const openApp = (key) => go({ app: key });
@@ -1308,14 +1311,14 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     if (deep(history.state)) history.back();
     else show(null);
   }
-  window.addEventListener("popstate", (e) => { asking?.close(); forward = !deep(e.state); show(e.state); });
+  window.addEventListener("popstate", (e) => { asking?.close(); show(e.state); });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !(asking || deep(view))) return;
     e.preventDefault();
     asking ? asking.close() : back();
   });
-  $("close").replaceChildren(icon(CLOSE));
-  $("close").onclick = () => (deep(view) ? back() : history.length - (forward ? 1 : 0) > 1 ? history.back() : window.close());
+  $("back").replaceChildren(icon(BACK));
+  $("back").onclick = back;
   $("bin").onclick = () => go({ trash: true });
 
   // ---- Replace link, at the end of the apps, asked first.

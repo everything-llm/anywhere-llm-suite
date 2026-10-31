@@ -18,7 +18,7 @@ An answer about the tab ends with its card, as Markdown:
 - `<token>` names the chat's tab: it stays the same for the tab's life, and a new tab gets a new one. It's a capability: whoever has it can read the tab's state and post to its page.
 - `<name>` and `<host>` hold no brackets or line breaks. A reply without a picture has the last line alone.
 
-A client finds the card by the link `…/browser-lean/<token>.html` and reads the files beside it, all served by AnythingLLM's public folder with no sign-in.
+A client finds the card by the link `…/browser-lean/<token>.html` and reads the files beside it, all served by AnythingLLM's public folder with no sign-in. The tab's page draws no Close: a client shows it with its own (AnywhereLLM Lite opens it in a Custom Tab, whose toolbar shows the page's `<title>`, the tab's title), and in a browser tab the browser's Back does it.
 
 | File | What it is |
 | --- | --- |

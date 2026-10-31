@@ -2,6 +2,8 @@
 
 Where the Library page, the Vault and the apps manager are, for whoever shows them to the user: AnywhereLLM's bridge (`GET /pages`) and `anywherellm-suite pages`; and, for AnywhereLLM Lite's shelf, the browser's open tabs and the Library's and the apps' status. The skills write the file (`packages/shared/page-links.mts`: `noteLink`, `noteTabs`, `noteStatus`) and the bridge only reads it; it is the one file the two repositories share. A change to anything here is made in the suite and the bridge together.
 
+The pages draw no title or Close of their own: whoever shows one gives it a Close and its name, as AnywhereLLM Lite's Custom Tab does with the page's `<title>` (Vault, Library, Artifacts; a browser tab's title, or New tab).
+
 ## `<storage>/anywherellm-suite/page-links.json`
 
 ```json

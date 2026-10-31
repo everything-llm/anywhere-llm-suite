@@ -11,7 +11,9 @@
    section a skill wrote, Keys (the library's API keys and signing keys, a group each), Logins
    (the browser's) and Addresses (either skill's: addresses.mts). What's done in a section is posted under its
    title and applied by the skill that owns it. The look is
-   AnywhereLLM Lite's, as the browser's tab page has it; ?theme=light or dark keeps it to one. */
+   AnywhereLLM Lite's, as the browser's tab page has it; ?theme=light or dark keeps it to one. It draws
+   no title or Close of its own: it opens in a sheet whose toolbar shows its <title> and a Close
+   (AnywhereLLM Lite's Custom Tab), or in a browser tab with its own Back. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
    tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
@@ -803,10 +805,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 input{font:inherit;color:var(--ink)}
 .hu-root input:focus-visible{outline-offset:-3px}
 [hidden]{display:none!important}
-.top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:var(--space-2);padding:calc(var(--space-3) + env(safe-area-inset-top,0px)) max(var(--space-3),env(safe-area-inset-right,0px)) var(--space-3) max(var(--space-3),env(safe-area-inset-left,0px));background:var(--ground)}
-.top h1{flex:1;min-width:0;margin:0;font:600 1.25rem/1.3 var(--font-display)}
-.rb{flex:none;width:max(var(--control-h),var(--target));height:max(var(--control-h),var(--target));border-radius:50%;background:var(--tile);color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--line-strong),var(--shadow-raised)}
-main{max-width:640px;margin:0 auto;padding:var(--space-1) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-8) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
+main{max-width:640px;margin:0 auto;padding:calc(var(--space-4) + env(safe-area-inset-top,0px)) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-8) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
 .lead,.cap{margin:0;padding:0 var(--space-2);font-size:.8125rem;line-height:1.4;color:var(--ink)}
 .seg{display:flex;padding:3px;border-radius:var(--radius-md);background:var(--sunken)}
 .seg button{flex:1;min-height:var(--control-h);padding:0 var(--space-1);border-radius:var(--radius-sm);font-size:.8125rem;line-height:1.2;text-align:center;white-space:nowrap;color:var(--ink)}
@@ -866,15 +865,11 @@ input::placeholder{color:var(--muted);opacity:1}
 @keyframes rise{from{transform:translateY(100%)}}
 @keyframes fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
-@media (hover:hover){.rb:hover,.hu-button:not(.hu-button--primary):hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
+@media (hover:hover){.hu-button:not(.hu-button--primary):hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:5;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
 </style>
 </head>
 <body class="hu-root">
-<header class="top">
-  <button class="rb" id="close" aria-label="Close the Vault"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
-  <h1>Vault</h1>
-</header>
 <main>
   <p class="lead">Encrypted on your server. The agent never sees these.</p>
   <nav class="seg" role="tablist" aria-label="Show">
@@ -897,7 +892,6 @@ input::placeholder{color:var(--muted);opacity:1}
   const icon = (d, size = 18) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("width", size); s.setAttribute("height", size); s.setAttribute("viewBox", "0 0 16 16"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.6"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.innerHTML = `<path d="${d}"/>`; return s; };
   let toastTimer = 0;
   const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
-  $("close").onclick = () => (history.length > 1 ? history.back() : window.close());
 
   // ---- Posting: each thing done here is an event of its section, posted through AnythingLLM's
   // upload under the section's title, so the skill that owns the section applies it.
