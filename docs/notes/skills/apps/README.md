@@ -18,6 +18,8 @@ On 2026-10-18, with Change this renamed Comment (one text for all picks, the but
 
 On 2026-10-31 it printed ok with the apps manager drawn as pictures of the pages: in the collector's Chrome at 390 px, both artifacts' pages drawn in frames sandboxed with scripts only, each in an origin of its own, grouped under their workspace and newest first, and neither frame asking AnythingLLM for anything in 5 s. A first try that framed each page's address drew nothing: AnythingLLM sends `X-Frame-Options: DENY` on its public folder, so the manager gives each frame the page's HTML (srcdoc).
 
+Later on 2026-10-31 it printed ok with the card as a quote (`docs/page-links.md`, the card in an answer): the checklist starter's card link titled `check`, and a `do`'s items as a list after the quote.
+
 A container's public folder (`/app/server/public`, which also holds AnythingLLM's web app, so only `public/apps-lean` could be bind-mounted) is its own, so a podman quadlet that makes the container again on each restart empties it: the pages go, and the first chat call after the restart writes them again (`upgrade` writes any page that isn't there, as well as any of an older version).
 
 Not tried: a real agent driving it, AnythingLLM Desktop, Docker Desktop's bind mounts (where the 30 s poll stands in for the folder watch), and the upgrade on the live instance's 47 artifacts.
