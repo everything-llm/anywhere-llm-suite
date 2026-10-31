@@ -70,11 +70,34 @@ export interface Need {
   until: number;
 }
 
+/** The tabs the user opens themselves, from a tab's page (its home, or +), are named YOURS<n>: a name
+ *  no chat's thread has (scope.ts gives a thread's number, "_" or "api-<n>"). They're the user's own:
+ *  kept in their own map (Entry.yours) and their own browser context, so no action of the agent's
+ *  reaches one, its cookies aren't the chats', and nothing done in one is noted for the agent. */
+export const YOURS = "you-";
+/** Whether `key` names a tab the user opened themselves. */
+export const isYours = (key: string): boolean => key.startsWith(YOURS);
+
+/** The user's own tabs' browser context: their cookies apart from the chats'. */
+export interface Context {
+  newPage(): Promise<Page>;
+  close(): Promise<void>;
+}
+
 /** A workspace's browser and its tabs, one per chat thread. */
 export interface Entry {
   browser?: Browser;
   ready: Promise<Browser>;
+  /** The chats' tabs, by thread: the only tabs the agent's actions reach. */
   tabs: Map<string, Page>;
+  /** The tabs the user opened themselves (YOURS), which the agent never reaches. */
+  yours: Map<string, Page>;
+  /** Their browser context, made with the first (browser.ts). */
+  context: Promise<Context> | null;
+  /** How many the user opened, for the next one's name. */
+  opened: number;
+  /** The id the page gave when it asked for each of them, for that page to find it. */
+  made: Map<string, string>;
   /** What happened in a tab since its last read, for the agent. */
   notes: Map<string, string[]>;
   needs: Map<string, Need>;
@@ -131,8 +154,10 @@ export function workspaceDir(workspace: string): string {
   return path.join(skillDir(), workspace);
 }
 
-/** Notes `text` for the next read of a thread's tab. */
+/** Notes `text` for the next read of a thread's tab; nothing for a tab the user opened, which the
+ *  agent never reads. */
 export function note(entry: Entry, key: string, text: string): void {
+  if (isYours(key)) return;
   if (!entry.notes.has(key)) entry.notes.set(key, []);
   entry.notes.get(key)!.push(text);
 }
@@ -147,6 +172,11 @@ export function takeNotes(entry: Entry, key: string): string[] {
 /** The user's hold on a thread's tab, or null; one with no step for HOLD_MS lapses, and the agent
  *  is told. */
 export function holder(entry: Entry, key: string): Hold | null {
+  // A tab the user opened is always theirs: held for good, never handed to the agent.
+  if (isYours(key)) {
+    if (!entry.holds.has(key)) entry.holds.set(key, { last: Date.now(), typed: null });
+    return entry.holds.get(key)!;
+  }
   const hold = entry.holds.get(key);
   if (hold && Date.now() - hold.last > HOLD_MS) {
     entry.holds.delete(key);
@@ -155,7 +185,14 @@ export function holder(entry: Entry, key: string): Hold | null {
   return entry.holds.get(key) ?? null;
 }
 
-/** A chat's tab: its workspace's browser entry, its page, and its thread's key. */
+/** A tab of the workspace's, a chat's or one the user opened, by its key; null when it closed. */
+export function pageOf(entry: Entry, key: string): Page | null {
+  const page = (isYours(key) ? entry.yours : entry.tabs).get(key);
+  return page && !page.isClosed() ? page : null;
+}
+
+/** A chat's tab (or, for its page alone, one the user opened): its workspace's browser entry, its
+ *  page, and its key. */
 export interface Tab {
   workspace: string;
   entry: Entry;

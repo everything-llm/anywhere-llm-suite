@@ -5,6 +5,9 @@
 // while they hold the tab is offered the same way (passkey.ts). The page also says how much room it
 // has (size), and the tab's screen follows it, so the tab fills a phone or a desktop window.
 //
+// A tab the user opened themselves is held by them for good: its page types, taps and goes back
+// as on a chat's tab they took over, but it's never handed to the agent, and its hold doesn't lapse.
+//
 // The events come through page.ts, checked against the tab's secret. Ported from the lean
 // browser's takeover.js.
 
@@ -15,7 +18,7 @@ import * as vault from "#shared/vault";
 import { act, element, fill, fillOn, isPassword, settle, settled } from "./act";
 import { BrowserError, StaleRef } from "./errors";
 import * as passkey from "./passkey";
-import { type Entry, type Hold, OFFER_MS, type Tab, clamp, clip, holder, note, say, screenFor } from "./state";
+import { type Entry, type Hold, OFFER_MS, type Tab, clamp, clip, holder, isYours, note, say, screenFor } from "./state";
 
 const MAX_TEXT = 2000;
 const MAX_SCROLL = 3000;
@@ -53,7 +56,7 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
       entry.holds.set(key, { last: Date.now(), typed: null });
       return true;
     case "give":
-      if (!hold) return false;
+      if (!hold || isYours(key)) return false; // a tab the user opened is never the agent's
       entry.holds.delete(key);
       note(entry, key, "the user had the tab and handed it back to you; what they typed stays hidden. Read the page before going on");
       say(at.entry, at.key, "Handed back to the agent");
@@ -72,7 +75,7 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
       await settle(page);
       return true;
     case "nav": {
-      const action = e.do === "back" ? "back" : "reload";
+      const action = e.do === "back" || e.do === "forward" ? e.do : "reload";
       await act(page, action, "", "").catch(() => {}); // a page that doesn't finish loading is still drawn
       await settled(page, action);
       return true;
@@ -102,7 +105,9 @@ async function typed(at: Tab, hold: Hold, e: Record<string, unknown>): Promise<v
   const host = hostOf(at.page.url());
   if (hold.typed?.host !== host) hold.typed = { host, user: "", pass: "" };
   hold.typed[password ? "pass" : "user"] = value;
-  at.entry.secrets.add(value);
+  // Hidden from the agent's reads: what was typed into a chat's tab, and a password typed anywhere
+  // (a tab the user opened is never read, so words they search for there don't mask the agent's).
+  if (password || !isYours(at.key)) at.entry.secrets.add(value);
   await (password ? fillOn(target, value, host) : fill(target, value)); // a password only into the page's own document, never as keystrokes
   if (e.then === "Tab" || e.then === "Enter") await at.page.keyboard.press(e.then);
 }

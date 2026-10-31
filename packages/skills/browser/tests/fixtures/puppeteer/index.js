@@ -4,7 +4,7 @@
 // read it. `world` is what the tests set up and look at.
 const fs = require("fs");
 
-const world = (globalThis.__browserLeanWorld ||= { launched: [], pages: [], sites: {}, apis: {}, fetched: [], authenticators: [] });
+const world = (globalThis.__browserLeanWorld ||= { launched: [], pages: [], sites: {}, apis: {}, fetched: [], authenticators: [], contexts: [] });
 
 /** A DevTools session: a page's, for its WebAuthn domain (each virtual authenticator keeps its
  *  credentials by id, and `emit` plays an event Chrome would send), or the browser's, for its cookies. */
@@ -187,7 +187,9 @@ class Page {
   async goBack() {
     this.navs.push("back");
   }
-  async goForward() {}
+  async goForward() {
+    this.navs.push("forward");
+  }
   async reload() {
     this.navs.push("reload");
   }
@@ -206,6 +208,8 @@ class Page {
       world.fetched.push({ from: this.address, ...arg });
       return world.apis[arg.url] || { status: 404, headers: { "content-type": "text/plain" }, text: "not found", cut: false };
     }
+    // Whether the tab can go back and forward (its Navigation API, in Chrome).
+    if (arg && arg.history) return { back: this.navs.length > 0 || this.address !== "about:blank", forward: false };
     // Whether the page shows a password field.
     if (arg && arg.passwordField) return Object.values(this.fields).some((f) => f.type === "password");
     // A search's links, as research.ts reads them.
@@ -242,6 +246,20 @@ class Browser {
     const page = new Page();
     page.browser = this;
     return page;
+  }
+  /** A context of the browser's with its own cookies: its pages' sessions read and set those. */
+  async createBrowserContext() {
+    const context = { cookies: [], pages: [], closed: false, browser: this };
+    context.newPage = async () => {
+      const page = new Page();
+      page.browser = context;
+      page.context = context;
+      context.pages.push(page);
+      return page;
+    };
+    context.close = async () => void (context.closed = true);
+    world.contexts.push(context);
+    return context;
   }
   async close() {
     this.closed = true;

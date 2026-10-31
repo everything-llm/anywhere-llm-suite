@@ -84,6 +84,8 @@ export interface Page {
 
 export interface Browser {
   newPage(): Promise<Page>;
+  /** A context of its own, its cookies apart (the user's own tabs'). */
+  createBrowserContext(): Promise<{ newPage(): Promise<Page>; close(): Promise<void> }>;
   target(): { createCDPSession(): Promise<CDPSession> };
   close(): Promise<void>;
   on(event: "disconnected", fn: () => void): unknown;

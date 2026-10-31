@@ -12,6 +12,12 @@
 // deleted on the Vault (#shared/vault-page), whose logins section this skill writes and applies,
 // and which the tab's page links to, unless the links are kept from the agent (#shared/page-links).
 // Events are applied as they come while a page was shown lately, and at the start of each call.
+//
+// Each tab's page shows the workspace's tabs along its top (each chat's, and the ones the user
+// opened), and a new tab's home, where the user searches or types an address: that opens a tab of
+// their own (browser.ts openYours), drawn and posted to like a chat's, but never the agent's. Its
+// state, picture and page are in the same public folder, under a token no answer of the agent's
+// carries, and the fence keeps the agent off that folder (#shared/fence pathRefused).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,17 +25,20 @@ import * as addresses from "#shared/addresses";
 import { perProcess } from "#shared/anythingllm";
 import { writeJson } from "#shared/atomic";
 import { Told } from "#shared/errors";
-import { hostOf } from "#shared/fence";
+import { checkUrl, hostOf } from "#shared/fence";
 import * as logins from "#shared/logins";
 import { linksHidden, noteTabs, type TabLink } from "#shared/page-links";
 import { inTurn, newSecret, pageHtml, publicPath, readPublic, removePublic, sameSecret, takeEvents, watch, writePublic } from "#shared/pages";
 import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
+import { setting } from "#shared/settings";
 import { type Unsent, isUnsent, submitted, typeIn } from "./act";
+import { MAX_YOURS, closeTab, openYours, refusedHere } from "./browser";
 import * as passkey from "./passkey";
+import { searchAt } from "./research";
 import { JOBS } from "./scope";
 import { type Snap, asksPassword, fieldOf, isPasswordLine, lineOf, readPage } from "./snapshot";
-import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, clip, holder, live, note, say, state, statics, workspaceDir } from "./state";
+import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, clip, holder, isYours, live, note, pageOf, say, state, statics, workspaceDir } from "./state";
 import * as takeover from "./takeover";
 
 const TITLE = "browser-lean-event";
@@ -101,7 +110,7 @@ function listTabs(workspace: string): void {
   const entry = state().browsers.get(workspace);
   const until = entry ? entry.last + IDLE_MS : 0;
   const tabs: TabLink[] = [];
-  for (const key of entry?.tabs.keys() ?? []) {
+  for (const key of entry ? keysOf(entry) : []) {
     try {
       const names = namesOf(workspace, key, false);
       const there = names && readPublic(pub(names.token, ".json"));
@@ -118,18 +127,68 @@ function listTabs(workspace: string): void {
   void noteTabs(workspace, tabs);
 }
 
-/** Writes when a workspace's browser closes into each of its tabs' states that's there: a step in one
- *  chat keeps every tab of the workspace open. */
+/** Every tab of a workspace's browser: its chats', then the ones the user opened. */
+const keysOf = (entry: Entry): string[] => [...entry.tabs.keys(), ...entry.yours.keys()];
+
+/** A tab's state as last written, or null where it isn't drawn (or closed). */
+function stateOf(workspace: string, key: string): { names: Names; text: string; st: Record<string, any> } | null {
+  try {
+    const names = namesOf(workspace, key, false);
+    const text = names && readPublic(pub(names.token, ".json"));
+    const st = text ? JSON.parse(text) : null;
+    return st && !st.closed ? { names: names!, text: text!, st } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One of the tabs along the top of a tab's page: its page (beside this one in the public folder),
+ *  its title and host, whether it's the user's own, whether the agent has it (a chat's tab the user
+ *  doesn't hold), whether it's this one, and the id the page that asked for it gave (`made`). */
+type StripTab = { path: string; title: string; host: string; mine: boolean; agent: boolean; here: boolean; made: string | null };
+
+/** The workspace's tabs, for the page of `here`, from their states as last written (and `drawn`,
+ *  the state `here` is getting now): only the ones drawn. */
+function strip(workspace: string, entry: Entry, here: string, drawn?: { title: string; host: string }): StripTab[] {
+  const tabs: StripTab[] = [];
+  for (const key of keysOf(entry)) {
+    if (!pageOf(entry, key)) continue;
+    const names = namesOf(workspace, key, false);
+    const st = key === here ? drawn : stateOf(workspace, key)?.st;
+    if (!names || !st) continue;
+    const mine = isYours(key);
+    tabs.push({ path: `${names.token}.html`, title: clip(st.title, 200), host: clip(st.host, 300), mine, agent: !mine && !entry.holds.has(key), here: key === here, made: entry.made.get(key) ?? null });
+  }
+  return tabs;
+}
+
+/** Your sites, on a new tab's home: the sites with a saved login first, then the open tabs' hosts
+ *  (`host`, the one drawn now, first of those). */
+function sites(workspace: string, entry: Entry, host: string): string[] {
+  let saved: string[] = [];
+  try {
+    saved = logins.list().map((l) => l.site);
+  } catch {
+    // the vault can't be opened: the open tabs' sites alone
+  }
+  const open = [host, ...keysOf(entry).map((key) => stateOf(workspace, key)?.st.host as string | undefined)];
+  return [...new Set([...saved, ...open].filter((h): h is string => !!h))].slice(0, 12);
+}
+
+/** Writes when a workspace's browser closes, its tabs along the top and its sites, into each of its
+ *  tabs' states that's there: a step in one chat keeps every tab of the workspace open, and a tab
+ *  that came or went, or a login saved, shows on every page. */
 export function restamp(workspace: string, entry: Entry): void {
   const until = entry.last + IDLE_MS;
-  for (const key of entry.tabs.keys()) {
+  for (const key of keysOf(entry)) {
     try {
-      const names = namesOf(workspace, key, false);
-      const there = names && readPublic(pub(names.token, ".json"));
+      const there = stateOf(workspace, key);
       if (!there) continue; // not drawn yet
-      const st = JSON.parse(there);
-      if (st.closed || st.until === until) continue;
-      writePublic(pub(names.token, ".json"), JSON.stringify({ ...st, until }), there);
+      const { names, text, st } = there;
+      const tabs = strip(workspace, entry, key, st as { title: string; host: string });
+      const shown = sites(workspace, entry, st.host);
+      if (st.until === until && JSON.stringify([st.tabs, st.sites]) === JSON.stringify([tabs, shown])) continue;
+      writePublic(pub(names.token, ".json"), JSON.stringify({ ...st, until, tabs, sites: shown }), text);
     } catch {
       // no folder to write in, or a state that isn't one: the next draw writes it whole
     }
@@ -143,9 +202,22 @@ const pendingNeed = (entry: Entry, key: string): Need | null => live(entry.needs
 /** Text a card's Markdown can hold: no brackets or line breaks. */
 const plain = (text: string, n = 120) => text.replace(/[[\]()\n\r|*_`<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
 
+/** Whether the tab can go back and forward, as its page's Navigation API says; both, where it
+ *  can't say (an error page has none). */
+async function history(page: Tab["page"]): Promise<{ back: boolean; forward: boolean }> {
+  try {
+    return await page.evaluate((_: { history: true }) => {
+      const nav = (globalThis as any).navigation;
+      return nav ? { back: !!nav.canGoBack, forward: !!nav.canGoForward } : { back: true, forward: true };
+    }, { history: true });
+  } catch {
+    return { back: true, forward: true };
+  }
+}
+
 /** The tab's state, as its page reads it: nothing secret. Who has the tab; while the user does, the
- *  fields in view, for the page to type into. */
-function tabState(at: Tab, title: string, url: string, snap: Snap, vaultLink: string | null) {
+ *  fields in view, for the page to type into. A tab the user opened (`mine`) is always theirs. */
+function tabState(at: Tab, title: string, url: string, snap: Snap, vaultLink: string | null, nav: { back: boolean; forward: boolean }) {
   const host = hostOf(url);
   const need = pendingNeed(at.entry, at.key);
   const screen = at.page.viewport() ?? VIEWPORT;
@@ -155,6 +227,11 @@ function tabState(at: Tab, title: string, url: string, snap: Snap, vaultLink: st
     title: title.slice(0, 200),
     url: url.slice(0, 2000),
     host,
+    mine: isYours(at.key),
+    tabs: strip(at.workspace, at.entry, at.key, { title, host }),
+    sites: sites(at.workspace, at.entry, host),
+    back: nav.back,
+    forward: nav.forward,
     shot: Date.now(),
     until: at.entry.last + IDLE_MS,
     size: { w: screen.width, h: screen.height },
@@ -184,7 +261,7 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
     // The Vault page is written either way; its link goes into the tab's state (which the agent's card
     // carries) only while the links aren't kept from the agent (#shared/page-links, read each time).
     const vaultLink = await showVault();
-    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, title, at.page.url(), snap, linksHidden() ? null : vaultLink)));
+    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, title, at.page.url(), snap, linksHidden() ? null : vaultLink, await history(at.page))));
     if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(statics().get("pages/tab.html")!.text, { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key }));
   } catch {
     return null;
@@ -216,6 +293,7 @@ const NOTHING_READ: Snap = { elements: [], text: "", more: false, fields: [] };
 /** Draws `at` for its page alone: read only when the user holds it (its fields) or an offer waits on
  *  the page asking for a password; the picture and the title otherwise. */
 async function redrawn(at: Tab): Promise<void> {
+  if (pageOf(at.entry, at.key) !== at.page) return; // closed meanwhile: nothing to draw, and no names to make again
   const read = holder(at.entry, at.key) || at.entry.offers.has(at.key) ? await readPage(at.page) : { snap: NOTHING_READ, title: await at.page.title().catch(() => "") };
   await draw(at, false, read);
 }
@@ -224,15 +302,56 @@ async function redrawn(at: Tab): Promise<void> {
  *  from outside a step (a passkey a site made, say). */
 export const redraw = (workspace: string, entry: Entry, key: string): Promise<void> =>
   inTurn(TITLE, async () => {
-    const page = entry.tabs.get(key);
-    if (page && !page.isClosed()) await redrawn({ workspace, entry, page, key });
+    const page = pageOf(entry, key);
+    if (page) await redrawn({ workspace, entry, page, key });
   });
 
 const text = (v: unknown, n = MAX_TEXT) => clip(v, n);
 
+/** The SEARCH_URL a call was last given, for a search from a tab's page where the skill's
+ *  plugin.json isn't where AnythingLLM keeps it (#shared/settings setting). */
+const given = () => perProcess("browser-lean.search", () => ({ url: "" }));
+export const searchGiven = (url: unknown): void => void (given().url = String(url ?? ""));
+
+/** What the user typed into the home's field, as an address: one with a scheme, or a host (with a
+ *  port and a path, perhaps); null for words to search for. */
+function addressOf(q: string): string | null {
+  if (/\s/.test(q)) return null;
+  if (!/^https?:\/\//i.test(q) && !/^(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?([/?#].*)?$/i.test(q)) return null;
+  try {
+    return checkUrl(q);
+  } catch {
+    return null;
+  }
+}
+
+/** A search or an address typed on a tab's page (`q`): opens a tab of the user's own there, through
+ *  the fence, and draws it; the page that asked finds it by `made` along its tabs. What can't be
+ *  opened is said on the page that asked. */
+async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
+  const q = text(e.q, 2000).trim();
+  if (!q) return false;
+  if (at.entry.yours.size >= MAX_YOURS) return say(at.entry, at.key, `You have ${MAX_YOURS} tabs of your own open. Close one, then try again.`), true;
+  const url = addressOf(q) ?? searchAt(setting("browser-lean", "SEARCH_URL", given().url), q);
+  if (await at.entry.fence(url)) return say(at.entry, at.key, refusedHere(url)), true;
+  const { at: yours, failed } = await openYours(at.workspace, at.entry, url, text(e.made, 40));
+  if (failed) say(yours.entry, yours.key, `Couldn’t open ${hostOf(url) || "that address"}. Check the address, then try again.`);
+  await redrawn(yours);
+  return true;
+}
+
+/** Closes the tab `at` from its page; a chat's tab not while its agent is in the middle of a step. */
+async function closeFrom(at: Tab): Promise<boolean> {
+  if (!isYours(at.key) && at.entry.busy.has(at.key)) return say(at.entry, at.key, "The agent is busy. Try again in a moment."), true;
+  await closeTab(at.workspace, at.entry, at.key);
+  return false; // gone: nothing to draw
+}
+
 /** Applies one event the page of `at` posted; answers whether the tab changed. */
 async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   if (takeover.EVENTS.has(String(e.ev))) return takeover.apply(e, at);
+  if (e.ev === "new") return openFrom(at, e);
+  if (e.ev === "close") return closeFrom(at);
   const need = pendingNeed(at.entry, at.key);
   if (e.ev === "need-cancel") {
     const instead = e.reason === "takeover";
@@ -352,8 +471,8 @@ async function drain(): Promise<void> {
     }
     if (!names || !sameSecret(e.secret, names.secret)) continue; // not this tab's: an old link's, or a forgery
     const entry = state().browsers.get(workspace);
-    const page = entry?.tabs.get(key);
-    if (!entry || !page || page.isClosed()) continue; // the tab closed meanwhile
+    const page = entry && pageOf(entry, key);
+    if (!entry || !page) continue; // the tab closed meanwhile
     const at = [...changed].find((t) => t.page === page) ?? { workspace, entry, page, key };
     entry.touch(); // the browser isn't closed under the user
     try {
@@ -366,4 +485,6 @@ async function drain(): Promise<void> {
   }
   for (const at of changed) at.entry.changed(); // a login typed, a takeover's step: its cookies may have changed
   await Promise.all([...changed].map(redrawn));
+  // A tab that came, went or changed hands shows along the top of every page of its workspace.
+  for (const [workspace, entry] of new Map([...changed].map((at) => [at.workspace, at.entry]))) restamp(workspace, entry);
 }
