@@ -124,7 +124,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const manager = await chrome.newPage();
     await manager.setViewport({ width: 390, height: 844 });
     const framed = [];
-    manager.on("request", (r) => r.frame() && r.frame() !== manager.mainFrame() && framed.push(r.url()));
+    // A data: URL (the House UI block's display font) is the page's own bytes, asked of no one.
+    manager.on("request", (r) => r.frame() && r.frame() !== manager.mainFrame() && !r.url().startsWith("data:") && framed.push(r.url()));
     await manager.goto(SERVER + links.apps, { waitUntil: "load" });
     await manager.waitForFunction(() => document.querySelectorAll(".pic.drawn").length === 2, { timeout: 20_000 });
     const shown = await manager.evaluate(() => [...document.querySelectorAll(".ws")].map((s) => [s.querySelector("h2").textContent, [...s.querySelectorAll(".label")].map((l) => l.textContent)]));
