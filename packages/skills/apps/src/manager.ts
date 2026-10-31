@@ -21,6 +21,7 @@ import { embed, inTurn, pageKey, publicPath, sameSecret, takeEvents, watch } fro
 import { type Names, tokenPage } from "#shared/token-page";
 import { summary } from "./card.ts";
 import { HUB_ID, root } from "./dirs.ts";
+import { iconOf } from "./icons.ts";
 import { publish, refresh as refreshPage, tell, unpublish, whenApplied } from "./page.ts";
 import { file } from "./parts.ts";
 import type { Json } from "./patch.ts";
@@ -62,6 +63,7 @@ const text = (v: unknown, n = 200) => String(v ?? "").trim().slice(0, n);
 const appState = (app: Json) => ({
   name: app.name,
   title: app.title,
+  icon: iconOf(app),
   summary: summary(app),
   changed: app.changed ?? "",
   page: app.pageToken ? `${app.pageToken}.html` : null,

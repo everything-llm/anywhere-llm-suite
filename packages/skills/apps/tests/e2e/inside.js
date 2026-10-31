@@ -14,8 +14,9 @@ const { HUB_ID, STORAGE_DIR } = process.env;
 const APP = "/app/server";
 const SERVER = `http://127.0.0.1:${process.env.INNER_PORT || 3001}`;
 const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-/** The link a card gives to the page of the app titled `title`, with the address as group 1. */
-const linkTo = (title) => new RegExp(String.raw`\*\*\[${title}\]\((${escaped(SERVER)}/${HUB_ID}/[A-Za-z0-9_-]+\.html)\)`);
+/** The link a card gives to the page of the app titled `title`, with the address as group 1 (and,
+ *  titled with the app's icon, its name as group 2). */
+const linkTo = (title) => new RegExp(String.raw`\*\*\[${title}\]\((${escaped(SERVER)}/${HUB_ID}/[A-Za-z0-9_-]+\.html)(?: "([a-z]+)")?\)`);
 const ImportedPlugin = require(`${APP}/utils/agents/imported.js`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -43,6 +44,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const link = made.match(linkTo("Groceries"));
   assert.ok(link, `create gave a link: ${made.split("\n").slice(0, 3).join(" / ")}`);
   const url = link[1];
+  assert.equal(link[2], "check", "the card's link is titled with the starter's icon, for AnywhereLLM Lite");
   const stateUrl = url.replace(/\.html$/, ".json");
   const page = await fetch(url);
   assert.equal(page.status, 200, "AnythingLLM serves the page");
@@ -53,7 +55,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const state = async () => (await fetch(stateUrl, { cache: "no-store" })).json();
   assert.deepEqual(Object.keys(await state()).sort(), ["data", "line", "refused", "seen", "version"]);
 
-  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Bread", done: false } }] }), /\| ☐ \| Bread \|/);
+  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Bread", done: false } }] }), /\n- ☐ Bread$/m);
   assert.match(await call("work", { action: "list" }), /^This workspace has no artifacts yet\./);
 
   // A tap, posted as the page posts it, twice (a page may send one again), and one claiming the app

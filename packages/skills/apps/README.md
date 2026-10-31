@@ -10,7 +10,7 @@ Small artifacts (apps) a user keeps in a workspace, such as a shopping list, dai
 | `read` | with `file`, `app.json` or `page.html`; without, app.json, the data and the newest changes |
 | `edit` | `app.json` or `page.html`: replaces text found exactly once (`find`), or with no `find` the whole file |
 | `undo` | takes back the newest change, to the data or a file; with `file`, that file's newest change |
-| `page` | publishes the artifact's page; the card's title is its link |
+| `page` | publishes the artifact's page; the card's title is its link, titled with the artifact's icon |
 | `delete` | moves the artifact to the trash, where it stays 30 days (a full trash of 100 refuses the delete rather than drop one), and the user restores it on the artifacts manager; never in a scheduled job |
 | `guide` | this edition's notes, the starters, the parts and design rules; with `query`, each topic or part it names |
 
@@ -31,6 +31,8 @@ Small artifacts (apps) a user keeps in a workspace, such as a shopping list, dai
 ## Using it
 
 `anywherellm-suite install` puts it in, or import it from AnythingLLM's Community Hub (see the [README](../../../README.md)); then switch on Artifacts under Agent Skills. Each artifact's page is published as it's made; set Artifacts' ANYTHINGLLM_URL to the address your browser and phone reach AnythingLLM at, so the card's link opens from anywhere rather than only from AnythingLLM's own chat. Where the public folder can't be written (AnythingLLM Desktop), artifacts work from the chat and have no page.
+
+Each answer that names an artifact ends with its card for the reply: a quote of its title, as the link to its page, and a line of what the call changed and its summary, then its items as a list ([docs/page-links.md](../../../docs/page-links.md), the card in an answer, the same shape as the Vault's and the Library's cards). The link's title is the artifact's icon, app.json's `icon`, one of 24 names (`src/icons.ts`, `guide icons`; each starter has one): AnywhereLLM Lite draws its glyph and the apps manager does too, and any other Markdown client shows it only as a tooltip.
 
 **The artifacts manager** (`static/pages/manager.html`, `src/manager.ts`) is one page for every workspace's artifacts, made at the skill's first chat call and opened from AnywhereLLM Lite's Apps row (the bridge's `GET /pages` gives its path), from `anywherellm-suite pages`, or from the link `list` ends with while the links are given to the agent. It shows each artifact as a picture of its page, grouped by workspace, newest first (`#ws=<workspace>` puts that workspace first): the page itself, drawn small in a frame sandboxed with scripts only, where it reads and posts nothing (the repo notes, "The apps manager as pictures of the pages"). For each artifact it shows its card's summary, its page, its newest changes and its earlier app.json and page.html: the user renames it (its title; its name stays), takes back its newest change (held 5 s for Undo), puts back an earlier file, and moves it to the trash; on Trash, restores one into its workspace with a new page address, refused while that workspace has another artifact of the name. Each is an event the skill applies at once while AnythingLLM's process watches, else at its next call, and the agent hears of it at the workspace's next chat call. Like the Library page, anyone with its link can act on it; Replace link replaces it.
 
