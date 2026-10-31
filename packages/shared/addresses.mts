@@ -32,37 +32,38 @@ const loopback = (ip: string): boolean => {
   return a === "::1" || (net.isIP(a) === 4 && a.startsWith("127."));
 };
 
-/** Why `origin` isn't let through, or null: AnythingLLM's address `base` and `lookup` say where its
- *  own services are. */
+/** Why `origin` isn't let through, or null: what the page says after the origin, the reason and what
+ *  to do, in the canvas's words ("is AnythingLLM's own machine. Use …"). AnythingLLM's address `base`
+ *  and `lookup` say where its own services are. */
 export async function refusalOf(origin: string, base: string | null, lookup: Lookup = (host) => lookupAll(host)): Promise<string | null> {
   const url = new URL(origin);
   const host = bareHost(url);
   const port = portOf(url);
   const addresses = await lookup(host);
-  if (!addresses) return `${host} can't be looked up from AnythingLLM, so it can't be told from AnythingLLM's own services: check the name, or give its address`;
-  if (!privateName(host) && !addresses.some(privateAddress)) return "it's on the public web, which the skills reach already: only an address on this machine or its network is let through here";
-  if (addresses.some(loopback)) return "that's a loopback address, AnythingLLM's own machine or container: give the machine's name or address on your network instead";
+  if (!addresses) return "can’t be looked up from AnythingLLM, so it can’t be told from its own services. Check the name, or give its address.";
+  if (!privateName(host) && !addresses.some(privateAddress)) return "is on the public web, which the skills reach already. Only an address on your network is let through here.";
+  if (addresses.some(loopback)) return "is a loopback address: AnythingLLM’s own machine or container. Use a name or address on your network.";
   const anythingllm = originOf(base);
   const recorded = thisHostRecorded();
-  if (!anythingllm && !recorded) return "this machine isn't recorded and AnythingLLM's address isn't set, so it can't be told from AnythingLLM's own services: run the installer on the host (it records this machine), or set the skill's ANYTHINGLLM_URL";
+  if (!anythingllm && !recorded) return "can’t be told from AnythingLLM’s own services: this machine isn’t recorded and AnythingLLM’s address isn’t set. Run the installer on the host, or set the skill’s ANYTHINGLLM_URL.";
   let ports = OWN_PORTS;
   let theirs: string[] = [];
   if (anythingllm) {
     const at = new URL(anythingllm);
-    if (canonicalHost(bareHost(at)) === canonicalHost(host) && portOf(at) === port) return "that's AnythingLLM itself";
+    if (canonicalHost(bareHost(at)) === canonicalHost(host) && portOf(at) === port) return "is AnythingLLM itself, which the skills never reach.";
     const found = await lookup(bareHost(at));
-    if (!found && !recorded) return `AnythingLLM's own address (${bareHost(at)}) can't be looked up and this machine isn't recorded, so it can't be told from AnythingLLM: run the installer on the host`;
+    if (!found && !recorded) return `can’t be told from AnythingLLM: its own address (${bareHost(at)}) can’t be looked up and this machine isn’t recorded. Run the installer on the host.`;
     theirs = (found ?? []).map(canonicalHost);
     ports = [...OWN_PORTS, portOf(at)];
   }
-  if (ports.includes(port) && addresses.some((a) => isThisHost(a) || theirs.includes(canonicalHost(a)))) return `that's port ${port} of this machine, where AnythingLLM, its bridge or a proxy before them listen, which the skills never reach`;
+  if (ports.includes(port) && addresses.some((a) => isThisHost(a) || theirs.includes(canonicalHost(a)))) return `is port ${port} of this machine, where AnythingLLM, its bridge or a proxy before them listen. The skills never reach it.`;
   return null;
 }
 
 /** `raw` as an origin, or a Told saying how to write one. */
 function originChecked(raw: unknown): string {
   const origin = originOf(String(raw ?? "").trim().slice(0, 300));
-  if (!origin) throw new Told(`"${String(raw ?? "").slice(0, 100)}" isn't an address: write its scheme, host and port, like http://muse-vm:8463`);
+  if (!origin) throw new Told(`“${String(raw ?? "").slice(0, 100)}” isn’t an address. Write its scheme, host and port, like http://muse-vm:8463.`);
   return origin;
 }
 
@@ -70,7 +71,7 @@ function originChecked(raw: unknown): string {
 export async function allow(raw: unknown, lookup: Lookup = (host) => lookupAll(host)): Promise<string> {
   const origin = originChecked(raw);
   const why = await refusalOf(origin, lastBase(), lookup);
-  if (why) throw new Told(`${origin} isn't let through: ${why}`);
+  if (why) throw new Told(`${origin} ${why}`);
   await updateJson<Allowed, void>(allowedFile(storageDir()), () => ({}), (a) => {
     const origins = Array.isArray(a.origins) ? a.origins : (a.origins = []);
     if (!origins.some((o) => originOf(o?.origin) === origin)) origins.push({ origin, added: new Date().toISOString() });
