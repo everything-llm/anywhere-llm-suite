@@ -225,8 +225,8 @@ const printed = (pub: string) => `256 ${fingerprint(pub)} root@box (ED25519)`;
 /** Adds the machine "box" on the page as the user does: its address and account, the line the setup
  *  command printed, and the page's key the command carried (the spare), unless a key is pasted. The
  *  stand-in accepts that key, as running the command before the save does, unless `ran` is false.
- *  Waits for the sign-in the page tries after a save. 127.0.0.1 is a private address by itself, so
- *  nothing says it is one. */
+ *  Waits for the sign-in the page tries after a save (what it then looks at may still be going).
+ *  127.0.0.1 is a private address by itself, so nothing says it is one. */
 async function register(fields: Record<string, unknown> = {}, pasted?: { private: string; public: string }, base?: string, ran = true) {
   await call({ action: "secret", kind: "ssh", label: "box" });
   const spare = pageState().spare;
@@ -234,7 +234,7 @@ async function register(fields: Record<string, unknown> = {}, pasted?: { private
   else if (ran) allowed = utils.parseKey(spare) as ssh2.ParsedKey;
   post({ secret: pageConfig().secret, ev: "target-save", label: "box", host: "127.0.0.1", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), public: pasted ? "" : spare, sealed: pasted ? seal(pasted.private) : "", ...fields });
   await called({ action: "library" }, { slug: "work", base });
-  await until(() => boxState().status !== "not tried yet", SIGN_IN_MS);
+  await until(() => (boxState()?.status ?? "not tried yet") !== "not tried yet", SIGN_IN_MS);
   const saved = boxState();
   if (saved.public) allowed = utils.parseKey(saved.public) as ssh2.ParsedKey;
   return saved;
@@ -382,8 +382,9 @@ test("a stopped run stops the command it's waiting on", async () => {
   const started = await call({ action: "run", name: "ops.run", inputs: { req: { command: "hang", timeout_s: 60 } } });
   const id = started.match(/\((r-[\w-]+)\)/)![1];
   await until(() => seen.hung > 0);
+  const closed = seen.closed; // a look at what it reaches, on the same connection, may close an SFTP session too
   assert.match(await call({ action: "run", run_id: id, stop: true }), /ops\.run.*stopped/);
-  await until(() => seen.closed === 1);
+  await until(() => seen.closed > closed);
 });
 
 test("channels the machine opens toward the library (a remote forward, X11) are refused", async () => {
