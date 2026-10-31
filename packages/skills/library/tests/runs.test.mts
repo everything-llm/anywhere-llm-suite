@@ -9,31 +9,9 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import test from "node:test";
-import { close, listen } from "#shared/test-helpers";
-import { call as callAs, idOf, installed, library, reset, runRecord as recordOf, until, type Call } from "./harness.mts";
+import { call, idOf, installed, library, reset, runRecord as recordOf, until } from "./harness.mts";
 
 process.env.LIBRARY_WAIT_MS = "300";
-
-/** What an ntfy topic (a server on 127.0.0.1) was sent: nothing, since the background-run notice went
- *  (2026-10-31), though a stored plugin.json may still name the topic. */
-const sent: { title?: string; click?: string; authorization?: string; body: string }[] = [];
-const ntfy = http.createServer((req, res) => {
-  let body = "";
-  req.on("data", (c) => (body += c));
-  req.on("end", () => {
-    sent.push({ title: req.headers.title as string, click: req.headers.click as string, authorization: req.headers.authorization, body });
-    res.end("{}");
-  });
-});
-const settings: Record<string, string> = {};
-test.before(async () => {
-  settings.NTFY_URL = `http://127.0.0.1:${await listen(ntfy)}/mine`;
-  settings.NTFY_TOKEN = "tk_1";
-});
-test.after(() => close(ntfy));
-
-/** `callAs`, with the settings the notice had left as they were. */
-const call = (args: Record<string, unknown>, at: Call | string | null = {}) => callAs(args, at === null || typeof at === "string" ? { slug: at, settings } : { settings, ...at });
 
 const SLOW = "async function main(i, kit) { for (let n = 0; n < (i.n || 1); n++) await kit.sleep(i.ms || 400); if (i.fail) throw new Error('it failed'); return { slept: i.n || 1 }; }";
 const inputs = { n: { type: "number" }, ms: { type: "number" }, fail: { type: "boolean" } };
@@ -41,11 +19,10 @@ const runsDir = () => path.join(library, "runs");
 
 test.beforeEach(async () => {
   reset();
-  sent.length = 0;
   assert.match(await call({ action: "save", service: "clock", toolkit: { base_urls: ["https://example.com"] }, function: { name: "slow", description: "Sleeps.", inputs, source: SLOW } }), /Saved clock\.slow/);
 });
 
-test("a run the chat stops waiting for goes on, and is shown once at the top of the next library answer; nothing is sent elsewhere", async () => {
+test("a run the chat stops waiting for goes on, and is shown once at the top of the next library answer", async () => {
   const said = await call({ action: "run", name: "clock.slow", inputs: { n: 2 } }, { base: "https://llm.example.com/" });
   assert.match(said, /^Still running clock\.slow in the background \(r-[\w-]+\): carry on\. Tell the user it goes on in the background, its result shows on the Library page, and you'll give it to them the next time you look at the library: its end is at the top of the next library or run answer\./);
   assert.doesNotMatch(said, /notif|ntfy/i);
@@ -57,8 +34,6 @@ test("a run the chat stops waiting for goes on, and is shown once at the top of 
   assert.doesNotMatch(meanwhile, /Finished since/, "not until it ends");
 
   await until(() => recordOf(id).status === "ok");
-  await new Promise((r) => setTimeout(r, 300));
-  assert.deepEqual(sent, [], "the old NTFY_URL setting is ignored");
   const next = await call({ action: "library" });
   assert.match(next, new RegExp(`^Finished since last shown [^\\n]*\\n- clock\\.slow: ok, [^\\n]*\\[${id}\\]: \\{"slept":2\\}\\n`));
   assert.doesNotMatch(await call({ action: "library" }), /Finished since/, "shown once");
@@ -84,7 +59,6 @@ test("run with run_id waits for a background run again and shows it; stop: true 
   assert.match(await call({ action: "run", run_id: long }), /is still running .*stop it with stop: true/);
   assert.match(await call({ action: "run", run_id: long, stop: true }), new RegExp(`^Ran clock\\.slow \\(${long}\\): stopped, `));
   assert.equal(recordOf(long).status, "stopped");
-  assert.deepEqual(sent, [], "nothing is sent for a run that ended or was stopped");
 });
 
 test("a run whose process ended first reads as interrupted; a scheduled job's is shown", async () => {
@@ -108,7 +82,6 @@ test("a scheduled job's run goes to its end; one that fails is shown in the next
   assert.doesNotMatch(await call({ action: "library" }), /Finished since/, "AnythingLLM shows the job's own answer");
   const failed = idOf(await call({ action: "run", name: "clock.slow", inputs: { fail: true, ms: 10 } }, null));
   assert.match(await call({ action: "library" }), new RegExp(`^Finished since last shown [^\\n]*\\n- clock\\.slow: error \\(Error: it failed\\).*from a scheduled job \\[${failed}\\]`));
-  assert.equal(sent.length, 0, "nothing is sent for a job's run either");
 });
 
 test("in a scheduled job's process, a run gets only the time the job has left", async (t) => {

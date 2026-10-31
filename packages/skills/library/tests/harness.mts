@@ -75,8 +75,6 @@ export const cardsShown: unknown[] = [];
 export interface Call {
   slug?: string | null;
   base?: string;
-  /** The skill's other settings, as the user set them (or as a stored plugin.json still holds them). */
-  settings?: Record<string, string>;
 }
 
 /** An agent run in workspace `slug` (null: none), in a chat of AnythingLLM's web UI. */
@@ -89,8 +87,8 @@ function agentRun(slug: string | null): object {
  *  alone, or in a Call), in a chat that could show a question card, and with ANYTHINGLLM_URL set to
  *  `base`. */
 export function call(args: Record<string, unknown>, at: Call | string | null = {}): Promise<string> {
-  const { slug = "work", base, settings } = at === null || typeof at === "string" ? { slug: at } : at;
-  const self = { super: agentRun(slug), runtimeArgs: { ...(base ? { ANYTHINGLLM_URL: base } : {}), ...settings }, logger: () => {} };
+  const { slug = "work", base } = at === null || typeof at === "string" ? { slug: at } : at;
+  const self = { super: agentRun(slug), runtimeArgs: base ? { ANYTHINGLLM_URL: base } : {}, logger: () => {} };
   return handler().call(self, args);
 }
 

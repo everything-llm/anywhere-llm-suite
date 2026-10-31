@@ -112,34 +112,35 @@ function template(): string {
 /** The needs of `kind` that haven't run out, as a page shows them. */
 const needsOf = (p: PageFile | null, kind: Need["kind"]) => (p?.needs ?? []).filter((n) => n.kind === kind && n.until > Date.now()).map(({ label, site }) => ({ label, site }));
 
-/** A run as the page shows it: how it went, when, and its result (500 characters) or error. */
-const runShown = (r: RunRecord) => ({ id: r.id, fn: r.fn, status: r.status, trigger: r.trigger, started: r.started, ended: r.ended, ms: r.ms, error: r.status === "ok" ? null : (r.error?.message ?? null)?.slice(0, 500) ?? null, result: r.status === "ok" ? outcomeOf(r).slice(0, 500) : null });
+const text = (v: unknown, n = 500) => String(v ?? "").trim().slice(0, n);
+
+/** A run as the page shows it: its function, how it went, when and how long, and its result or
+ *  error (500 characters). */
+const runShown = (r: RunRecord) => ({ fn: r.fn, status: r.status, started: r.started, ms: r.ms, error: r.status !== "ok" && r.error ? text(outcomeOf(r)) : null, result: r.status === "ok" ? text(outcomeOf(r)) : null });
 
 /** The Library page's state, as it reads it: nothing secret (the spare is a public key). */
-function state(p: PageFile, base: string | null) {
+function state(p: PageFile) {
   const heldBy = store.holders();
-  const last = lastRuns();
+  const kits = store.services().map((service) => ({ service, kit: store.toolkit(service)!, fns: store.functions(service) }));
+  const recent = recentRuns(20);
+  const last = lastRuns(kits.flatMap(({ service, fns }) => fns.map((f) => `${service}.${f.name}`)), recent);
   return {
-    vault: vaultPage.linkOf(base),
     needs: needsOf(p, "target"),
     spare: targets.spare(),
     targets: targets.targets().map((m) => ({ ...m, held: heldBy(m.label) })),
     result: p.result ?? null,
-    toolkits: store.services().map((service) => {
-      const kit = store.toolkit(service)!;
-      return {
-        service,
-        title: kit.title,
-        locked: kit.locked === true,
-        hosts: store.hostsOf(kit),
-        machines: kit.targets,
-        functions: store.functions(service).map((f) => {
-          const run = last.get(`${service}.${f.name}`);
-          return { name: f.name, description: f.description, source: f.source, last: run ? runShown(run) : null };
-        }),
-      };
-    }),
-    runs: recentRuns(20).map(runShown),
+    toolkits: kits.map(({ service, kit, fns }) => ({
+      service,
+      title: kit.title,
+      locked: kit.locked === true,
+      hosts: store.hostsOf(kit),
+      machines: kit.targets,
+      functions: fns.map((f) => {
+        const run = last.get(`${service}.${f.name}`);
+        return { name: f.name, description: f.description, source: f.source, last: run ? runShown(run) : null };
+      }),
+    })),
+    runs: recent.map(runShown),
   };
 }
 
@@ -153,7 +154,7 @@ function keysState(p: PageFile | null) {
 }
 
 /** Writes the page's state again under the names as they are, where there is a page. */
-const writeState = (base: string | null): void => names.refresh((p) => [names.put(`${p.token}.json`, JSON.stringify(state(p, base)))]);
+const writeState = (): void => names.refresh((p) => [names.put(`${p.token}.json`, JSON.stringify(state(p)))]);
 
 /** Writes the Library page and its state into AnythingLLM's public folder, watches for its events
  *  for a while, and answers its address (absolute when AnythingLLM's address, `base`, is known). */
@@ -172,7 +173,7 @@ export const settle = (base: string | null): Promise<void> => names.settleCall((
 async function write(base: string | null, rotated = false, hidden = linksHidden()): Promise<string> {
   const kept = read();
   if (!kept || kept.watchUntil - Date.now() <= WATCH_MS / 2) await change((p) => void (p.watchUntil = Date.now() + WATCH_MS));
-  const p = await names.publish(async (n) => [names.put(`${n.token}.html`, await pageHtml(template(), { token: n.token, secret: n.secret, title: TITLE })), names.put(`${n.token}.json`, JSON.stringify(state(n, base)))], rotated, hidden);
+  const p = await names.publish(async (n) => [names.put(`${n.token}.html`, await pageHtml(template(), { token: n.token, secret: n.secret, title: TITLE })), names.put(`${n.token}.json`, JSON.stringify(state(n)))], rotated, hidden);
   watch(TITLE, () => drain(base), () => read()?.watchUntil ?? 0);
   return `${base ?? ""}/${pub(`${p.token}.html`)}`;
 }
@@ -203,7 +204,7 @@ export function noteRuns(): void {
 export function refresh(base: string | null): void {
   noteRuns();
   try {
-    writeState(base);
+    writeState();
     vaultPage.refresh("keys", keysState(read()));
   } catch (e) {
     console.error(`library-lean couldn't refresh the pages: ${(e as Error).message}`);
@@ -233,8 +234,6 @@ export const need = (label: string, site: string, kind: Need["kind"] = "key"): P
   change((p) => {
     p.needs = [...p.needs.filter((n) => needId(n.kind, n.label) !== needId(kind, label) && n.until > Date.now()), { label, site, kind, until: Date.now() + NEED_MS }];
   });
-
-const text = (v: unknown, n = 500) => String(v ?? "").trim().slice(0, n);
 
 /** What applying an event did beyond the store: a need it met, a new link, a function gone from the
  *  skill's description, a machine to try signing in to, or a change the page shows. */
@@ -375,7 +374,7 @@ async function drain(base: string | null): Promise<void> {
   if (rotate) {
     await names.rotate();
     await write(base, true);
-  } else if (result || applied.some(Boolean)) writeState(base);
+  } else if (result || applied.some(Boolean)) writeState();
   // A sign-in takes up to 30 s: tried after the turn, so neither the page nor the agent waits on it.
   const checks = new Set(applied.flatMap((a) => (a?.check ? [a.check] : [])));
   if (checks.size) void Promise.all([...checks].map((l) => targets.check(l, base))).then(() => refresh(base), (e) => console.error(`library-lean couldn't try a target: ${(e as Error).message}`));

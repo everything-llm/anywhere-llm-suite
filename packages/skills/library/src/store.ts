@@ -372,6 +372,9 @@ export const runId = (at: Date): string => `r-${at.getTime().toString(36).padSta
 
 const runFile = (run: RunRecord) => path.join(runsDir(), `${run.id}.${run.fn}.json`);
 
+/** The function a run file is of, by its qualified name ("<service>.<name>"), from the file's name. */
+const fnOf = (file: string): string => file.slice(file.indexOf(".") + 1).replace(/\.json$/, "");
+
 /** Keeps a new run, and drops the oldest past MAX_RUNS. */
 export function record(run: RunRecord): void {
   rewrite(run);
@@ -386,7 +389,7 @@ const readRun = (file: string) => readJson<RunRecord>(path.join(runsDir(), file)
 
 /** The last `n` runs, newest first, of a service's functions (`service`) or of all, as recorded. */
 export function recentRuns(n: number, service: string): RunRecord[] {
-  const files = namesIn(runsDir()).filter((f) => f.startsWith("r-") && (!service || f.split(".")[1] === service));
+  const files = namesIn(runsDir()).filter((f) => f.startsWith("r-") && (!service || fnOf(f).startsWith(`${service}.`)));
   return files
     .slice(-n)
     .reverse()
@@ -394,17 +397,22 @@ export function recentRuns(n: number, service: string): RunRecord[] {
     .filter((r): r is RunRecord => r !== null);
 }
 
-/** The newest run of each function, as recorded, by its qualified name: one file read each. */
-export function lastRuns(): Map<string, RunRecord> {
-  const newest = new Map<string, string>();
+/** The newest run of each of the functions `fns` (qualified names) that has one, by its name: from
+ *  `recent` (the newest runs, newest first, read already) where it is among them, else its newest
+ *  file, read alone, from one listing of the runs folder. */
+export function lastRuns(fns: string[], recent: RunRecord[]): Map<string, RunRecord> {
+  const last = new Map<string, RunRecord>();
+  for (const r of recent) if (!last.has(r.fn) && fns.includes(r.fn)) last.set(r.fn, r);
+  const missing = new Set(fns.filter((fn) => !last.has(fn)));
+  if (!missing.size) return last;
   for (const f of namesIn(runsDir()).filter((f) => f.startsWith("r-")).reverse()) {
-    const fn = f.slice(f.indexOf(".") + 1).replace(/\.json$/, "");
-    if (!newest.has(fn)) newest.set(fn, f);
-  }
-  return new Map([...newest].flatMap(([fn, f]): [string, RunRecord][] => {
+    const fn = fnOf(f);
+    if (!missing.delete(fn)) continue;
     const run = readRun(f);
-    return run ? [[fn, run]] : [];
-  }));
+    if (run) last.set(fn, run);
+    if (!missing.size) break;
+  }
+  return last;
 }
 
 /** A run by its id, as recorded, from the runs folder's names (`files`, read once for many ids);

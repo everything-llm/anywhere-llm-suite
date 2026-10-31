@@ -141,8 +141,9 @@ function settled(run: RunRecord): RunRecord {
 /** The last `n` runs, newest first, of a service's functions (`service`) or of all. */
 export const recentRuns = (n: number, service = ""): RunRecord[] => store.recentRuns(n, service).map(settled);
 
-/** The newest run of each function, by its qualified name. */
-export const lastRuns = (): Map<string, RunRecord> => new Map([...store.lastRuns()].map(([fn, run]) => [fn, settled(run)]));
+/** The newest run of each of the functions `fns` (qualified names) that has one, by its name, the
+ *  newest runs read already (`recent`, as recentRuns answers them) taken from where they are. */
+export const lastRuns = (fns: string[], recent: RunRecord[]): Map<string, RunRecord> => new Map([...store.lastRuns(fns, recent)].map(([fn, run]) => [fn, settled(run)]));
 
 /** A run by its id; null when it isn't kept. */
 export const runOf = (id: string): RunRecord | null => {

@@ -24,10 +24,9 @@ test("library gives the Vault's card and the Library page's, each as a quote wit
   assert.equal(vaultConfig().key, "brx-test");
   assert.ok(secret.length >= 20);
   assert.notEqual(vaultConfig().secret, secret, "the Vault has a secret of its own");
-  assert.equal(pageState().vault, `https://llm.example.com/vault-lean/${vaultConfig().token}.html`, "the Library page links to the Vault");
 });
 
-test("with the links kept from the agent the pages are still written, the Library page's path is in the links file, and the page still links to the Vault", async () => {
+test("with the links kept from the agent the pages are still written, and the Library page's path is in the links file", async () => {
   hideLinks(true);
   await call({ action: "library" }, { base: "https://llm.example.com/" });
   const { token } = pageConfig();
@@ -35,7 +34,6 @@ test("with the links kept from the agent the pages are still written, the Librar
   assert.equal(readLinks().library, `/library-lean/${token}.html`, "root-relative, whatever ANYTHINGLLM_URL is");
   assert.equal(fs.statSync(linksFile()).mode & 0o777, 0o600);
   assert.equal(JSON.parse(fs.readFileSync(path.join(library, "page.json"), "utf8")).hidden, true, "made under the switch, so marked");
-  assert.equal(pageState().vault, `https://llm.example.com/vault-lean/${vaultConfig().token}.html`, "the Library page links to the Vault");
 });
 
 test("the Vault shows a saved key by name only, never its value, and only the library's section", async () => {
