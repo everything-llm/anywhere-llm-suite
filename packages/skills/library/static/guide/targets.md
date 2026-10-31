@@ -1,7 +1,7 @@
-A target is a machine the user registered for the library's functions to run commands on over SSH: a cloud VM, a Pi, a provider's sandbox. Use one for work a function's engine can't do: shell, Python, compilers, builds, files, long jobs. Calling an API stays kit.http.
+A target is a machine the user added (the Library page calls it a machine) for the library's functions to run commands on over SSH: a cloud VM, a Pi, a provider's sandbox. Use one for work a function's engine can't do: shell, Python, compilers, builds, files, long jobs. Calling an API stays kit.http.
 
 Asking for one:
-- Call secret with kind "ssh" and label, its short name (like "pi"). The answer says where the user registers the machine, on the Library page under Targets (a link, or where they open it): pass that on. They give the machine's address, port, account and host key's fingerprint there, and add the line the page shows to the account's authorized_keys. Call library when they say it's done: the target shows whether it signed in.
+- Call secret with kind "ssh" and label, its short name (like "pi"). The answer says where the user adds the machine, on the Library page under Machines (a link, or where they open it): pass that on, and call it a machine to them. They give its address and account there, run the one command the page shows on the machine, as that account (it adds the page's key and prints the host key's fingerprint), and paste back the line it printed. Call library when they say it's done: the target shows whether it signed in.
 - Never ask for a key, a password, a host or a fingerprint in the chat. The machine's address and key are the user's; a function names the target and nothing else of it.
 
 Using it:
@@ -11,7 +11,7 @@ Using it:
 - A command past its time is sent TERM and its channel closed (killed "timeout"); when the run is stopped, the same (killed "stopped"). remote_may_run true means the machine didn't say it ended: check, or stop it with another command.
 - Keep each command short and do more in each: a target takes 60 calls a minute (commands, puts, gets and the page's sign-in tries) and 4 at once. For work longer than a few minutes, start it in the background on the machine (nohup … > log 2>&1 &) and check on it in later runs; it goes on past a stop and the time limit, so end it with another command.
 - A target a locked toolkit lists is for locked toolkits only, and a locked toolkit uses a target only as it was when the user locked it. If a call says so, tell the user; don't register the same account under another name.
-- Scheduled jobs use a target only when the user ticked "May run unattended" for it.
+- Scheduled jobs use a target only when the user switched on "Scheduled jobs may use it" for it.
 - A target that reaches this AnythingLLM's pages, sees its storage, shows this machine's SSH host key or is its own account isn't used, and with no record of this machine (the installer writes it) no target is: library says "not used" and why. Tell the user; don't try another route. The user's save or try runs the check, which is a heuristic (a few addresses and ports; a machine can answer it falsely).
 
 Files:
