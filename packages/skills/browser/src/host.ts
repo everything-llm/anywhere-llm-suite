@@ -76,6 +76,8 @@ export interface Page {
   on(event: "popup", fn: (page: Page | null) => void): unknown;
   once(event: "close", fn: () => void): unknown;
   isClosed(): boolean;
+  /** Makes it the browser's front tab, which Chrome draws frames for. */
+  bringToFront(): Promise<void>;
   close(): Promise<void>;
   target(): { createCDPSession(): Promise<CDPSession> };
   mouse: { click(x: number, y: number): Promise<void>; wheel(delta: { deltaY: number }): Promise<void> };

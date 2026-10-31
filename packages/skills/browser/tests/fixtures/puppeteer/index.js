@@ -169,6 +169,7 @@ class Page {
   isClosed() {
     return this.closed;
   }
+  async bringToFront() {}
   async close() {
     this.closed = true;
   }

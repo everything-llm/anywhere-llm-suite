@@ -253,6 +253,10 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
   try {
     const shot = publicPath(pub(names.token, ""));
     fs.mkdirSync(path.dirname(shot), { recursive: true });
+    // Chrome draws no frame for a tab in the background, and its screenshot waits for one until the
+    // protocol times out: the tab drawn is brought to the front first (a chat's tab or the user's
+    // own, each of which the user may be looking at on its page).
+    await at.page.bringToFront().catch(() => {});
     await at.page.screenshot({ path: `${shot}.jpg`, type: "jpeg", quality: QUALITY });
     if (card) {
       const { width, height } = at.page.viewport() ?? VIEWPORT;
