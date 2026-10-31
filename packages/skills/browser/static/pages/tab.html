@@ -1248,7 +1248,7 @@ svg{flex:none}
     paint();
     if (on) $("q").focus();
   }
-  const looksLikeAddress = (q) => !/\s/.test(q) && (/^https?:\/\//i.test(q) || /^(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?([/?#].*)?$/i.test(q));
+  const ADDRESS = new RegExp(cfg.address, "i"); // what reads as an address: the skill's own (page.ts)
   function suggest() {
     const q = $("q").value.trim();
     $("clear").hidden = !q;
@@ -1261,7 +1261,7 @@ svg{flex:none}
       b.addEventListener("click", () => go(what));
       rows.push(el("li", {}, b));
     };
-    if (looksLikeAddress(q)) row(q, "address", "Go to this address");
+    if (ADDRESS.test(q)) row(q, "address", "Go to this address");
     row(q, "search", "Search");
     const low = q.toLowerCase();
     for (const s of (st && st.sites) || []) if (s.toLowerCase().includes(low) && s.toLowerCase() !== low && rows.length < 5) row(s, "address", "Go to this address");

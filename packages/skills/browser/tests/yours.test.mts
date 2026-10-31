@@ -102,6 +102,8 @@ test("a search uses SEARCH_URL, else DuckDuckGo; an address the fence refuses op
   const call = (args: Record<string, unknown>, settings: Record<string, string> = {}) => called(args, { workspace: "own-search", settings });
   const opts = { workspace: "own-search" };
   await call({ action: "open", url: CHAT });
+  const address = new RegExp((tabConfig("own-search") as unknown as { address: string }).address, "i");
+  assert.ok(address.test("mine.example") && address.test("http://10.1.2.3/") && !address.test("export statements"), "the page tells an address as the skill does");
   post({ ev: "new", q: "export statements", made: "s-1" }, opts);
   await call({ action: "guide" });
   assert.equal(tabState("own-search", "you-1").url, "https://html.duckduckgo.com/html/?q=export%20statements");

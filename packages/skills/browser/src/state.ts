@@ -8,7 +8,7 @@ import type { makeFence } from "#shared/fence";
 import type { Credential } from "#shared/logins";
 import { staticFiles, type StaticFiles } from "#shared/static";
 import { BrowserError } from "./errors";
-import type { Browser, CDPSession, Page, Viewport } from "./host";
+import type { Browser, BrowserContext, CDPSession, Page, Viewport } from "./host";
 
 /** The skill's hubId, as AnythingLLM knows it. */
 export const HUB_ID = "browser-lean";
@@ -79,12 +79,6 @@ export interface Need {
  *  reaches one, its cookies aren't the chats', and nothing done in one is noted for the agent. */
 export const YOURS = "you-";
 
-/** The user's own tabs' browser context: their cookies apart from the chats'. */
-export interface Context {
-  newPage(): Promise<Page>;
-  close(): Promise<void>;
-}
-
 /** A workspace's browser and its tabs, one per chat thread. */
 export interface Entry {
   browser?: Browser;
@@ -95,7 +89,7 @@ export interface Entry {
    *  the id the page that asked for it gave (`made`), for that page to find it. */
   yours: Map<string, { page: Page; made: string }>;
   /** Their browser context, made with the first and closed with the last (browser.ts). */
-  context: Promise<Context> | null;
+  context: Promise<BrowserContext> | null;
   /** How many the user opened, for the next one's name. */
   opened: number;
   /** What happened in a tab since its last read, for the agent. */

@@ -69,7 +69,7 @@ A closed tab's state is `{"closed": true}`, and its other files are gone. The op
 
 ## Answering, as the page does
 
-The page's settings are in `<token>.html`, on the line `const cfg = {…};`: `token`, `secret`, `title` (`"browser-lean-event"`), `workspace`, `tab`, `key` (the page's upload key) and `pub` (the vault's public key, SPKI, base64). A client that answers reads them there.
+The page's settings are in `<token>.html`, on the line `const cfg = {…};`: `token`, `secret`, `title` (`"browser-lean-event"`), `workspace`, `tab`, `address` (a regular expression's source, case-insensitive: what the home's field reads as an address), `key` (the page's upload key) and `pub` (the vault's public key, SPKI, base64). A client that answers reads them there.
 
 An event is posted to AnythingLLM's browser-extension upload, as a document whose text is the event's JSON:
 

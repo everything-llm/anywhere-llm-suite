@@ -162,11 +162,9 @@ async function signIn(self: HandlerContext, at: Tab, args: Args): Promise<string
   const host = hostChecked(at, args.site);
   // A new account's password is the user's to choose, whatever is saved for the site.
   const saved = confirmRef ? null : logins.forHost(host);
+  const told = confirmRef ? `${host} needs a password for the new account, which the user chooses` : `${host} needs the user to sign in, and no login is saved for it`;
   // The page's title says it all ("Sign in to <host>", "Choose a password for <host>"): no line under it.
-  const [text, told] = confirmRef
-    ? ["", `${host} needs a password for the new account, which the user chooses`]
-    : ["", `${host} needs the user to sign in, and no login is saved for it`];
-  if (!saved) return askOnPage(self, at, { kind: "login", host, userRef, secretRef: passRef, confirmRef, submitRef, text }, told);
+  if (!saved) return askOnPage(self, at, { kind: "login", host, userRef, secretRef: passRef, confirmRef, submitRef, text: "" }, told);
   self.introspect?.(`Signing in to ${host} with the saved login`);
   const left = await typeIn(at, host, { userRef, user: saved.user, secretRef: passRef, secret: saved.pass }, submitRef);
   return answer(self, at, `Typed the login the user saved for ${saved.site} into the page${submitted(submitRef, left)}. It's hidden from you; read the page below to see whether it worked.`);

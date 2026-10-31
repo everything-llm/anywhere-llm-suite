@@ -32,7 +32,7 @@ import { inTurn, newSecret, pageHtml, publicPath, readPublic, removePublic, same
 import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
 import { type Unsent, isUnsent, submitted, typeIn } from "./act";
-import { MAX_YOURS, closeTab, openYours, refusedHere } from "./browser";
+import { MAX_YOURS, TO_USER, closeTab, openYours, refusal } from "./browser";
 import * as passkey from "./passkey";
 import { searchAt } from "./research";
 import { JOBS } from "./scope";
@@ -267,7 +267,7 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
     })();
     const [, nav, vaultLink] = await Promise.all([pictured, history(at.page), showVault()]);
     writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, names, title, at.page.url(), snap, linksHidden() ? null : vaultLink, nav)));
-    if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(statics().get("pages/tab.html")!.text, { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key }));
+    if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(statics().get("pages/tab.html")!.text, { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key, address: ADDRESS.source }));
   } catch {
     return null;
   }
@@ -313,11 +313,14 @@ export const redraw = (workspace: string, entry: Entry, key: string): Promise<vo
 
 const text = (v: unknown, n = MAX_TEXT) => clip(v, n);
 
-/** What the user typed into the home's field, as an address: one with a scheme, or a host (with a
- *  port and a path, perhaps); null for words to search for. */
+/** What reads as an address in the home's field: one with a scheme, or a host (with a port and a
+ *  path, perhaps), and no space. The tab's page has it too (its config's `address`), for its
+ *  suggestions. */
+const ADDRESS = /^(https?:\/\/\S*|(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?([/?#]\S*)?)$/i;
+
+/** What the user typed into the home's field, as an address (ADDRESS); null for words to search for. */
 function addressOf(q: string): string | null {
-  if (/\s/.test(q)) return null;
-  if (!/^https?:\/\//i.test(q) && !/^(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?([/?#].*)?$/i.test(q)) return null;
+  if (!ADDRESS.test(q)) return null;
   try {
     return checkUrl(q);
   } catch {
@@ -333,7 +336,7 @@ async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
   if (!q) return false;
   if (at.entry.yours.size >= MAX_YOURS) return say(at.entry, at.key, `You have ${MAX_YOURS} tabs of your own open. Close one, then try again.`), true;
   const url = addressOf(q) ?? searchAt(q);
-  if (await at.entry.fence(url)) return say(at.entry, at.key, refusedHere(url)), true;
+  if (await at.entry.fence(url)) return say(at.entry, at.key, refusal(url, TO_USER)), true;
   const { at: yours, failed } = await openYours(at.workspace, at.entry, url, text(e.made, 40));
   if (failed) say(yours.entry, yours.key, `Couldn’t open ${hostOf(url) || "that address"}. Check the address, then try again.`);
   await redrawn(yours);

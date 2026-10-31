@@ -195,7 +195,7 @@ async function fenced(entry: Entry, page: Page, at?: TabRef): Promise<void> {
     try {
       if (!why) return await request.continue();
       if (at && request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-        if (at.owner === "user") say(entry, at.key, refusedHere(request.url()));
+        if (at.owner === "user") say(entry, at.key, refusal(request.url(), TO_USER));
         else note(at, `refused to open ${request.url().slice(0, 200)}: ${why}. ${refusal(request.url())}`);
       }
       await request.abort("blockedbyclient");
@@ -313,22 +313,21 @@ export async function closeTab({ workspace, entry, key, page }: Tab): Promise<vo
   restamp(workspace, entry);
 }
 
-/** What the user's own tab says when the fence refuses where it was going: where they let it through. */
-export function refusedHere(url: string): string {
-  const origin = originOf(url);
-  if (!origin || pathRefused(new URL(url))) return "The browser doesn’t open that address.";
-  noteRefused(origin);
-  return `${origin} isn’t let through. Allow it in the Vault, under Addresses, then try again.`;
-}
+/** How a refusal is said: when there's no origin to let through, and where the user lets one through. */
+type Wording = { none: string; allow: (origin: string) => string };
+/** To the agent (#shared/fence's words). */
+const TO_AGENT: Wording = { none: FENCED, allow: letThrough };
+/** On the page of the user's own tab. */
+export const TO_USER: Wording = { none: "The browser doesn’t open that address.", allow: (origin) => `${origin} isn’t let through. Allow it in the Vault, under Addresses, then try again.` };
 
-/** What the agent is told after the fence refused `url`: where the user lets its origin through,
+/** What's said after the fence refused `url`, in `wording`: where the user lets its origin through,
  *  noted for the Vault page to offer (noteRefused); only that nothing else may reach it when there's
  *  no origin to let through (a page of the skills', another scheme). */
-function refusal(url: string): string {
+export function refusal(url: string, wording: Wording = TO_AGENT): string {
   const origin = originOf(url);
-  if (!origin || pathRefused(new URL(url))) return FENCED;
+  if (!origin || pathRefused(new URL(url))) return wording.none;
   noteRefused(origin);
-  return letThrough(origin);
+  return wording.allow(origin);
 }
 
 /** Whether the fence lets `url` through: a NetError saying why not, said as `what` ("isn't opened"). */
