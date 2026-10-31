@@ -96,21 +96,38 @@ const drop = (key: string): Promise<void> =>
     v.entries = v.entries.filter((e) => !(e.kind === KIND && e.value === key));
   });
 
+/** The code of an error, or its first words: what an answer names a failure by. */
+const why = (e: unknown): string => (e as NodeJS.ErrnoException)?.code ?? String((e as Error)?.message ?? e).split("\n")[0].slice(0, 120);
+
 /** What to tell the user about the skill's PAGE_KEY setting, which held `given`: kept, refused, or
- *  nothing for a value saved again. The field is emptied once that's decided; where the vault can't
- *  keep it, it stays for the next call (find logs why). */
+ *  nothing for a value saved again (a settings page left open) while the vault has a pages' key; one
+ *  saved again where the vault lost it is kept again. The field is emptied once that's decided; where
+ *  the vault can't keep it, it stays for the next call, and the answer says so, as it says a field
+ *  that couldn't be emptied. */
 async function fromSetting(skill: Skill, pasted: string): Promise<string | null> {
   const where = `PAGE_KEY (Settings › Agent Skills › ${skill.name})`;
   const given = keyIn(pasted);
-  const told = await (async () => {
-    if (repeated(skill.hubId, SETTING, given)) return null;
-    if (!BRX.test(given)) return `The key in ${where} isn't a browser-extension key (those start "brx-"), so it wasn't kept; the field is empty again. Tell the user to copy one from AnythingLLM's Settings › Browser Extension (${guideAt("page-key")}).`;
-    if ((await checked(given)) === "refused") return `AnythingLLM refused the key in ${where}, so it wasn't kept; the field is empty again. Tell the user to make a new one in Settings › Browser Extension and paste it there (${guideAt("page-key")}).`;
-    await keep(given, skill.hubId);
-    known().refused.delete(given);
-    return `The key in ${where} is kept in the Vault for the pages, and the field is empty again. Every suite skill finds it now.`;
-  })();
-  setSettings(skill.hubId, { [SETTING]: "" });
+  let told: string | null;
+  try {
+    told = await (async () => {
+      if (repeated(skill.hubId, SETTING, given) && inVault() !== "") return null;
+      if (!BRX.test(given)) return `The key in ${where} isn't a browser-extension key (those start "brx-"), so it wasn't kept; the field is empty again. Tell the user to copy one from AnythingLLM's Settings › Browser Extension (${guideAt("page-key")}).`;
+      if ((await checked(given)) === "refused") return `AnythingLLM refused the key in ${where}, so it wasn't kept; the field is empty again. Tell the user to make a new one in Settings › Browser Extension and paste it there (${guideAt("page-key")}).`;
+      await keep(given, skill.hubId);
+      known().refused.delete(given);
+      return `The key in ${where} is kept in the Vault for the pages, and the field is empty again. Every suite skill finds it now.`;
+    })();
+  } catch (e) {
+    console.error(`${skill.hubId} couldn't keep the key in PAGE_KEY: ${(e as Error)?.message ?? e}`);
+    return `The key in ${where} couldn't be kept in the Vault (${why(e)}): it stays in PAGE_KEY for the next call. Tell the user it wasn't kept; AnythingLLM's log has the detail.`;
+  }
+  try {
+    setSettings(skill.hubId, { [SETTING]: "" });
+  } catch (e) {
+    console.error(`${skill.hubId} couldn't empty PAGE_KEY: ${(e as Error)?.message ?? e}`);
+    const stays = `PAGE_KEY couldn't be emptied (${why(e)}): the user empties it there by hand`;
+    return told ? `${told.replace(/, and the field is empty again\.|; the field is empty again\./, ".")} ${stays}.` : `${stays}.`;
+  }
   return told;
 }
 

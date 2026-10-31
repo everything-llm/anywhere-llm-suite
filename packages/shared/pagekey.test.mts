@@ -10,7 +10,7 @@ import { Told } from "./errors.mts";
 import { find, keyIn, keyStamp, pageKey } from "./pagekey.mts";
 import { pluginFile } from "./settings.mts";
 import { close, listen } from "./test-helpers.mts";
-import { entries, vaultDir } from "./vault.mts";
+import { entries, update, vaultDir } from "./vault.mts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pagekey-"));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -79,6 +79,42 @@ test("PAGE_KEY is checked, kept in the vault ahead of install's and emptied; sav
   assert.deepEqual(await find(SKILL, undefined), [], "nothing to tell");
   assert.equal(value(), "");
   assert.equal(kept().length, 1);
+  assert.equal(pageKey(), "brx-given");
+});
+
+test("PAGE_KEY saved again after the vault lost the pages' key is kept again, not only emptied", async () => {
+  allm.valid.add("brx-given");
+  const value = setPageKey("brx-given");
+  await find(SKILL, undefined);
+  assert.equal(kept().length, 1);
+  await update((v) => void (v.entries = v.entries.filter((e) => e.kind !== "page-key"))); // the vault lost it
+  setPageKey("brx-given");
+  assert.match((await find(SKILL, undefined)).join("\n"), /The key in PAGE_KEY \(Settings › Agent Skills › Test\) is kept in the Vault for the pages/);
+  assert.equal(value(), "");
+  assert.equal(pageKey(), "brx-given");
+});
+
+test("a PAGE_KEY the vault can't keep stays in the field, and the answer says why; one that can't be emptied is said so", { skip: process.getuid?.() === 0 && "root writes a read-only folder" }, async () => {
+  allm.valid.add("brx-given");
+  const value = setPageKey("brx-given");
+  fs.mkdirSync(vaultDir(), { recursive: true });
+  fs.chmodSync(vaultDir(), 0o500);
+  let said: string[];
+  try {
+    said = await find(SKILL, undefined);
+  } finally {
+    fs.chmodSync(vaultDir(), 0o700);
+  }
+  assert.match(said.join("\n"), /^The key in PAGE_KEY \(Settings › Agent Skills › Test\) couldn't be kept in the Vault \(EACCES\): it stays in PAGE_KEY for the next call\. Tell the user it wasn't kept/);
+  assert.equal(value(), "brx-given");
+  const folder = path.dirname(pluginFile(SKILL.hubId));
+  fs.chmodSync(folder, 0o500);
+  try {
+    said = await find(SKILL, undefined);
+  } finally {
+    fs.chmodSync(folder, 0o755);
+  }
+  assert.match(said.join("\n"), /^The key in PAGE_KEY \(Settings › Agent Skills › Test\) is kept in the Vault for the pages\. Every suite skill finds it now\. PAGE_KEY couldn't be emptied \(EACCES\): the user empties it there by hand\.$/);
   assert.equal(pageKey(), "brx-given");
 });
 
