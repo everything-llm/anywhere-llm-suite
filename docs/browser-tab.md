@@ -54,7 +54,7 @@ A closed tab's state is `{"closed": true}`, and its other files are gone. The op
 | --- | --- | --- |
 | `kind` | `"login"` or `"code"` | a login (username and password) or a one-time code |
 | `host` | string | the site it's for; it's typed only while the tab is still on it |
-| `text` | string | the request, in the skill's own words, never the model's, said to the person under the form's title: `No login is saved for this site.`, `<host> needs a password for the new account, which you choose.` or, for a code, `For <host>.` (a request asked again says why) |
+| `text` | string | the line under the form's title, in the skill's own words, never the model's: empty for a login (the title says it: "Sign in to `<host>`", or "Choose a password for `<host>`" for a new account), `For <host>.` for a code, and `It may not have been accepted. Enter it again.` for a request asked again |
 | `label` | string or null | for a code: "The verification code", "The code from your authenticator app", "The code sent to your phone" or "The code sent to your email" |
 | `hasUser` | boolean | for a login: whether a username is asked for too |
 | `confirm` | boolean | for a login: a new account's password, which the user chooses; it's typed into the "Confirm password" field too |

@@ -35,11 +35,11 @@ test("the user takes the tab over, types a login sealed, is offered to save it, 
 
   post({ ev: "type", ref: "e99", text: "gone" }, opts);
   await call({ action: "guide" });
-  assert.equal(tabState("take").msg.text, "That field changed on the page: tap it again", "said in the user's words, not the agent's");
+  assert.equal(tabState("take").msg.text, "The page changed. Tap the field again.", "said in the user's words, not the agent's");
   post({ ev: "type", ref: "e1", text: "ada" }, opts);
   post({ ev: "type", ref: "e2", text: "in the clear" }, opts);
   await call({ action: "guide" });
-  assert.match(tabState("take").msg.text, /^A password has to come sealed/);
+  assert.equal(tabState("take").msg.text, "A password has to come sealed. Reload the page.");
   assert.equal(lastPage().fields.e2.value, undefined);
   post({ ev: "type", ref: "e2", sealed: seal("pw-take-1", tabConfig("take").pub), then: "Enter" }, opts);
   await call({ action: "guide" });
@@ -136,6 +136,6 @@ test("a passkey the site makes is taken out unless the user holds the tab; saved
   await first.emit("WebAuthn.credentialAdded", { credential: made("declined") });
   post({ ev: "offer", save: false }, opts);
   await call({ action: "guide" });
-  assert.match(tabState("pk").msg.text, /^Not saved: remove the passkey in the site's own settings too/);
+  assert.equal(tabState("pk").msg.text, "Not saved. Remove the passkey in the site’s settings too.");
   assert.equal(first.credentials.has("declined"), false);
 });

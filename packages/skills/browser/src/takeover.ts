@@ -36,7 +36,7 @@ export async function apply(e: Record<string, unknown>, at: Tab): Promise<boolea
     return await step(e, at);
   } catch (err) {
     if (!(err instanceof Told)) throw err;
-    say(at.entry, at.key, err instanceof StaleRef ? "That field changed on the page: tap it again" : err.message);
+    say(at.entry, at.key, err instanceof StaleRef ? "The page changed. Tap the field again." : err.message);
     return true;
   }
 }
@@ -49,7 +49,7 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   switch (e.ev) {
     case "take":
       if (hold) return false;
-      if (entry.busy.has(key)) throw new BrowserError("The agent is in the middle of a step: take over again in a moment");
+      if (entry.busy.has(key)) throw new BrowserError("The agent is busy. Try again in a moment.");
       entry.holds.set(key, { last: Date.now(), typed: null });
       return true;
     case "give":
@@ -97,7 +97,7 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
 async function typed(at: Tab, hold: Hold, e: Record<string, unknown>): Promise<void> {
   const target = await element(at.page, clip(e.ref, 20));
   const password = await isPassword(target);
-  if (password && !e.sealed) throw new BrowserError("A password has to come sealed: reload the page");
+  if (password && !e.sealed) throw new BrowserError("A password has to come sealed. Reload the page.");
   const value = e.sealed ? vault.openSealed(clip(e.sealed, 20000)) : clip(e.text, MAX_TEXT);
   const host = hostOf(at.page.url());
   if (hold.typed?.host !== host) hold.typed = { host, user: "", pass: "" };
@@ -115,7 +115,7 @@ async function answerOffer(at: Tab, save: boolean): Promise<boolean> {
   if (offer.kind === "passkey") {
     if (!save) {
       await passkey.forget(offer.credential.credentialId);
-      say(at.entry, at.key, "Not saved: remove the passkey in the site's own settings too");
+      say(at.entry, at.key, "Not saved. Remove the passkey in the site’s settings too.");
       return true;
     }
     await logins.savePasskey(offer.site, offer.user, offer.credential);

@@ -25,7 +25,7 @@ import { linksHidden, noteTabs, type TabLink } from "#shared/page-links";
 import { inTurn, newSecret, pageHtml, publicPath, readPublic, removePublic, sameSecret, takeEvents, watch, writePublic } from "#shared/pages";
 import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
-import { isUnsent, submitted, typeIn } from "./act";
+import { type Unsent, isUnsent, submitted, typeIn } from "./act";
 import * as passkey from "./passkey";
 import { JOBS } from "./scope";
 import { type Snap, asksPassword, fieldOf, isPasswordLine, lineOf, readPage } from "./snapshot";
@@ -252,8 +252,7 @@ async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   const hidden = "it stays hidden from you. Read the page to see whether it worked";
   if (isUnsent(left)) {
     // Not sent, so nothing was refused: the form needs something else first (a CAPTCHA, say).
-    const needs = left.disabled ? "something else" : left.missing.map((m) => (m.label ? `"${m.label}"` : "another field")).join(", ");
-    say(at.entry, at.key, `${login ? "Your login is" : "The code is"} in. The page still needs ${needs}.`);
+    say(at.entry, at.key, oneMore(left));
   }
   const asking = need.submitRef && !isUnsent(left) ? await stillAsks(at, need) : null;
   if (!asking) return note(at.entry, at.key, `${sent}; ${hidden}`), true;
@@ -261,16 +260,27 @@ async function apply(e: Record<string, unknown>, at: Tab): Promise<boolean> {
   // field is still there, else told on the page.
   at.entry.offers.delete(at.key);
   const it = login ? "a password" : "the code";
-  const told = `${need.host} still asks for ${it}: it may not have been accepted.`;
   const refused = `${sent}, but the page still asks for ${it}: the site may have refused it.`;
   if (asking === "same") {
-    at.entry.needs.set(at.key, { ...need, text: `${told} Check it and enter it again.`, until: Date.now() + NEED_MS });
+    at.entry.needs.set(at.key, { ...need, text: `${MAYBE_REFUSED} Enter it again.`, until: Date.now() + NEED_MS });
     note(at.entry, at.key, `${refused} The user is asked again on the tab's page; wait for them, then read the page`);
   } else {
-    say(at.entry, at.key, `${told} Take the tab over to try again, or ask the agent to.`);
+    say(at.entry, at.key, MAYBE_REFUSED);
     note(at.entry, at.key, `${refused} Read the page, tell the user, and use login again if they want to retry`);
   }
   return true;
+}
+
+/** What the page says when the site still asks for a login or a code after it was sent. */
+const MAYBE_REFUSED = "It may not have been accepted.";
+
+/** What the page says when an answer was typed but its form can't be sent yet: the fields it still
+ *  asks for, by their labels, or that it needs something else (a CAPTCHA, say). */
+function oneMore({ missing, disabled }: Unsent): string {
+  const labels = missing.map((m) => m.label).filter(Boolean);
+  if (disabled || !labels.length) return "One more step: the page needs something else first. Take the tab over to do it.";
+  const quoted = labels.map((l) => `“${l}”`);
+  return `One more step: the page asks you to ${quoted.length > 1 ? `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}` : quoted[0]}.`;
 }
 
 /** After a login or a code was typed and submitted: whether its site still asks for it. "same" when
