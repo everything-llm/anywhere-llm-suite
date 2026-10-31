@@ -394,6 +394,19 @@ export function recentRuns(n: number, service: string): RunRecord[] {
     .filter((r): r is RunRecord => r !== null);
 }
 
+/** The newest run of each function, as recorded, by its qualified name: one file read each. */
+export function lastRuns(): Map<string, RunRecord> {
+  const newest = new Map<string, string>();
+  for (const f of namesIn(runsDir()).filter((f) => f.startsWith("r-")).reverse()) {
+    const fn = f.slice(f.indexOf(".") + 1).replace(/\.json$/, "");
+    if (!newest.has(fn)) newest.set(fn, f);
+  }
+  return new Map([...newest].flatMap(([fn, f]): [string, RunRecord][] => {
+    const run = readRun(f);
+    return run ? [[fn, run]] : [];
+  }));
+}
+
 /** A run by its id, as recorded, from the runs folder's names (`files`, read once for many ids);
  *  null when it isn't kept. */
 export function runOf(id: string, files = namesIn(runsDir())): RunRecord | null {

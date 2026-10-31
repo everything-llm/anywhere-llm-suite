@@ -6,11 +6,13 @@
 //   seed, sealed the same way (signing.ts). It's a second place to give a key, beside the skill's own
 //   settings (slot.ts): the agent asks, the need shows at the top of Keys, and the user may enter it
 //   there.
-// - The Library page (static/pages/library.html): the machines the functions run commands on over
-//   SSH (targets.ts: "targets" to the agent, "machines" to the user; one is added there with the
-//   address, the account and the host key's fingerprint, and a key of the user's, sealed on their
-//   device with the vault's public key, or the page's own), the toolkits, their functions' sources
-//   and the recent runs; the user deletes a function, a toolkit or a machine there.
+// - The Library page (static/pages/library.html), in three tabs: the toolkits, each function on a
+//   screen of its own with its last run and its code; the machines the functions run commands on
+//   over SSH (targets.ts: "targets" to the agent, "machines" to the user), added there in three steps
+//   (the address and account, one command to run on the machine, which carries the page's key, and
+//   the host key's fingerprint it prints, pasted back; or a key of the user's, sealed on their device
+//   with the vault's public key); and the last 20 runs. The user locks, unlocks and deletes a
+//   toolkit there, deletes a function or a machine, and lets scheduled jobs use a machine.
 // What the user does is applied at once while a page is open, and at the start of the agent's next
 // call; library then shows it (a key saved, a target tried).
 //
@@ -35,10 +37,11 @@ import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
 import { LibraryError } from "./errors";
 import * as listing from "./listing";
-import { outcomeOf, recentRuns } from "./runs";
+import { lastRuns, outcomeOf, recentRuns } from "./runs";
 import * as secrets from "./secrets";
 import * as signing from "./signing";
 import * as store from "./store";
+import type { RunRecord } from "./store";
 import * as targets from "./targets";
 
 const TITLE = "library-lean-event";
@@ -109,9 +112,13 @@ function template(): string {
 /** The needs of `kind` that haven't run out, as a page shows them. */
 const needsOf = (p: PageFile | null, kind: Need["kind"]) => (p?.needs ?? []).filter((n) => n.kind === kind && n.until > Date.now()).map(({ label, site }) => ({ label, site }));
 
+/** A run as the page shows it: how it went, when, and its result (500 characters) or error. */
+const runShown = (r: RunRecord) => ({ id: r.id, fn: r.fn, status: r.status, trigger: r.trigger, started: r.started, ended: r.ended, ms: r.ms, error: r.status === "ok" ? null : (r.error?.message ?? null)?.slice(0, 500) ?? null, result: r.status === "ok" ? outcomeOf(r).slice(0, 500) : null });
+
 /** The Library page's state, as it reads it: nothing secret (the spare is a public key). */
 function state(p: PageFile, base: string | null) {
   const heldBy = store.holders();
+  const last = lastRuns();
   return {
     vault: vaultPage.linkOf(base),
     needs: needsOf(p, "target"),
@@ -120,9 +127,19 @@ function state(p: PageFile, base: string | null) {
     result: p.result ?? null,
     toolkits: store.services().map((service) => {
       const kit = store.toolkit(service)!;
-      return { service, title: kit.title, locked: kit.locked === true, reach: store.reach(kit), secrets: kit.secrets.map((s) => s.label), functions: store.functions(service).map((f) => ({ name: f.name, description: f.description, version: f.version, source: f.source })) };
+      return {
+        service,
+        title: kit.title,
+        locked: kit.locked === true,
+        hosts: store.hostsOf(kit),
+        machines: kit.targets,
+        functions: store.functions(service).map((f) => {
+          const run = last.get(`${service}.${f.name}`);
+          return { name: f.name, description: f.description, source: f.source, last: run ? runShown(run) : null };
+        }),
+      };
     }),
-    runs: recentRuns(20).map((r) => ({ id: r.id, fn: r.fn, status: r.status, trigger: r.trigger, ended: r.ended, ms: r.ms, error: r.error ? outcomeOf(r) : null, result: r.status === "ok" ? outcomeOf(r).slice(0, 500) : null })),
+    runs: recentRuns(20).map(runShown),
   };
 }
 

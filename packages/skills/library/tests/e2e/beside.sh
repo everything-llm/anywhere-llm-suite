@@ -1,17 +1,18 @@
 # Sourced by tools/e2e-skill before inside.js runs: a real OpenSSH server beside AnythingLLM, in its
 # network namespace (so at 127.0.0.1:2222 inside it, and nowhere else), for the targets check. The
 # key AnythingLLM signs in with and the server's host key are made here; inside.js gets the private
-# key and the host key's fingerprint, as the user gives them on the Library page. Alpine ships the
-# sftp-server binary apart, so its sshd serves files with internal-sftp.
+# key and the host key's fingerprint, as the user gives them on the Library page; the host key's
+# public half is where the page's setup command reads it. Alpine ships the sftp-server binary apart,
+# so its sshd serves files with internal-sftp.
 ssh-keygen -q -t ed25519 -N "" -C e2e -f "$work/client_key"
 ssh-keygen -q -t ed25519 -N "" -C e2e-host -f "$work/host_key"
 beside="$name-sshd"
 "$engine" run -d --rm --name "$beside" --network "container:$name" \
-  -v "$work/client_key.pub:/e2e/authorized_keys:ro,Z" -v "$work/host_key:/e2e/host_key:ro,Z" docker.io/library/alpine:3.22 sh -c '
+  -v "$work/client_key.pub:/e2e/authorized_keys:ro,Z" -v "$work/host_key:/e2e/host_key:ro,Z" -v "$work/host_key.pub:/e2e/host_key.pub:ro,Z" docker.io/library/alpine:3.22 sh -c '
     apk add --no-cache openssh-server >/dev/null &&
     adduser -D sandbox && echo "sandbox:*" | chpasswd -e &&
     install -d -m 700 -o sandbox /home/sandbox/.ssh && install -m 600 -o sandbox /e2e/authorized_keys /home/sandbox/.ssh/authorized_keys &&
-    install -m 600 /e2e/host_key /etc/ssh/e2e_host_key &&
+    install -m 600 /e2e/host_key /etc/ssh/e2e_host_key && install -m 644 /e2e/host_key.pub /etc/ssh/ssh_host_ed25519_key.pub &&
     exec /usr/sbin/sshd -D -e -o ListenAddress=127.0.0.1:2222 -o HostKey=/etc/ssh/e2e_host_key -o PasswordAuthentication=no \
       -o AllowTcpForwarding=no -o X11Forwarding=no -o AllowAgentForwarding=no -o "Subsystem=sftp internal-sftp"' >/dev/null
 sshd_up() { "$engine" logs "$beside" 2>&1 | grep -q "Server listening"; }
