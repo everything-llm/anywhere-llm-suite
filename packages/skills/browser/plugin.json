@@ -16,7 +16,7 @@
         "type": "text",
         "default": "",
         "placeholder": "https://anythingllm.example.com",
-        "hint": "The address you open AnythingLLM at, for the tab's card and page: with it, they open anywhere (the AnywhereLLM Lite app too). Empty: in AnythingLLM's own chat only."
+        "hint": "Optional. The address you open AnythingLLM at, so the tab’s page opens from anywhere."
       }
     },
     "SEARCH_URL": {
@@ -26,7 +26,7 @@
         "type": "text",
         "default": "",
         "placeholder": "https://html.duckduckgo.com/html/?q={q}",
-        "hint": "The search engine search uses, with {q} where the query goes. Empty: DuckDuckGo's plain HTML search."
+        "hint": "Optional. A search address with {q} where the words go. Without it, search uses DuckDuckGo."
       }
     },
     "PAGE_KEY": {

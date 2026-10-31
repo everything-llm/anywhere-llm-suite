@@ -82,8 +82,16 @@ export interface Page {
   keyboard: { press(key: string): Promise<void>; down(key: string): Promise<void>; up(key: string): Promise<void> };
 }
 
+/** A browser context: pages with cookies of their own (the user's own tabs'). */
+export interface BrowserContext {
+  newPage(): Promise<Page>;
+  close(): Promise<void>;
+}
+
 export interface Browser {
   newPage(): Promise<Page>;
+  /** A context of its own, its cookies apart (the user's own tabs'). */
+  createBrowserContext(): Promise<BrowserContext>;
   target(): { createCDPSession(): Promise<CDPSession> };
   close(): Promise<void>;
   on(event: "disconnected", fn: () => void): unknown;

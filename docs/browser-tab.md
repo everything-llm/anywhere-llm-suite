@@ -36,6 +36,11 @@ Read `<token>.json` with a query that changes (`?t=<now>`) or no cache: it's rew
 | `title` | string | the page's title, at most 200 characters |
 | `url` | string | the tab's address, at most 2000 characters |
 | `host` | string | its host |
+| `mine` | boolean | whether it's a tab the user opened themselves (below), which is always theirs and has no bar saying who holds it |
+| `tabs` | array | the workspace's tabs, for the strip along the top of the page: each chat's, then the user's own, each `{path, title, host, agent, made}`: `path` is its page beside this one (`<token>.html`; this tab is the one whose `path` is this page's), `agent` says the agent has it (a chat's tab the user doesn't hold), and `made` is the id the page that asked for a tab of the user's own gave (null for a chat's) |
+| `sites` | array of strings | the sites a new tab's home lists: the ones with a saved login first, then the open tabs' hosts |
+| `back` | boolean | whether the tab can go back (true where the page can't say) |
+| `forward` | boolean | whether it can go forward |
 | `shot` | number | when the state and picture were written, ms since 1970 |
 | `until` | number | when the tab's browser closes unless the agent or the user does a step first, ms since 1970 by AnythingLLM's clock (its `Date` header): the workspace's one browser, so every tab of the workspace has the same, and a step in any of its chats moves it. A tab past its `until` is closed, though its state may not say so: a restart of AnythingLLM closes its tabs without writing `closed` |
 | `size` | `{w, h}` | the tab's screen, in CSS pixels |
@@ -54,7 +59,7 @@ A closed tab's state is `{"closed": true}`, and its other files are gone. The op
 | --- | --- | --- |
 | `kind` | `"login"` or `"code"` | a login (username and password) or a one-time code |
 | `host` | string | the site it's for; it's typed only while the tab is still on it |
-| `text` | string | the request, in the skill's own words, never the model's, said to the person under the form's title: `No login is saved for this site.`, `<host> needs a password for the new account, which you choose.` or, for a code, `For <host>.` (a request asked again says why) |
+| `text` | string | the line under the form's title, in the skill's own words, never the model's: empty for a login (the title says it: "Sign in to `<host>`", or "Choose a password for `<host>`" for a new account), `For <host>.` for a code, and `It may not have been accepted. Enter it again.` for a request asked again |
 | `label` | string or null | for a code: "The verification code", "The code from your authenticator app", "The code sent to your phone" or "The code sent to your email" |
 | `hasUser` | boolean | for a login: whether a username is asked for too |
 | `confirm` | boolean | for a login: a new account's password, which the user chooses; it's typed into the "Confirm password" field too |
@@ -64,7 +69,7 @@ A closed tab's state is `{"closed": true}`, and its other files are gone. The op
 
 ## Answering, as the page does
 
-The page's settings are in `<token>.html`, on the line `const cfg = {…};`: `token`, `secret`, `title` (`"browser-lean-event"`), `workspace`, `tab`, `key` (the page's upload key) and `pub` (the vault's public key, SPKI, base64). A client that answers reads them there.
+The page's settings are in `<token>.html`, on the line `const cfg = {…};`: `token`, `secret`, `title` (`"browser-lean-event"`), `workspace`, `tab`, `address` (a regular expression's source, case-insensitive: what the home's field reads as an address), `key` (the page's upload key) and `pub` (the vault's public key, SPKI, base64). A client that answers reads them there.
 
 An event is posted to AnythingLLM's browser-extension upload, as a document whose text is the event's JSON:
 
@@ -85,7 +90,11 @@ Every event carries `{"browser_lean_event": 1, "workspace": cfg.workspace, "tab"
 
 **Sealing a password:** RSA-OAEP with SHA-256 under `cfg.pub`, base64. A value longer than 190 bytes is sealed as `h1.<key>.<iv>.<value>`: the value with a new AES-256-GCM key (its 16-byte tag last), and that key with RSA-OAEP, each part base64. The skill opens it with the vault's private key; AnythingLLM's documents hold only the sealed text. A code is sent as it is.
 
-The page's other events (`take`, `give`, `tap`, `scroll`, `type`, `nav`, `size`, `offer`) are its takeover and its offer to save a login, not part of this contract yet.
+The page's other events (`take`, `give`, `tap`, `scroll`, `type`, `nav` with `do` back, forward or reload, `size`, `offer`) are its takeover and its offer to save a login, and `new` (`q`, a search or an address, and `made`, an id to find the tab by along `tabs`) and `close` open a tab of the user's own and close a tab; they're not part of this contract yet.
+
+## The user's own tabs
+
+From a tab's page the user can open tabs of their own: its + and More › New tab show a new tab's home, where a search or an address (`new`) opens one. Such a tab's key is `you-<n>`, a name no chat's thread has, and it's kept apart from the chats' tabs: in a browser context of its own (its cookies aren't the chats'), in a map the agent's actions never look in, with nothing done in it noted for the agent, and under a token no answer of the agent's carries. Its state has `mine` true and `who` always `"user"`, and never a `need`. It goes through the fence as a chat's tab does; an address the fence refuses is said on the page that asked (`msg`), and noted for the Vault to offer under Allowed addresses.
 
 ## When an answer lands
 

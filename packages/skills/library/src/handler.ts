@@ -351,8 +351,8 @@ export const runtime = {
     if (!act) return `The library's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
     // The pages' key, found or made (#shared/pagekey), before anything shows a page; then a key in the
     // slot, whatever the call (slot.ts): it's in plain text until it's taken.
-    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
-    const took = await slot.collect(this).catch((e) => void this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`));
+    const said = await pageKeys.find(SKILL, this.runtimeArgs, (m) => this.logger?.(m));
+    const took = await slot.collect().catch((e) => void this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`));
     if (took) said.push(took.text);
     try {
       const base = baseOf(this);

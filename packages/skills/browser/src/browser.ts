@@ -2,9 +2,10 @@
 // the skill (puppeteer-core, which downloads nothing) and a Chrome found on the machine (chrome()).
 // Each workspace gets a browser of its own, with a profile in a temporary folder that goes when it
 // closes; its cookies are sealed beside the vault (sessions.ts), saved SAVE_MS after a step and as
-// it closes, so its sign-ins last. Each chat thread gets a tab. A browser closes after IDLE_MS
-// unused, and at most
-// MAX_BROWSERS run at once. Every request a page makes goes through the fence (#shared/fence), and
+// it closes, so its sign-ins last. Each chat thread gets a tab. The user may open tabs of their own
+// from a tab's page (openYours): those live in a browser context of their own, with cookies apart
+// from the chats', in a map the agent's actions never look in (tab and existing refuse their names
+// too). A browser closes after IDLE_MS unused, and at most MAX_BROWSERS run at once. Every request a page makes goes through the fence (#shared/fence), and
 // every tab has a passkey authenticator (passkey.ts).
 // What must outlive a reload (the browsers, their tabs) is kept per process (state.ts).
 
@@ -21,7 +22,7 @@ import type { Browser, Page, Puppeteer } from "./host";
 import { forgetTab, redraw, restamp } from "./page";
 import * as passkey from "./passkey";
 import * as sessions from "./sessions";
-import { type Entry, IDLE_MS, type Tab, VIEWPORT, note, state, threadKey } from "./state";
+import { type Entry, IDLE_MS, type Tab, type TabRef, VIEWPORT, YOURS, note, say, state, threadKey } from "./state";
 
 /** Where a system Chrome or Chromium is looked for, after the ones Puppeteer downloaded (Linux only, so far). */
 const SYSTEM_CHROMES = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome-stable", "/usr/bin/google-chrome"];
@@ -88,9 +89,18 @@ function saveSoon(workspace: string, entry: Entry): void {
   entry.saving.unref?.();
 }
 
-/** Forgets a thread's tab, however it closed: its page then says the tab closed. */
+/** At most this many tabs the user opened themselves, in each workspace's browser. */
+export const MAX_YOURS = 8;
+
+/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed.
+ *  With the user's last tab of their own goes their browser context, and its cookies. */
 function dropTab(workspace: string, entry: Entry, key: string): void {
   entry.tabs.delete(key);
+  entry.yours.delete(key);
+  if (!entry.yours.size && entry.context) {
+    void entry.context.then((context) => context.close()).catch(() => {});
+    entry.context = null;
+  }
   entry.notes.delete(key);
   entry.needs.delete(key);
   entry.offers.delete(key);
@@ -107,7 +117,7 @@ function dropEntry(workspace: string, entry: Entry): void {
   browsers.delete(workspace);
   clearTimeout(entry.timer ?? undefined);
   clearTimeout(entry.saving ?? undefined);
-  for (const key of [...entry.tabs.keys()]) dropTab(workspace, entry, key);
+  for (const key of [...entry.tabs.keys(), ...entry.yours.keys()]) dropTab(workspace, entry, key);
 }
 
 async function closeEntry(workspace: string): Promise<void> {
@@ -155,7 +165,7 @@ async function entryFor(workspace: string): Promise<Entry> {
   if (!entry) {
     const others = [...browsers.entries()].sort((a, b) => a[1].last - b[1].last);
     while (others.length >= MAX_BROWSERS) await closeEntry(others.shift()![0]);
-    const made: Entry = { tabs: new Map(), notes: new Map(), needs: new Map(), offers: new Map(), msgs: new Map(), holds: new Map(), screens: new Map(), authenticators: new Map(), secrets: new Set(), fence: makeFence(), last: Date.now(), timer: null, saving: null, saved: null, ready: null!, touch: () => touch(workspace, made), changed: () => saveSoon(workspace, made), busy: new Set() };
+    const made: Entry = { tabs: new Map(), yours: new Map(), context: null, opened: 0, notes: new Map(), needs: new Map(), offers: new Map(), msgs: new Map(), holds: new Map(), screens: new Map(), authenticators: new Map(), secrets: new Set(), fence: makeFence(), last: Date.now(), timer: null, saving: null, saved: null, ready: null!, touch: () => touch(workspace, made), changed: () => saveSoon(workspace, made), busy: new Set() };
     made.ready = launch(workspace).then(async (browser) => {
       made.saved = await sessions.restore(workspace, browser).catch(() => null);
       return (made.browser = browser);
@@ -173,9 +183,9 @@ async function entryFor(workspace: string): Promise<Entry> {
   return entry;
 }
 
-/** Every request `page` makes through the fence; with `key`, a refused navigation of its main frame
- *  is noted for that tab's next read. */
-async function fenced(entry: Entry, page: Page, key?: string): Promise<void> {
+/** Every request `page` makes through the fence; as the page of the tab `at`, a refused navigation of
+ *  its main frame is told: on the user's own tab's page, else in the chat's next read. */
+async function fenced(entry: Entry, page: Page, at?: TabRef): Promise<void> {
   page.setDefaultTimeout(ACT_MS);
   page.setDefaultNavigationTimeout(NAVIGATE_MS);
   await page.setRequestInterception(true);
@@ -184,7 +194,10 @@ async function fenced(entry: Entry, page: Page, key?: string): Promise<void> {
     const why = await entry.fence(request.url());
     try {
       if (!why) return await request.continue();
-      if (key && request.isNavigationRequest() && request.frame() === page.mainFrame()) note(entry, key, `refused to open ${request.url().slice(0, 200)}: ${why}. ${refusal(request.url())}`);
+      if (at && request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+        if (at.owner === "user") say(entry, at.key, refusal(request.url(), TO_USER));
+        else note(at, `refused to open ${request.url().slice(0, 200)}: ${why}. ${refusal(request.url())}`);
+      }
       await request.abort("blockedbyclient");
     } catch {
       // the page went away meanwhile
@@ -192,29 +205,43 @@ async function fenced(entry: Entry, page: Page, key?: string): Promise<void> {
   });
 }
 
-/** Sets up a tab of `key`'s in `workspace`'s browser: the screen its page asked for, the fence on
- *  every request, a passkey authenticator, dialogs answered and noted, a popup it opens made the
- *  thread's tab until it closes. */
-async function adopt(workspace: string, entry: Entry, key: string, page: Page): Promise<Page> {
+/** Sets up a page of the tab `at`: the screen its page asked for, the fence on every request, a
+ *  passkey authenticator, dialogs answered and noted, a popup it opens made the same tab's (the
+ *  chat's or the user's) until it closes. */
+async function adopt(at: TabRef, page: Page): Promise<Page> {
+  const { workspace, entry, key } = at;
   const screen = entry.screens.get(key);
   if (screen) await page.setViewport(screen).catch(() => {});
-  await fenced(entry, page, key);
-  await passkey.attach(entry, key, page, () => void redraw(workspace, entry, key).catch(() => {}));
+  await fenced(entry, page, at);
+  // One DevTools session for the page, open while it is (what it sets goes with it). Chrome draws no
+  // frame for a tab behind another, and a screenshot of one waits for a frame until the protocol
+  // times out: the page is drawn as if it had the focus, so each tab is drawn whichever one is in
+  // front. Its passkey authenticator is on the same session.
+  const cdp = page.target().createCDPSession();
+  await cdp.then((s) => s.send("Emulation.setFocusEmulationEnabled", { enabled: true })).catch(() => {});
+  await passkey.attach(at, page, cdp, () => void redraw(workspace, entry, key).catch(() => {}));
   page.on("dialog", async (dialog) => {
     const accept = dialog.type() === "alert" || dialog.type() === "beforeunload";
-    note(entry, key, `the page showed a ${dialog.type()} ("${dialog.message().slice(0, 200)}"), which was ${accept ? "accepted" : "dismissed"}`);
+    note(at, `the page showed a ${dialog.type()} ("${dialog.message().slice(0, 200)}"), which was ${accept ? "accepted" : "dismissed"}`);
     await (accept ? dialog.accept() : dialog.dismiss()).catch(() => {});
   });
+  // A window the page opens is the same tab's, in its owner's map (a closed tab of the user's isn't
+  // put back).
+  const now = (): Page | undefined => (at.owner === "user" ? entry.yours.get(key)?.page : entry.tabs.get(key));
+  const put = (to: Page): void => {
+    if (at.owner === "chat") entry.tabs.set(key, to);
+    else if (entry.yours.has(key)) entry.yours.get(key)!.page = to;
+  };
   page.on("popup", async (popup) => {
     if (!popup) return;
-    const opener = entry.tabs.get(key);
-    await adopt(workspace, entry, key, popup);
-    entry.tabs.set(key, popup);
-    note(entry, key, "the page opened a new window, which is this chat's tab until it closes");
+    const opener = now();
+    await adopt(at, popup);
+    put(popup);
+    note(at, "the page opened a new window, which is this chat's tab until it closes");
     popup.once("close", () => {
-      if (entry.tabs.get(key) === popup && opener && !opener.isClosed()) {
-        entry.tabs.set(key, opener);
-        note(entry, key, "the new window closed; the tab is the one before it again");
+      if (now() === popup && opener && !opener.isClosed()) {
+        put(opener);
+        note(at, "the new window closed; the tab is the one before it again");
       }
     });
   });
@@ -234,36 +261,73 @@ export async function scratch(workspace: string): Promise<{ entry: Entry; page: 
   return { entry, page };
 }
 
+/** This chat's tab in `entry`'s browser (the workspace's), the one way the agent's actions get a tab:
+ *  by its thread's key, looked for among the chats' tabs alone, never the user's own (Entry.yours);
+ *  `page` null while it has none open. A thread's key is never one of the user's tabs' names, whose
+ *  notes and holds are kept by name too (scope.ts gives none such). */
+export function chatTab(workspace: string, entry: Entry, thread?: string | number): TabRef & { page: Page | null } {
+  const key = threadKey(thread);
+  if (key.startsWith(YOURS)) throw new BrowserError("that's a tab the user opened themselves, which only they use");
+  const page = entry.tabs.get(key);
+  return { workspace, entry, key, owner: "chat", page: page && !page.isClosed() ? page : null };
+}
+
 /** This chat's tab in the workspace's browser, opened if it has none. */
 export async function tab(workspace: string, thread?: string | number): Promise<Tab> {
-  const entry = await entryFor(workspace);
-  const key = threadKey(thread);
-  let page = entry.tabs.get(key);
-  if (!page || page.isClosed()) {
-    page = await adopt(workspace, entry, key, await entry.browser!.newPage());
-    entry.tabs.set(key, page);
-  }
-  return { workspace, entry, page, key };
+  const at = chatTab(workspace, await entryFor(workspace), thread);
+  if (at.page) return { ...at, page: at.page };
+  const page = await adopt(at, await at.entry.browser!.newPage());
+  at.entry.tabs.set(at.key, page);
+  return { ...at, page };
 }
 
 /** This chat's open tab, or a BrowserError saying to open an address first. */
 export function existing(workspace: string, thread?: string | number): Tab {
   const entry = state().browsers.get(workspace);
-  const key = threadKey(thread);
-  const page = entry?.tabs.get(key);
-  if (!entry || !page || page.isClosed()) throw new BrowserError("this chat has no page open: open an address first");
-  touch(workspace, entry);
-  return { workspace, entry, page, key };
+  const at = entry && chatTab(workspace, entry, thread);
+  if (!at?.page) throw new BrowserError("this chat has no page open: open an address first");
+  touch(workspace, at.entry);
+  return { ...at, page: at.page };
 }
 
-/** What the agent is told after the fence refused `url`: where the user lets its origin through,
+/** A tab of the user's own, opened from a tab's page in `entry`'s browser (the workspace's) at
+ *  `url`, which the fence lets through (the caller asked it): in the user's browser context, with
+ *  the fence on its requests and a passkey authenticator, as a chat's tab has. `made` is the id the
+ *  page asked with. Answers the tab, and why loading didn't finish (null when it did). */
+export async function openYours(workspace: string, entry: Entry, url: string, made: string): Promise<{ at: Tab; failed: string | null }> {
+  if (!entry.browser) throw new BrowserError("the browser isn't running");
+  entry.context ??= entry.browser.createBrowserContext();
+  const context = await entry.context;
+  const ref: TabRef = { workspace, entry, key: `${YOURS}${++entry.opened}`, owner: "user" };
+  const page = await adopt(ref, await context.newPage());
+  entry.yours.set(ref.key, { page, made });
+  page.once("close", () => entry.yours.get(ref.key)?.page === page && dropTab(workspace, entry, ref.key));
+  touch(workspace, entry);
+  return { at: { ...ref, page }, failed: await load(entry, page, url).catch((e) => firstLine(e)) };
+}
+
+/** Closes a tab from its page: the user's own, or a chat's (whose agent then finds no page open). */
+export async function closeTab({ workspace, entry, key, page }: Tab): Promise<void> {
+  dropTab(workspace, entry, key);
+  await page.close().catch(() => {});
+  restamp(workspace, entry);
+}
+
+/** How a refusal is said: when there's no origin to let through, and where the user lets one through. */
+type Wording = { none: string; allow: (origin: string) => string };
+/** To the agent (#shared/fence's words). */
+const TO_AGENT: Wording = { none: FENCED, allow: letThrough };
+/** On the page of the user's own tab. */
+export const TO_USER: Wording = { none: "The browser doesn’t open that address.", allow: (origin) => `${origin} isn’t let through. Allow it in the Vault, under Addresses, then try again.` };
+
+/** What's said after the fence refused `url`, in `wording`: where the user lets its origin through,
  *  noted for the Vault page to offer (noteRefused); only that nothing else may reach it when there's
  *  no origin to let through (a page of the skills', another scheme). */
-function refusal(url: string): string {
+export function refusal(url: string, wording: Wording = TO_AGENT): string {
   const origin = originOf(url);
-  if (!origin || pathRefused(new URL(url))) return FENCED;
+  if (!origin || pathRefused(new URL(url))) return wording.none;
   noteRefused(origin);
-  return letThrough(origin);
+  return wording.allow(origin);
 }
 
 /** Whether the fence lets `url` through: a NetError saying why not, said as `what` ("isn't opened"). */
