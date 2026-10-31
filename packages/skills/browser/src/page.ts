@@ -254,19 +254,18 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
   try {
     const shot = publicPath(pub(names.token, ""));
     fs.mkdirSync(path.dirname(shot), { recursive: true });
-    // Chrome draws no frame for a tab in the background, and its screenshot waits for one until the
-    // protocol times out: the tab drawn is brought to the front first (a chat's tab or the user's
-    // own, each of which the user may be looking at on its page).
-    await at.page.bringToFront().catch(() => {});
-    await at.page.screenshot({ path: `${shot}.jpg`, type: "jpeg", quality: QUALITY });
-    if (card) {
+    // Every tab is drawn as if it had the focus (browser.ts adopt), so its picture is taken where it is.
+    // Its history and the Vault page are read and written meanwhile; the Vault page is written either
+    // way, and its link goes into the tab's state (which the agent's card carries) only while the
+    // links aren't kept from the agent (#shared/page-links, read each time).
+    const pictured = (async () => {
+      await at.page.screenshot({ path: `${shot}.jpg`, type: "jpeg", quality: QUALITY });
+      if (!card) return;
       const { width, height } = at.page.viewport() ?? VIEWPORT;
       await at.page.screenshot({ path: `${shot}-card.jpg`, type: "jpeg", quality: QUALITY, clip: { x: 0, y: 0, width, height: Math.min(height, Math.round(width * 1.2)), scale: 0.5 } });
-    }
-    // The Vault page is written either way; its link goes into the tab's state (which the agent's card
-    // carries) only while the links aren't kept from the agent (#shared/page-links, read each time).
-    const vaultLink = await showVault();
-    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, title, at.page.url(), snap, linksHidden() ? null : vaultLink, await history(at.page))));
+    })();
+    const [, nav, vaultLink] = await Promise.all([pictured, history(at.page), showVault()]);
+    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, title, at.page.url(), snap, linksHidden() ? null : vaultLink, nav)));
     if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(statics().get("pages/tab.html")!.text, { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key }));
   } catch {
     return null;

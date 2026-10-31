@@ -208,7 +208,13 @@ async function adopt(at: TabRef, page: Page): Promise<Page> {
   const screen = entry.screens.get(key);
   if (screen) await page.setViewport(screen).catch(() => {});
   await fenced(entry, page, at);
-  await passkey.attach(at, page, () => void redraw(workspace, entry, key).catch(() => {}));
+  // One DevTools session for the page, open while it is (what it sets goes with it). Chrome draws no
+  // frame for a tab behind another, and a screenshot of one waits for a frame until the protocol
+  // times out: the page is drawn as if it had the focus, so each tab is drawn whichever one is in
+  // front. Its passkey authenticator is on the same session.
+  const cdp = page.target().createCDPSession();
+  await cdp.then((s) => s.send("Emulation.setFocusEmulationEnabled", { enabled: true })).catch(() => {});
+  await passkey.attach(at, page, cdp, () => void redraw(workspace, entry, key).catch(() => {}));
   page.on("dialog", async (dialog) => {
     const accept = dialog.type() === "alert" || dialog.type() === "beforeunload";
     note(at, `the page showed a ${dialog.type()} ("${dialog.message().slice(0, 200)}"), which was ${accept ? "accepted" : "dismissed"}`);

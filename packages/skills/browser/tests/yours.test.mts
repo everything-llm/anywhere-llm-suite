@@ -27,7 +27,7 @@ site("https://search.example/?q=export%20statements", { title: "Search", text: "
 const tabsOf = (workspace: string): Record<string, { token: string }> => JSON.parse(fs.readFileSync(path.join(storage, "browser-lean", workspace, "tabs.json"), "utf8"));
 const browserState = () =>
   (globalThis as unknown as Record<symbol, { browsers: Map<string, { holds: Map<string, { last: number }>; yours: Map<string, unknown>; tabs: Map<string, unknown> }> }>)[Symbol.for("anywherellm-suite.browser-lean.state")];
-const pageAt = (url: string) => world.pages.filter((p) => p.url() === url).at(-1)! as unknown as { url(): string; fields: Record<string, { value?: string }>; context?: unknown; navs: string[] };
+const pageAt = (url: string) => world.pages.filter((p) => p.url() === url).at(-1)! as unknown as { url(): string; fields: Record<string, { value?: string }>; context?: unknown; navs: string[]; session: { focused?: boolean } | null };
 
 test("a search or an address on a tab's page opens a tab of the user's own, listed on every page, which the agent never reaches", async () => {
   const call = (args: Record<string, unknown>, thread: number | null = 1) => called(args, { workspace: "own", thread });
@@ -56,6 +56,8 @@ test("a search or an address on a tab's page opens a tab of the user's own, list
   // Its own cookies: a context of its own, apart from the chats' tabs.
   assert.ok(pageAt(MINE).context, "in a browser context of its own");
   assert.equal(pageAt(CHAT).context, undefined, "the chat's tab in the browser's own");
+  // Each tab is drawn whichever one is in front: its page has the focus, on the session its passkeys use.
+  assert.ok(pageAt(MINE).session?.focused && pageAt(CHAT).session?.focused, "every tab's page drawn as if it had the focus");
 
   // Nothing of it reaches the agent: not its page, its name or its token.
   const read = await call({ action: "read" });

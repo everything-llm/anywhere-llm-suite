@@ -23,6 +23,7 @@ class Session {
     await new Promise((resolve) => setTimeout(resolve, 50)); // what the skill does after, on its own
   }
   async send(method, params = {}) {
+    if (method === "Emulation.setFocusEmulationEnabled") return void (this.focused = params.enabled);
     if (method === "WebAuthn.enable") return {};
     if (method === "WebAuthn.addVirtualAuthenticator") {
       this.options = params.options;
@@ -169,7 +170,6 @@ class Page {
   isClosed() {
     return this.closed;
   }
-  async bringToFront() {}
   async close() {
     this.closed = true;
   }

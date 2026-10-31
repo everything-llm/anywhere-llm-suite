@@ -13,7 +13,7 @@ import { onSite } from "#shared/fence";
 import * as logins from "#shared/logins";
 import type { Credential } from "#shared/logins";
 import { firstLine } from "#shared/errors";
-import type { Page } from "./host";
+import type { CDPSession, Page } from "./host";
 import { type Authenticator, OFFER_MS, type TabRef, holder, note, state } from "./state";
 
 const OPTIONS = { protocol: "ctap2", ctap2Version: "ctap2_1", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true };
@@ -22,13 +22,14 @@ const send = (a: Authenticator, method: string, params: Record<string, unknown>)
 /** What Chrome gives as a credential, as addCredential takes it back. */
 const asCredential = (c: Partial<Credential>): Credential => ({ isResidentCredential: true, signCount: 0, ...c }) as Credential;
 
-/** Gives `page`, a page of the tab `at`, an authenticator holding the saved passkeys. `changed` draws
- *  the tab again when its page has something new to show the user. */
-export async function attach(at: TabRef, page: Page, changed: () => void): Promise<void> {
+/** Gives `page`, a page of the tab `at`, an authenticator holding the saved passkeys, on its DevTools
+ *  session `session` (browser.ts adopt). `changed` draws the tab again when its page has something new
+ *  to show the user. */
+export async function attach(at: TabRef, page: Page, session: Promise<CDPSession>, changed: () => void): Promise<void> {
   const { entry } = at;
   let a: Authenticator;
   try {
-    const cdp = await page.target().createCDPSession();
+    const cdp = await session;
     await cdp.send("WebAuthn.enable", { enableUI: false });
     const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", { options: OPTIONS });
     a = { cdp, id: authenticatorId };
