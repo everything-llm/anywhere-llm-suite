@@ -28,12 +28,12 @@ test("a setting is read from plugin.json as it is now; with no plugin.json, from
 });
 
 test("settings are set in place of their values, only those declared, atomically and with the file's mode", () => {
-  const file = installed("two-lean", { NEW_KEY: arg("password", "k-1"), KEY_FOR: arg("text", "api.example.com"), NTFY_TOKEN: arg("password", "tk") });
+  const file = installed("two-lean", { NEW_KEY: arg("password", "k-1"), KEY_FOR: arg("text", "api.example.com"), ANYTHINGLLM_URL: arg("text", "https://llm.example.com") });
   assert.equal(setSettings("two-lean", { NEW_KEY: "", KEY_FOR: "", OTHER: "x" }), true);
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.equal(config.setup_args.NEW_KEY.value, "");
   assert.equal(config.setup_args.KEY_FOR.value, "");
-  assert.equal(config.setup_args.NTFY_TOKEN.value, "tk", "the others stay");
+  assert.equal(config.setup_args.ANYTHINGLLM_URL.value, "https://llm.example.com", "the others stay");
   assert.ok(!("OTHER" in config.setup_args), "a setting the skill doesn't declare isn't added");
   assert.equal(config.description, "d");
   if (process.platform !== "win32") assert.equal((fs.statSync(file).mode & 0o777).toString(8), "640");

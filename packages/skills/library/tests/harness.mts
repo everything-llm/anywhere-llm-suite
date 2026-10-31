@@ -75,7 +75,7 @@ export const cardsShown: unknown[] = [];
 export interface Call {
   slug?: string | null;
   base?: string;
-  /** The skill's other settings (NTFY_URL...), as the user set them. */
+  /** The skill's other settings, as the user set them (or as a stored plugin.json still holds them). */
   settings?: Record<string, string>;
 }
 

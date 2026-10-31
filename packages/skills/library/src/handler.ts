@@ -16,7 +16,6 @@ import { baseUrlOf as baseOf, noteBase, workspaceOf } from "#shared/anythingllm"
 import { answerText, flag, keepOf, objectOf, textOf } from "#shared/answer";
 import { Told } from "#shared/errors";
 import { checkUrl } from "#shared/fence";
-import { notify, topicUrl, type Ntfy } from "#shared/notify";
 import { OPEN_PAGES, linksHidden } from "#shared/page-links";
 import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
@@ -268,7 +267,7 @@ async function within<T>(done: Promise<T>, ms: number): Promise<T | null> {
 
 /** Runs a function: in a scheduled job to its end (the job's process ends with the job); in a chat as
  *  long as the chat waits, then on in the background, and its end is shown to the next chat that
- *  calls library or run, on the Library page, and on the user's ntfy topic. A run stays marked not
+ *  calls library or run, and on the Library page. A run stays marked not
  *  shown until an answer shows how it ended: a scheduled job's that didn't end well stays so, for
  *  the next chat. */
 async function runNow(name: string, inputs: unknown, self: HandlerContext): Promise<string> {
@@ -276,7 +275,6 @@ async function runNow(name: string, inputs: unknown, self: HandlerContext): Prom
   const job = running.trigger === "job";
   // Only what the end needs, so a background run doesn't hold on to the agent that started it.
   const base = baseOf(self);
-  const ntfy = { url: topicUrl(clean(self.runtimeArgs?.NTFY_URL)), token: clean(self.runtimeArgs?.NTFY_TOKEN) };
   void done.then(() => page.refresh(base));
   const record = job ? await done : await within(done, waitMs());
   if (record) {
@@ -284,24 +282,8 @@ async function runNow(name: string, inputs: unknown, self: HandlerContext): Prom
     return runs.runText(record);
   }
   page.refresh(base);
-  void done.then((r) => (listing.refresh(console.error), notified(r, ntfy, base)));
-  const notice = ntfy.url ? "the user is notified" : "no notification goes out (no usable NTFY_URL is set)";
-  return `Still running ${running.fn} in the background (${running.id}): carry on. When it ends, ${notice}, the Library page shows it, and it's at the top of the next library or run answer. run with run_id "${running.id}" shows it now; add stop: true to stop it.`;
-}
-
-const ENDED: Partial<Record<store.RunRecord["status"], string>> = { ok: "ended", error: "failed", timeout: "timed out" };
-
-/** Tells the user, on their ntfy topic, that a run the chat stopped waiting for ended, and how: never
- *  what it returned or which function it was (the agent names those, and a topic anyone can follow
- *  would carry out whatever an injected agent put there). Its click opens the workspace it ran in,
- *  which AnythingLLM names, when its address is known. */
-async function notified(run: store.RunRecord, ntfy: Ntfy, base: string | null): Promise<void> {
-  const click = base && run.workspace ? `${base}/workspace/${run.workspace}` : undefined;
-  try {
-    await notify(ntfy, { title: `Library: a background run ${ENDED[run.status] ?? run.status}`, body: "Its result is on the Library page.", click });
-  } catch (e) {
-    console.error(`library-lean couldn't notify of the end of ${run.id}: ${(e as Error).message}`);
-  }
+  void done.then(() => listing.refresh(console.error));
+  return `Still running ${running.fn} in the background (${running.id}): carry on. Tell the user it goes on in the background, its result shows on the Library page, and you'll give it to them the next time you look at the library: its end is at the top of the next library or run answer. run with run_id "${running.id}" shows it now; add stop: true to stop it.`;
 }
 
 /** `text`, after the runs that ended since a chat was last shown them, at most 3 at a time, which are
