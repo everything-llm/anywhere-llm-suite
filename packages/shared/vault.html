@@ -796,26 +796,30 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .row{min-height:calc(var(--row-h) + var(--space-3));display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0}
 .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .who b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
-.who small{font-family:var(--font-mono);font-size:.8125rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-family:var(--font-mono);font-size:.8125rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr .who b{font-family:var(--font-mono);font-size:.9375rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr .who small{font-family:var(--font-sans);color:var(--ink)}
-.btn,.del{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-h);padding:0 var(--space-4);border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);text-align:center;transition:transform var(--duration-quick) var(--ease-out)}
-.btn::after,.del::after{content:"";position:absolute;inset:calc((var(--control-h) - var(--target)) / 2) -2px;min-height:var(--target)}
-.btn:active,.del:active{transform:scale(.97)}
-.del,.bad,.foot .btn{border-color:var(--danger);color:var(--danger)}
-.del{flex:none}
-.pri{min-height:var(--primary-h);padding:0 var(--space-6);border-color:transparent;border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
-.row .btn{flex:none}
+/* House UI's buttons, as its bundle.css has them: primary (the one main action of a form), secondary,
+   danger (every Delete and Remove) and ghost (Replace link). */
+.hu-button{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--control-h);padding:0 var(--space-4);border:1px solid transparent;border-radius:var(--radius-md);font:600 1rem/1.25 var(--font-sans);text-decoration:none;text-align:center;transition:transform var(--duration-quick) var(--ease-out)}
+.hu-button::after{content:"";position:absolute;inset:calc((var(--control-h) - var(--target)) / 2) -2px;min-height:var(--target)}
+.hu-button:active{transform:scale(.97)}
+.hu-button--primary{min-height:var(--primary-h);padding:0 var(--space-6);border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
+.hu-button--secondary{background:var(--tile);color:var(--ink);border-color:var(--line-strong)}
+.hu-button--ghost{background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.hu-button--danger{background:var(--tile);color:var(--danger);border-color:var(--danger)}
+@media (forced-colors:active){.hu-button{border-color:CanvasText}.hu-button--primary{border-width:2px}}
+.row .hu-button{flex:none}
 .tag{flex:none;padding:2px var(--space-2);border-radius:var(--radius-xs);font-size:.8125rem;background:var(--warning-soft);color:var(--warning)}
 .tag.ok{background:var(--success-soft);color:var(--success)}
 summary{list-style:none;cursor:pointer}
 summary::-webkit-details-marker{display:none}
 summary .chev{flex:none;color:var(--muted);transition:transform var(--duration-done) var(--ease-out)}
 details[open] summary .chev{transform:rotate(180deg)}
-@media (prefers-reduced-motion:reduce){summary .chev{transition:none}.btn:active,.del:active{transform:none}}
+@media (prefers-reduced-motion:reduce){summary .chev{transition:none}}
 .body{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-1) 0 var(--space-5)}
 .kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px var(--space-4);margin:0;font-size:.8125rem}
-.kv dt{color:var(--muted);align-self:center}
+.kv dt{color:var(--ink);align-self:center}
 .kv dd{margin:0;font-family:var(--font-mono);font-size:.9375rem;color:var(--ink);overflow-wrap:anywhere;align-self:center}
 .kv dd.line{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .say{margin:0;font-size:.8125rem;line-height:1.4;color:var(--ink)}
@@ -829,7 +833,7 @@ input::placeholder{color:var(--muted);opacity:1}
 .peek{position:relative}
 .peek .fld{padding-right:76px}
 .peek button{position:absolute;right:var(--space-1);top:50%;transform:translateY(-50%);min-width:var(--control-h);min-height:var(--control-h);padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--accent);font-size:.8125rem;font-weight:600}
-.pair{display:flex;gap:var(--space-3)}.pair .btn{flex:1;padding:var(--space-1) var(--space-4)}
+.pair{display:flex;gap:var(--space-3)}.pair .hu-button{flex:1;padding:var(--space-1) var(--space-4)}
 .add{min-height:calc(var(--row-h) + var(--space-1));display:flex;align-items:center;gap:var(--space-3);color:var(--accent);font-size:1rem;font-weight:600;width:100%}
 .add+form{padding-bottom:var(--space-5)}
 .empty{margin:0;padding:var(--space-5) 0;font-size:1rem;line-height:1.5;color:var(--muted)}
@@ -847,7 +851,7 @@ input::placeholder{color:var(--muted);opacity:1}
 @keyframes rise{from{transform:translateY(100%)}}
 @keyframes fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
-@media (hover:hover){.rb:hover,.btn:not(.pri):hover,.del:hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
+@media (hover:hover){.rb:hover,.hu-button:not(.hu-button--primary):hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:5;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
 </style>
 </head>
@@ -943,7 +947,7 @@ input::placeholder{color:var(--muted);opacity:1}
    *  between the fields and the button. */
   function form(fields, submit, onsubmit, extra = []) {
     const inputs = {};
-    const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), ...extra, el("button", { className: "btn pri", type: "submit", textContent: submit }));
+    const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), ...extra, el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
     node.addEventListener("reset", () => { for (const b of node.querySelectorAll('.peek [aria-pressed="true"]')) b.click(); });
     node.onsubmit = async (e) => {
       e.preventDefault();
@@ -999,7 +1003,7 @@ input::placeholder{color:var(--muted);opacity:1}
 
   /** A button that asks first, in the sheet (`asked`: the question and the line under it, then Keep
    *  or `yes`), before it runs `run`. Heard as `label`. */
-  function remove(asked, label, run, { text = "Delete", className = "del", yes = "Delete" } = {}) {
+  function remove(asked, label, run, { text = "Delete", className = "hu-button hu-button--danger", yes = "Delete" } = {}) {
     const del = el("button", { className, type: "button", textContent: text });
     del.setAttribute("aria-label", label);
     del.onclick = (e) => {
@@ -1061,19 +1065,19 @@ input::placeholder{color:var(--muted);opacity:1}
   function drawSigning(ks) {
     const list = ks.signing ?? [];
     const items = list.map((g) => {
-      const del = remove([`Delete the signing key ${g.label}?`, `Nothing signs as it after, and it can’t be made again: its peers would need a new public key.`], `Delete the signing key ${g.label}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key", className: "btn bad" });
+      const del = remove([`Delete the signing key ${g.label}?`, `Nothing signs as it after, and it can’t be made again: its peers would need a new public key.`], `Delete the signing key ${g.label}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key" });
       // The open row shows the fingerprint, and the public key itself only where it can't be copied:
       // the clipboard needs https, and a refusal shows it too.
       const canCopy = !!(window.isSecureContext && navigator.clipboard);
       const pub = [el("dt", { textContent: "Public key", hidden: canCopy }), el("dd", { textContent: g.public, hidden: canCopy })];
       const facts = el("dl", { className: "kv" }, ...(g.fingerprint ? [el("dt", { textContent: "Fingerprint" }), el("dd", { className: "line", title: g.fingerprint, textContent: g.fingerprint })] : []), ...pub);
-      const copy = g.public && canCopy && el("button", { className: "btn", type: "button", textContent: "Copy public key", onclick: async () => {
+      const copy = g.public && canCopy && el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Copy public key", onclick: async () => {
         try { await navigator.clipboard.writeText(g.public); toast("Copied"); } catch (e) {
           for (const x of pub) x.hidden = false;
           toast("Can’t copy here: select the public key and copy it");
         }
       } });
-      const jobs = el("button", { className: "btn", type: "button", textContent: g.unattended ? "Stop it signing in scheduled jobs" : "Let it sign in scheduled jobs", onclick: () => post("keys", "signing-unattended", { label: g.label, on: !g.unattended }) });
+      const jobs = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: g.unattended ? "Stop it signing in scheduled jobs" : "Let it sign in scheduled jobs", onclick: () => post("keys", "signing-unattended", { label: g.label, on: !g.unattended }) });
       const tag = el("span", { className: "tag" + (g.public ? " ok" : ""), textContent: !g.public ? "Damaged" : g.unattended ? "Chats and jobs" : "Chats" });
       return el("details", {},
         el("summary", {}, row(g.label, g.namespace, tag, el("span", { className: "chev" }, icon("M4 6l4 4 4-4", 14)))),
@@ -1131,7 +1135,7 @@ input::placeholder{color:var(--muted);opacity:1}
       return addr(row(a.origin, a.added ? `Added ${day(a.added)}` : "", del));
     });
     const refused = as.refused.map((r) => {
-      const allow = el("button", { className: "btn", type: "button", textContent: "Allow", ariaLabel: `Allow ${r.origin}`, onclick: () => post("addresses", "address-allow", { origin: r.origin }) });
+      const allow = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Allow", ariaLabel: `Allow ${r.origin}`, onclick: () => post("addresses", "address-allow", { origin: r.origin }) });
       return addr(row(r.origin, `Refused ${moment(r.at)}`, allow));
     });
     const addForm = form([["origin", "An address, like http://muse-vm:8463", "text", true]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)));
@@ -1177,7 +1181,7 @@ input::placeholder{color:var(--muted);opacity:1}
   }
 
   // ---- A new link, asked first.
-  const rotate = remove(["Make a new link?", "This one stops working, everywhere it was shared."], "Make a new link", () => post([...shown][0], "rotate"), { text: "New link", className: "btn", yes: "Make it" });
+  const rotate = remove(["Make a new link?", "This one stops working, everywhere it was shared."], "Make a new link", () => post([...shown][0], "rotate"), { text: "New link", className: "hu-button hu-button--secondary", yes: "Make it" });
   $("foot").append(el("div", { id: "rotatebox", hidden: true }, rotate));
   const poll = setInterval(load, 5000);
   load();
