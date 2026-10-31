@@ -7,7 +7,7 @@
 <title>Library</title>
 <style>
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
-   tokens.css with the indigo scheme only, then bundle.css's root, density and focus rules. Regenerate
+   tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
 :root {
   --ground: var(--indigo-ground);
@@ -766,11 +766,36 @@ html { font-size: 100%; }
   .hu-root *, .hu-root *::before, .hu-root *::after { transition-property: opacity !important; transition-duration: 150ms !important; }
   .hu-root .hu-button:active, .hu-root a.hu-tile:active, .hu-root button.hu-tile:active, .hu-root .hu-chip:active { transform: none; }
 }
+/* Buttons: primary (the one main action of a form), secondary, danger and ghost */
+.hu-button {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-4);
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  font: 600 1rem/1.25 var(--font-sans); text-decoration: none; cursor: pointer; text-align: center;
+  transition: transform var(--duration-quick) var(--ease-out);
+}
+.hu-button::after { content: ""; position: absolute; inset: calc((var(--control-h) - var(--target)) / 2) -2px; min-height: var(--target); }
+.hu-button:active { transform: scale(0.97); }
+.hu-button svg { width: 20px; height: 20px; flex: none; stroke-width: 2.4; }
+.hu-button--primary {
+  min-height: var(--primary-h); padding: 0 var(--space-6); border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-glow);
+}
+.hu-button--secondary { background: var(--tile); color: var(--ink); border-color: var(--line-strong); }
+.hu-button--ghost { background: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.hu-button--danger { background: var(--tile); color: var(--danger); border-color: var(--danger); }
+.hu-button--block { width: 100%; }
+.hu-button[disabled], .hu-button[aria-disabled="true"] { background: var(--sunken); color: var(--muted); border-color: var(--line); box-shadow: none; cursor: not-allowed; transform: none; }
+@media (forced-colors: active) {
+  .hu-button { border-color: CanvasText; }
+  .hu-button--primary { border-width: 2px; }
+}
 /* end of house ui */
 /* The leaner Library (Library Design canvas, page "Library", section 5, 2026-10-31): three tabs, less
    on each. Drawn with House UI's tokens only, so code is in the ink colour (the canvas colours it with
-   three of its own); buttons are House UI's hu-button shapes under the page's own names. Every control
-   is at least 44 px tall whatever the pointer. */
+   three of its own); buttons are House UI's, from its block. Every control is at least 44 px tall
+   whatever the pointer (the body's data-density="touch" keeps House UI's buttons at that size too). */
 body{margin:0;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input,textarea{font:inherit;color:var(--ink)}
@@ -815,14 +840,9 @@ nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1
 .add>span{flex:1;min-width:0;overflow-wrap:anywhere}
 .need{border:2px solid var(--accent)}
 .acts{display:flex;flex-wrap:wrap;gap:var(--space-3)}
-.acts>.btn{flex:1 1 0;min-width:fit-content}
-.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--size-control-touch);padding:0 var(--space-5);border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);text-align:center;text-decoration:none;transition:transform var(--duration-quick) var(--ease-out)}
-.btn:active{transform:scale(0.97)}
-@media (prefers-reduced-motion:reduce){.btn:active{transform:none}}
-.btn.pri{min-height:var(--size-primary);border-color:transparent;background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
-.btn.del{border-color:var(--danger);color:var(--danger)}
-.btn.ghost{align-self:flex-start;padding:0 var(--space-2);border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
-.btn[aria-busy="true"]{opacity:.7}
+.acts>.hu-button{flex:1 1 0;min-width:fit-content}
+#rotate{align-self:flex-start;padding:0 var(--space-2)}
+.hu-button[aria-busy="true"]{opacity:.7}
 .switchrow{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .switch{flex:none;position:relative;width:52px;height:32px;border-radius:var(--radius-pill);background:var(--sunken);border:2px solid var(--line-strong)}
 .switch::before{content:"";position:absolute;inset:-8px -4px}
@@ -866,7 +886,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
 </style>
 </head>
-<body class="hu-root">
+<body class="hu-root" data-density="touch">
 <div class="view" id="home">
   <div class="top"><h1 tabindex="-1">Library</h1></div>
   <nav role="tablist" aria-label="Show">
@@ -875,7 +895,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     <button role="tab" data-tab="runs" aria-selected="false">Runs</button>
   </nav>
   <div id="tab" class="view" style="padding:0;width:100%" role="tabpanel"></div>
-  <button class="btn ghost" type="button" id="rotate">Replace link</button>
+  <button class="hu-button hu-button--ghost" type="button" id="rotate">Replace link</button>
 </div>
 <div class="view" id="screen" hidden></div>
 <div class="menu" id="menu" role="menu" hidden></div>
@@ -883,7 +903,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   <span class="grip" aria-hidden="true"></span>
   <form method="dialog" class="sheetin">
     <div><h2 id="sheet-t"></h2><p class="say" id="sheet-b"></p></div>
-    <div class="acts"><button class="btn pri" value="keep" id="sheet-keep">Keep</button><button class="btn del" value="yes" id="sheet-yes"></button></div>
+    <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
 <div id="toast" role="status" hidden></div>
@@ -960,7 +980,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   const cap = (text, mono = false) => el("p", { className: "cap" + (mono ? " mono" : ""), textContent: text });
   const card = (...kids) => el("div", { className: "card" }, ...kids);
   const tag = (text, kind, glyph) => el("span", { className: `tag ${kind}` }, glyph ? icon(glyph, 14) : null, text);
-  const btn = (text, kind, label, onclick) => el("button", { className: `btn ${kind}`, type: "button", textContent: text, onclick, attrs: { "aria-label": label } });
+  const btn = (text, kind, label, onclick) => el("button", { className: `hu-button hu-button--${kind}`, type: "button", textContent: text, onclick, attrs: { "aria-label": label } });
   const acts = (...kids) => el("div", { className: "acts" }, ...kids);
   const rowLink = (href, ...kids) => el("a", { className: "row", href }, el("span", { className: "txt" }, ...kids), icon("next"));
   const list = (items) => new Intl.ListFormat("en", { type: "conjunction" }).format(items);
@@ -968,7 +988,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   const sentence = (text) => { const line = String(text ?? "").trim().replace(/'/g, "’"); return line ? line[0].toUpperCase() + line.slice(1).replace(/[.:]?$/, ".") : ""; };
   // Copies `text`; where the clipboard is refused, selects it to copy by hand.
   const copier = (text, pre) => () => navigator.clipboard.writeText(text()).then(() => toast("Copied"), () => getSelection().selectAllChildren(pre));
-  const copyBtn = (label, text, pre) => el("button", { className: "btn", type: "button", onclick: copier(text, pre), attrs: { "aria-label": label } }, icon("copy", 18), "Copy");
+  const copyBtn = (label, text, pre) => el("button", { className: "hu-button hu-button--secondary", type: "button", onclick: copier(text, pre), attrs: { "aria-label": label } }, icon("copy", 18), "Copy");
 
   // ---- The one command a machine is set up with: it adds the page's key to the account's
   // authorized_keys (once: a line with that key already there is kept) with the right permissions,
@@ -1078,8 +1098,8 @@ dialog.sheet::backdrop{background:var(--scrim)}
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),
       // Lock acts at once; Unlock only the page can do, and asks first.
       acts(t.locked
-        ? btn("Unlock", "", `Unlock ${t.title}`, () => ask(`Unlock ${t.title}?`, "The agent can change its functions again.", "Unlock", () => post("toolkit-unlock", { service: t.service })))
-        : btn("Lock", "pri", `Lock ${t.title}`, () => post("toolkit-lock", { service: t.service })))));
+        ? btn("Unlock", "secondary", `Unlock ${t.title}`, () => ask(`Unlock ${t.title}?`, "The agent can change its functions again.", "Unlock", () => post("toolkit-unlock", { service: t.service })))
+        : btn("Lock", "primary", `Lock ${t.title}`, () => post("toolkit-lock", { service: t.service })))));
   }
 
   // ---- A function, on its own screen.
@@ -1125,12 +1145,12 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
 
   // ---- Machines.
-  const tryAgain = (m, kind = "pri") => btn("Try again", kind, `Try signing in to ${m.label} again`, () => post("target-check", { label: m.label }));
-  const setUp = (m) => el("a", { className: "btn", href: `#again/${encodeURIComponent(m.label)}`, textContent: "Set it up again" });
+  const tryAgain = (m, kind = "primary") => btn("Try again", kind, `Try signing in to ${m.label} again`, () => post("target-check", { label: m.label }));
+  const setUp = (m) => el("a", { className: "hu-button hu-button--secondary", href: `#again/${encodeURIComponent(m.label)}`, textContent: "Set it up again" });
   // A machine that isn't signed in, by why (the skill's barred, else its problem): the tag, what the
   // card says, and its one next step.
   const NOT_IN = {
-    barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => tryAgain(m, "")],
+    barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => tryAgain(m, "secondary")],
     "host-key": ["Host key changed", "bad", () => "Its host key changed, so nothing was sent. If you rebuilt the machine, set it up again.", setUp],
     "this-machine": ["Not used", "bad", () => "That’s the machine AnythingLLM runs on, so nothing was sent. Set it up again with another machine’s address.", setUp],
     fenced: ["Not signed in", "warn", () => "Its name leads to an address that isn’t public, so it wasn’t reached. Set it up again with the address itself, like 192.168.1.20.", setUp],
@@ -1202,7 +1222,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const own = el("details", { className: "own" }, el("summary", {}, el("span", { textContent: "Use my own key instead" }), icon("down", 16, "chev")),
       el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
     const key = inputs.key;
-    const save = el("button", { className: "btn pri", type: "submit", textContent: "Save", style: "align-self:stretch" });
+    const save = el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: "Save", style: "align-self:stretch" });
     const node = el("form", { className: `card${at.need ? " need" : ""}`, noValidate: true },
       el("div", { className: "step" }, stepHead(1, "Where is it?"),
         named ? null : field("label", "Name", { placeholder: "pi" }),

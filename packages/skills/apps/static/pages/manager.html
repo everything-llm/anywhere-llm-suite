@@ -12,7 +12,7 @@
    canvas's (page "Apps", sections 4 and 5, 2026-10-31): each app a picture of its page, grouped by
    workspace; ?theme keeps it to one theme, and #ws=<workspace> puts that workspace's group first. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
-   tokens.css with the indigo scheme only, then bundle.css's root, density and focus rules. Regenerate
+   tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
 :root {
   --ground: var(--indigo-ground);
@@ -771,6 +771,31 @@ html { font-size: 100%; }
   .hu-root *, .hu-root *::before, .hu-root *::after { transition-property: opacity !important; transition-duration: 150ms !important; }
   .hu-root .hu-button:active, .hu-root a.hu-tile:active, .hu-root button.hu-tile:active, .hu-root .hu-chip:active { transform: none; }
 }
+/* Buttons: primary (the one main action of a form), secondary, danger and ghost */
+.hu-button {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-4);
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  font: 600 1rem/1.25 var(--font-sans); text-decoration: none; cursor: pointer; text-align: center;
+  transition: transform var(--duration-quick) var(--ease-out);
+}
+.hu-button::after { content: ""; position: absolute; inset: calc((var(--control-h) - var(--target)) / 2) -2px; min-height: var(--target); }
+.hu-button:active { transform: scale(0.97); }
+.hu-button svg { width: 20px; height: 20px; flex: none; stroke-width: 2.4; }
+.hu-button--primary {
+  min-height: var(--primary-h); padding: 0 var(--space-6); border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-glow);
+}
+.hu-button--secondary { background: var(--tile); color: var(--ink); border-color: var(--line-strong); }
+.hu-button--ghost { background: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.hu-button--danger { background: var(--tile); color: var(--danger); border-color: var(--danger); }
+.hu-button--block { width: 100%; }
+.hu-button[disabled], .hu-button[aria-disabled="true"] { background: var(--sunken); color: var(--muted); border-color: var(--line); box-shadow: none; cursor: not-allowed; transform: none; }
+@media (forced-colors: active) {
+  .hu-button { border-color: CanvasText; }
+  .hu-button--primary { border-width: 2px; }
+}
 /* end of house ui */
 body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
@@ -821,13 +846,9 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .cap .mono{font-size:inherit}
 #one .who small{white-space:normal}
 .act{flex:none;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);color:var(--accent);font-size:1rem;font-weight:600}
-/* Buttons: House UI's hu-button shapes (secondary, primary, danger, ghost), each at least 44 px tall
-   whatever the pointer. */
-.btn{position:relative;min-height:var(--size-control-touch);padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);text-align:center;transition:transform var(--duration-quick) var(--ease-out)}
-.btn:active{transform:scale(0.97)}
-.btn.pri{min-height:var(--size-primary);padding:0 var(--space-6);border-radius:var(--radius-pill);background:var(--accent);border-color:transparent;color:var(--on-accent);box-shadow:var(--shadow-glow)}
-.btn.bad{border-color:var(--danger);color:var(--danger)}
-.btn.ghost{align-self:flex-start;margin-top:calc(-1 * var(--space-2));border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+/* Buttons are House UI's, from its block; the body's data-density="touch" keeps them at least 44 px
+   tall whatever the pointer. */
+#rotate{align-self:flex-start;margin-top:calc(-1 * var(--space-2))}
 .pair{display:flex;gap:12px}.pair>*{flex:1}
 .card.solo{padding:16px;gap:14px}
 .card.gone{padding:20px;gap:8px}
@@ -854,18 +875,18 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .q label{display:flex;flex-direction:column;gap:6px;font-size:0.8125rem;font-weight:500;line-height:1.4;color:var(--ink)}
 .fld{width:100%;min-height:calc(var(--size-control-touch) + var(--space-2));padding:0 16px;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font-size:1rem;font-weight:400}
 .two{display:flex;gap:12px}
-.two .btn{flex:1;min-width:0;padding:0 var(--space-3)}
+.two .hu-button{flex:1;min-width:0;padding:0 var(--space-3)}
 @keyframes rise{from{transform:translateY(100%)}}
 @keyframes fade{from{opacity:0}}
-@media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}.btn:active{transform:none}}
-@media (hover:hover){.rb:hover,.act:hover,.pill:hover,.more:hover,.btn.ghost:hover{background:var(--sunken)}}
+@media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
+@media (hover:hover){.rb:hover,.act:hover,.pill:hover,.more:hover,.hu-button--ghost:hover{background:var(--sunken)}}
 #toast{--focus:var(--ground);position:fixed;left:16px;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;max-width:600px;margin:0 auto;min-height:56px;padding:0 8px 0 20px;border-radius:var(--radius-md);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font-size:1rem;display:flex;align-items:center;gap:12px}
 #toast span{flex:1;min-width:0;padding:8px 0}
 #toast button{flex:none;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);color:var(--ground);font-weight:700}
 #toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 </style>
 </head>
-<body class="hu-root">
+<body class="hu-root" data-density="touch">
 <header class="top">
   <button class="rb" id="close" aria-label="Close"></button>
   <div class="name"><h1 id="title">Artifacts</h1><small id="sub" hidden></small></div>
@@ -873,7 +894,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 </header>
 <main>
   <section id="apps"></section>
-  <button class="btn ghost" id="rotate" type="button" hidden>Replace link</button>
+  <button class="hu-button hu-button--ghost" id="rotate" type="button" hidden>Replace link</button>
   <section id="trash" hidden></section>
   <section id="one" hidden></section>
 </main>
@@ -954,8 +975,8 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   // One question: `body` goes between it and its two buttons; `yes` runs with what `value` reads,
   // unless `from` was drawn away. Asked before something is lost (`danger`), Keep is the main action.
   function ask({ title, line, yes, danger = true, body = null, value = () => null }, run, from) {
-    const keep = el("button", { className: danger ? "btn pri" : "btn", type: "button", textContent: "Keep" });
-    const go = el("button", { className: danger ? "btn bad" : "btn pri", type: "button", textContent: yes });
+    const keep = el("button", { className: danger ? "hu-button hu-button--primary" : "hu-button hu-button--secondary", type: "button", textContent: "Keep" });
+    const go = el("button", { className: danger ? "hu-button hu-button--danger" : "hu-button hu-button--primary", type: "button", textContent: yes });
     const head = el("h2", { textContent: title });
     const me = sheet("q", head, [el("div", {}, head, line ? el("p", { textContent: line }) : null), body, el("div", { className: "two" }, keep, go)], from);
     keep.onclick = me.close;
@@ -1202,7 +1223,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   }
 
   const baseOf = ({ workspace, app }) => ({ workspace, app: app.name, title: app.title });
-  const openPage = (app, props, ...label) => el("a", { className: "btn pri", ...props, href: pageHref(app.page), onclick() { this.href = pageHref(app.page); } }, ...label);
+  const openPage = (app, props, ...label) => el("a", { className: "hu-button hu-button--primary", ...props, href: pageHref(app.page), onclick() { this.href = pageHref(app.page); } }, ...label);
 
   function rename(one, from) {
     const { app } = one;
@@ -1229,12 +1250,12 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
         el("div", { className: "name" }, head, el("small", { textContent: `${named(workspace)} · ${app.name}` })), shut),
       app.page ? openPage(app, {}, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" },
-        el("button", { className: "btn", type: "button", onclick: () => rename(one, from) }, icon(PEN, 16), "Rename"),
-        el("button", { className: "btn", type: "button", ariaLabel: "History: changes and earlier versions", onclick: later(() => openApp(`${workspace}/${app.name}`)) }, icon(CLOCK, 16), "History")),
+        el("button", { className: "hu-button hu-button--secondary", type: "button", onclick: () => rename(one, from) }, icon(PEN, 16), "Rename"),
+        el("button", { className: "hu-button hu-button--secondary", type: "button", ariaLabel: "History: changes and earlier versions", onclick: later(() => openApp(`${workspace}/${app.name}`)) }, icon(CLOCK, 16), "History")),
       c ? el("div", { className: "last" },
         el("div", { className: "who" }, el("small", { textContent: "Last change" }), el("b", { textContent: changeText(c) }), el("small", { textContent: `${when(c.t)} · ${WHO[c.by] ?? c.by}` })),
         el("button", { className: "act", type: "button", textContent: "Take back", ariaLabel: `Take back: ${changeText(c)}`, onclick: later(() => takeBack(one, c)) })) : null,
-      el("div", { className: "stack" }, el("button", { className: "btn bad", type: "button", onclick: () => toTrash(one, from) }, icon(BIN, 16), "Move to trash"),
+      el("div", { className: "stack" }, el("button", { className: "hu-button hu-button--danger", type: "button", onclick: () => toTrash(one, from) }, icon(BIN, 16), "Move to trash"),
         el("p", { className: "cap", textContent: `It stays in the trash ${now.trashDays} days, and can be restored from there.` })),
     ], from);
     shut.onclick = me.close;
@@ -1244,7 +1265,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   function drawOne(one) {
     const { app } = one;
     const base = baseOf(one);
-    const renameButton = el("button", { className: "btn", type: "button", textContent: "Rename" });
+    const renameButton = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Rename" });
     renameButton.onclick = () => rename(one, renameButton);
     const open = app.page ? openPage(app, {}, "Open the page") : null;
     const top = el("div", { className: "card solo" }, app.summary ? el("p", { className: "sum", textContent: app.summary }) : null,
@@ -1256,7 +1277,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const versions = app.versions.map((v, made = at(v.t)) => el("div", { className: "row" },
       el("div", { className: "who" }, el("b", { className: "mono", textContent: v.file }), el("small", { textContent: made })),
       el("button", { className: "act", type: "button", textContent: "Put back", ariaLabel: `Put back ${v.file} from ${made}`, onclick: () => post("put-back", { ...base, file: v.file, at: v.t }) && toast(`Putting back ${v.file}`) })));
-    const trash = el("button", { className: "btn bad", type: "button", style: "align-self:flex-start", textContent: "Move to trash" });
+    const trash = el("button", { className: "hu-button hu-button--danger", type: "button", style: "align-self:flex-start", textContent: "Move to trash" });
     trash.onclick = () => toTrash(one, trash);
     $("one").replaceChildren(top,
       el("div", { className: "lab", textContent: "Recent changes" }),
