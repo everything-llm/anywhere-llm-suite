@@ -870,10 +870,11 @@ svg{flex:none}
 .navbar{flex:none;display:flex;padding:var(--space-1) var(--space-2) calc(var(--space-3) + env(safe-area-inset-bottom,0px));background:var(--ground);border-top:1px solid var(--line)}
 .navbar>*{flex:1;min-width:0;min-height:var(--size-row-touch);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:0.8125rem;line-height:1.2;color:var(--ink);text-align:center}
 .navbar>:disabled{color:var(--muted);cursor:default}
-/* While a request or an offer is up, it rises in place of the bars; they keep their room, so the tab's screen stays as it is. */
+/* While a request or an offer is up, it rises in place of the bars; they keep their room, so the tab's screen stays as it is.
+   Reload stays above a request (it takes the tab over in the request's place), not above an offer. */
 .carded .holdbar,.carded .navbar{visibility:hidden}
 .carded .app{background:var(--tile)}
-.carded #reload{visibility:hidden}
+.offered #reload{visibility:hidden}
 .holdbar .hu-button{flex:none}
 .row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .row>.hu-button{flex:1 1 0;min-width:fit-content}
@@ -1213,8 +1214,14 @@ svg{flex:none}
     return done;
   }
   $("hold").addEventListener("click", () => (mine() ? give() : takeOver()));
-  // Back, Forward and Reload on a tab the agent has take it over first, as tapping the page does.
-  const nav = (how) => () => (closeField(true), takeOver(), post("nav", { do: how }));
+  // Back, Forward and Reload on a tab the agent has take it over first, as tapping the page does;
+  // Reload above a request takes it over in the request's place, as tapping the page above it does.
+  const nav = (how) => () => {
+    closeField(true);
+    if (asking()) answered(), post("need-cancel", { reason: "takeover" });
+    takeOver();
+    post("nav", { do: how });
+  };
   $("navback").addEventListener("click", nav("back"));
   $("navfwd").addEventListener("click", nav("forward"));
   $("reload").addEventListener("click", nav("reload"));
@@ -1430,7 +1437,7 @@ svg{flex:none}
     }
     if (ask !== !!ticker) ticker = ask ? setInterval(tick, 1000) : (clearInterval(ticker), 0);
     // A login or passkey to save: a card of its own, while no request is up. Back, Reload and Hand
-    // back are out of reach meanwhile, as with the request.
+    // back are out of reach meanwhile; above a request, only Reload is in reach.
     const offer = !!st.offer && !ask && !homeView;
     $("offer").hidden = !offer;
     if (offer) {
@@ -1439,6 +1446,7 @@ svg{flex:none}
       $("offerwho").textContent = st.offer.site + (st.offer.user ? " · " + st.offer.user : passkey ? " · passkey" : "");
     }
     document.body.classList.toggle("carded", ask || offer);
+    document.body.classList.toggle("offered", offer);
     // The tab, or a new tab's home.
     $("addrbar").hidden = $("stage").hidden = homeView;
     $("searchbar").hidden = $("home").hidden = !homeView;
