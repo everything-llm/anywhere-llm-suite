@@ -16,6 +16,7 @@ import { baseUrlOf, workspaceOf } from "#shared/anythingllm";
 import { firstLine, Told } from "#shared/errors";
 import { checkUrl, hostOf, onSite } from "#shared/fence";
 import * as logins from "#shared/logins";
+import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
 import { act, checkAct, element, isPassword, notTyped, reachable, settle, settled, submitted, typeIn } from "./act";
 import { existing, load, tab, through } from "./browser";
@@ -124,7 +125,7 @@ async function askOnPage(self: HandlerContext, at: Tab, need: Omit<Need, "until"
   asking.field = fieldAt(asked.snap, need.secretRef); // the stored request, from the read it was asked with
   if (asked.page) return asked.text;
   at.entry.needs.delete(at.key);
-  throw new BrowserError(`${told}, and this AnythingLLM can't show the tab's page, where the user would enter it (its public folder can't be written, or no page key is set: anywherellm-suite install --page-key)`);
+  throw new BrowserError(`${told}, and this AnythingLLM can't show the tab's page, where the user would enter it (its public folder can't be written, or the pages have no key: the user gives one in PAGE_KEY, under Settings › Agent Skills › Browser)`);
 }
 
 /** Which code a page asks for when the agent said only "code": by where its text says it went. */
@@ -242,11 +243,16 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
   call: (self, scope, args) => call(scope, args),
 };
 
+/** The skill, as Settings › Agent Skills names it. */
+const SKILL = { hubId: "browser-lean", name: "Browser" };
+
 export const runtime = {
   handler: async function (this: HandlerContext, args: Args = {}): Promise<string> {
     const action = clean(args.action).toLowerCase() || "read";
     const fn = ACTIONS[action];
     if (!fn) return `The browser's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
+    // The pages' key, found or made (#shared/pagekey), before anything shows a page.
+    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
     try {
       // The Vault's names follow the links switch on every call (a scheduled job's too): the first call
       // with the switch on replaces the ones the agent may have been given.
@@ -254,11 +260,11 @@ export const runtime = {
       // What the user did on a tab's page since the last call.
       if (workspaceOf(this)) await caughtUp(baseUrlOf(this)).catch((e) => this.logger?.(`browser-lean couldn't apply the tab pages' events: ${firstLine(e)}`));
       const scope = scopeOf(this);
-      return await (ON_TAB.has(action) ? onTab(scope, () => fn(this, scope, args)) : fn(this, scope, args));
+      return pageKeys.ahead(said, await (ON_TAB.has(action) ? onTab(scope, () => fn(this, scope, args)) : fn(this, scope, args)));
     } catch (e) {
-      if (e instanceof Told) return `Browser: ${e.message.replace(/\.$/, "")}.`;
+      if (e instanceof Told) return pageKeys.ahead(said, `Browser: ${e.message.replace(/\.$/, "")}.`);
       this.logger?.(`browser-lean ${action} failed: ${(e as Error)?.stack || e}`);
-      return `Browser ${action} failed: ${firstLine(e)}. Tell the user what went wrong; don't retry on your own.`;
+      return pageKeys.ahead(said, `Browser ${action} failed: ${firstLine(e)}. Tell the user what went wrong; don't retry on your own.`);
     } finally {
       addresses.refresh(); // an address the call was refused
     }

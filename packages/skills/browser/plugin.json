@@ -28,6 +28,16 @@
         "placeholder": "https://html.duckduckgo.com/html/?q={q}",
         "hint": "The search engine search uses, with {q} where the query goes. Empty: DuckDuckGo's plain HTML search."
       }
+    },
+    "PAGE_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "brx-...",
+        "hint": "Optional. Make a key once in Settings › Browser Extension and paste it here. Every suite skill finds it after that, so one skill is enough."
+      }
     }
   },
   "examples": [

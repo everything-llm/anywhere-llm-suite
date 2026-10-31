@@ -3,9 +3,9 @@
 // - The Vault's keys section (#shared/vault-page, the page every skill that keeps secrets shares):
 //   the API keys and signing keys by name, never their values. The user adds a key there, sealed on
 //   their device with the vault's public key, and deletes one; makes a signing key or imports its
-//   seed, sealed the same way (signing.ts). It's where the user gives a key, from any chat
-//   (AnywhereLLM Lite too): the agent asks, the need shows at the top of Keys, and the user enters
-//   it there.
+//   seed, sealed the same way (signing.ts). It's a second place to give a key, beside the skill's own
+//   settings (slot.ts): the agent asks, the need shows at the top of Keys, and the user may enter it
+//   there.
 // - The Library page (static/pages/library.html): the targets (machines the functions run commands
 //   on over SSH; the user registers one there, with a key pasted or made, sealed on their device
 //   with the vault's public key), the toolkits, their functions' sources and the recent runs; the
@@ -188,6 +188,19 @@ export function refresh(base: string | null): void {
     console.error(`library-lean couldn't refresh the pages: ${(e as Error).message}`);
   }
   addresses.refresh(); // a refusal of the run's
+}
+
+/** The keys the agent asked for that haven't run out, oldest first, as the key slot (slot.ts) matches them. */
+export const keyNeeds = (): { label: string; site: string }[] => needsOf(read(), "key");
+
+/** The key `label` was given (in the key slot): its need is met, and the Vault's Keys show it so. */
+export async function met(label: string): Promise<void> {
+  await change((p) => void (p.needs = p.needs.filter((n) => !(n.kind === "key" && n.label === label))));
+  try {
+    vaultPage.refresh("keys", keysState(read()));
+  } catch (e) {
+    console.error(`library-lean couldn't refresh the Vault: ${(e as Error).message}`);
+  }
 }
 
 /** What makes a need the same as another: a key and a target can share a label. */

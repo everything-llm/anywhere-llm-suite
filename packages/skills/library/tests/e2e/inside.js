@@ -69,7 +69,7 @@ const server = http.createServer((req, res) => {
   };
 
   assert.match(await call({ action: "guide" }), /The library is the user's own set of API toolkits/);
-  assert.match(await call({ action: "secret", site: "127.0.0.1", label: "tasks" }), /^The user gives the key on the Vault\. Give them this card as it is, in its own quote:\n\n> \*\*\[The Vault\]\(\/vault-lean\/[\w-]+\.html\)\*\*\n>\n> Every key and browser login, by name\.\n\nTell them to open it/);
+  assert.match(await call({ action: "secret", site: "127.0.0.1", label: "tasks" }), /^The user gives the key in the library's own settings, so it never passes through the chat\. Tell them to open Settings › Agent Skills › Library in AnythingLLM, paste the key for 127\.0\.0\.1 into NEW_KEY[^]*give them this card as it is, in its own quote:\n\n> \*\*\[The Vault\]\(\/vault-lean\/[\w-]+\.html\)\*\*\n>\n> Every key and browser login, by name\.\n\n/);
   assert.equal(cards.length, 0, "never on a question card, which shows its answers in the chat");
   const storage = process.env.STORAGE_DIR || `${APP}/storage`;
   const { token, secret } = JSON.parse(fs.readFileSync(`${storage}/vault-lean/vault-page.json`, "utf8"));
@@ -79,7 +79,7 @@ const server = http.createServer((req, res) => {
   const events = `${storage}/documents/custom-documents`;
   fs.mkdirSync(events, { recursive: true });
   fs.writeFileSync(path.join(events, `raw-vault-lean-keys-${crypto.randomUUID()}.json`), JSON.stringify({ pageContent: JSON.stringify({ vault_lean_event: 1, secret, ev: "key-save", label: "tasks", site: "127.0.0.1", sealed }) }));
-  assert.match(await call({ action: "library" }), /The Library page/);
+  assert.match(await call({ action: "library" }), /\[The Library\]\(\/library-lean\/[\w-]+\.html\)/, "the Library page's card");
 
   const toolkit = { title: "Tasks", base_urls: [`http://127.0.0.1:${PORT}`], secrets: [{ label: "tasks", as: "bearer" }] };
   const open = { name: "open", description: "The tasks not done yet.", source: "async function main(i, kit) { const a = await kit.http({ path: '/tasks' }); return a.body.filter((t) => !t.done).map((t) => t.title); }" };

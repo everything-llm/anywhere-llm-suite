@@ -1,7 +1,7 @@
 // What the library calls with, kept in the instance's vault (#shared/vault), whose values the model
 // never reads: API keys (kind "key": the site it may go to, a name, its value). The user gives a key
-// on the Vault (page.ts), sealed on their device; not on AnythingLLM's question card, which shows its
-// answers in the chat. A secret goes with a request only to its own site (or a site under
+// in the library's own settings (slot.ts), or on the Vault (page.ts), sealed on their device; not on
+// AnythingLLM's question card, which shows its answers in the chat. A secret goes with a request only to its own site (or a site under
 // it), only over https (or plain http to a host the user lets through), put where the API wants it
 // (as a bearer token, by HTTP Basic, in a header or in the query), and at most PER_MINUTE times a
 // minute from one process (a scheduled job's child process counts its own).
@@ -113,9 +113,12 @@ export function countUse(bucket: string, id: string, refusal: (max: number) => s
   recent.set(id, [...times, now]);
 }
 
+/** Puts a key in `v` under `label`, replacing a key of that name: in a change of the vault's. */
+export const putKey = (v: vault.Vault, site: string, label: string, value: string): void => put(v, { kind: "key", site, user: label, value });
+
 /** Saves a key under `label`, replacing a key of that name. */
 export async function saveKey(site: string, label: string, value: string): Promise<void> {
-  await vault.update((v) => put(v, { kind: "key", site, user: label, value }));
+  await vault.update((v) => putKey(v, site, label, value));
 }
 
 /** Deletes a secret; whether there was one. */

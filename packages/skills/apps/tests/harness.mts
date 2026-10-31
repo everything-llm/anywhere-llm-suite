@@ -28,6 +28,9 @@ export const eventsDir = eventsDirOf(storage);
 process.env.STORAGE_DIR = storage;
 process.env.ANYTHINGLLM_PUBLIC_DIR = publicDir;
 writeAtomic(pageKeyFile(storage), "brx-test\n"); // the pages' key, as `install --page-key` keeps it
+// No AnythingLLM to ask about it: the check's port is closed, so the key install keeps is taken as
+// good (#shared/pagekey), and an AnythingLLM on this machine's :3001 isn't asked.
+process.env.ANYTHINGLLM_URL = "http://127.0.0.1:1";
 
 // The static/ folder as build.mjs inlines it, for the modules a test imports from src.
 (globalThis as unknown as { STATIC_FILES: Record<string, string> }).STATIC_FILES = staticFiles(path.join(skillDir, "static"), "apps");

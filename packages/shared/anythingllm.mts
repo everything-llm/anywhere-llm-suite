@@ -45,11 +45,12 @@ export function serial<T>(key: string, fn: () => T | Promise<T>): Promise<T> {
   return run;
 }
 
-/** The suite's own folder in the storage: the pages' key. */
+/** The suite's own folder in the storage: the pages' key install was given. */
 export const SUITE_DIR = "anywherellm-suite";
 
-/** The browser-extension key the skills' pages post with, which install keeps in the storage
- *  (`install --page-key`): one the user made in AnythingLLM's Settings > Browser Extension. */
+/** The browser-extension key install keeps in the storage when it's given one (`install --page-key`):
+ *  one the user made in AnythingLLM's Settings > Browser Extension, which the skills' pages post
+ *  with when they find none in the vault (#shared/pagekey). */
 export const pageKeyFile = (storage: string): string => path.join(storage, SUITE_DIR, "page-key");
 
 /** The pages' key, or "" when install was given none. */

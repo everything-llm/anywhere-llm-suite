@@ -8,7 +8,7 @@ import { after, beforeEach, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { seal } from "./test-helpers.mts";
-import { VaultError, load, newId, openSealed, publicKey, readSealed, update, writeSealed } from "./vault.mts";
+import { FORMAT, VaultError, load, newId, openSealed, publicKey, readSealed, update, writeSealed } from "./vault.mts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vault-"));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -22,7 +22,7 @@ beforeEach(() => {
 const entry = (user: string) => ({ id: newId(), kind: "key", site: "api.example.com", user, value: `secret-${user}` });
 
 test("an entry kept is there to load, and the file holds it encrypted", async () => {
-  assert.deepEqual(load(dir), { pub: null, priv: null, entries: [] }, "no file is an empty vault");
+  assert.deepEqual(load(dir), { pub: null, priv: null, entries: [], slots: {} }, "no file is an empty vault");
   const id = await update((v) => {
     const e = entry("work");
     v.entries.push(e);
@@ -32,8 +32,42 @@ test("an entry kept is there to load, and the file holds it encrypted", async ()
   assert.equal(load(dir).entries[0].value, "secret-work");
   const text = fs.readFileSync(path.join(dir, "vault.json"), "utf8");
   assert.ok(!text.includes("secret-work"), "the value isn't in the file in clear");
-  assert.equal(JSON.parse(text).v, 1);
+  assert.equal(JSON.parse(text).v, FORMAT);
   if (process.platform !== "win32") assert.equal((fs.statSync(path.join(dir, "vault.json")).mode & 0o777).toString(8), "600"); // Windows has no modes
+});
+
+/** Writes the vault in `dir` as format `v` holding `inner`, sealed with the key beside it, as a skill of
+ *  that format wrote it. */
+function writeFormat(v: number, inner: unknown): void {
+  const key = Buffer.from(fs.readFileSync(path.join(dir, "vault.key"), "utf8").trim(), "base64");
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const data = Buffer.concat([cipher.update(JSON.stringify(inner), "utf8"), cipher.final()]);
+  const box = { iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
+  fs.writeFileSync(path.join(dir, "vault.json"), JSON.stringify({ v, pub: null, box }), { mode: 0o600 });
+}
+
+test("a vault of an older format is read and upgraded in place at its next change, its entries kept", async () => {
+  await update((v) => void v.entries.push(entry("first")), dir);
+  writeFormat(1, { priv: null, entries: [entry("old")] });
+  assert.deepEqual(load(dir).slots, {}, "format 1 had no slots");
+  assert.equal(load(dir).entries[0].user, "old");
+  await update((v) => void (v.slots["library-lean.NEW_KEY"] = "digest"), dir);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "vault.json"), "utf8")).v, FORMAT, "written in this format");
+  assert.deepEqual(load(dir).slots, { "library-lean.NEW_KEY": "digest" });
+  assert.equal(load(dir).entries[0].user, "old");
+});
+
+test("a vault of a newer format, or of none, is refused in words that say what to do, and left as it is", async () => {
+  await update((v) => void v.entries.push(entry("first")), dir);
+  writeFormat(FORMAT + 1, { priv: null, entries: [], slots: {}, more: true });
+  const before = fs.readFileSync(path.join(dir, "vault.json"), "utf8");
+  const newer = (e: Error) => e instanceof VaultError && e.message.includes(`is format ${FORMAT + 1}, newer than this skill reads (${FORMAT})`) && e.message.includes("Update this skill");
+  assert.throws(() => load(dir), newer);
+  await assert.rejects(update((v) => void v.entries.push(entry("lost")), dir), newer);
+  assert.equal(fs.readFileSync(path.join(dir, "vault.json"), "utf8"), before, "nothing was written over it");
+  fs.writeFileSync(path.join(dir, "vault.json"), JSON.stringify({ pub: null, box: {} }));
+  assert.throws(() => load(dir), (e: Error) => e instanceof VaultError && e.message.includes("has no format this skill knows"));
 });
 
 test("what's changed in a loaded copy isn't kept, and a change that throws writes nothing", async () => {
@@ -65,7 +99,7 @@ test("a vault whose key is gone can't be opened, and a new one starts empty once
   await assert.rejects(update(() => undefined, dir), /can't be opened with the key in .*vault\.key.*put the key back/);
   assert.ok(!fs.existsSync(path.join(dir, "vault.key")), "a vault that exists is given no new key");
   fs.rmSync(path.join(dir, "vault.json"));
-  assert.deepEqual(load(dir), { pub: null, priv: null, entries: [] }, "a new vault starts empty");
+  assert.deepEqual(load(dir), { pub: null, priv: null, entries: [], slots: {} }, "a new vault starts empty");
 });
 
 /** A key file outside the vault's folder, as VAULT_KEY_FILE names it. */

@@ -9,6 +9,16 @@
   "license": "UNLICENSED",
   "imported": true,
   "setup_args": {
+    "NEW_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "",
+        "hint": "Paste the key, save, and say “done” in the chat. The library moves it into the Vault, encrypted, and empties this field. The model never sees it."
+      }
+    },
     "ANYTHINGLLM_URL": {
       "type": "string",
       "required": false,
@@ -37,6 +47,16 @@
         "default": "",
         "placeholder": "tk_...",
         "hint": "Optional: the access token, if the topic needs one."
+      }
+    },
+    "PAGE_KEY": {
+      "type": "string",
+      "required": false,
+      "input": {
+        "type": "password",
+        "default": "",
+        "placeholder": "brx-...",
+        "hint": "Optional. Make a key once in Settings › Browser Extension and paste it here. Every suite skill finds it after that, so one skill is enough."
       }
     }
   },

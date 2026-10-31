@@ -2,8 +2,9 @@
 # tools/e2e: the suite against the real thing. Starts a throwaway AnythingLLM (the image in
 # tools/versions.env) on a free port with its storage bind-mounted from a temporary folder, as
 # AnythingLLM's Docker instructions do; runs the built `anywherellm-suite install` into that storage
-# (with a browser-extension key for the pages), makes a workspace, and runs tools/e2e.test.mts, or
-# with arguments (`tools/e2e command...`) that command in its place. Everything lives in the
+# (with no key for the pages, as a Hub import has none: the tests give one in PAGE_KEY), makes a
+# workspace, and runs tools/e2e.test.mts, or with arguments (`tools/e2e command...`) that command in
+# its place. Everything lives in the
 # temporary folder and a container of its own; both are removed on the way out, pass or fail, and
 # nothing running on this machine (an AnythingLLM on :3001, the user's settings) is touched.
 #
@@ -43,16 +44,15 @@ echo "[e2e] AnythingLLM ($IMAGE) on :$allm_port, its storage in $storage"
 wait_until "AnythingLLM" curl -fs "$allm/api/ping"
 open_storage
 
-# A login, as AnythingLLM's pages make one, and the pages' key, as Settings > Browser Extension makes one.
+# A login, as AnythingLLM's pages make one.
 token=$(curl -fs -X POST "$allm/api/request-token" -H 'Content-Type: application/json' \
   -d "{\"password\":\"$password\"}" | json 'j.token')
-page_key=$(curl -fs -X POST "$allm/api/browser-extension/api-keys/new" -H "Authorization: Bearer $token" | json 'j.apiKey')
 
 echo "[e2e] anywherellm-suite install, built from packages/"
 (cd "$ROOT/packages" && node build.mjs install >/dev/null)
 cli="$ROOT/packages/install/dist/anywherellm-suite.cjs"
 export ANYTHINGLLM_URL="$allm"
-node "$cli" install --storage "$storage" --page-key "$page_key" >"$work/install.log"
+node "$cli" install --storage "$storage" >"$work/install.log"
 
 # A developer key, as the settings page makes one, and a workspace for the tests to find.
 key=$(curl -fs -X POST "$allm/api/system/generate-api-key" -H "Authorization: Bearer $token" \

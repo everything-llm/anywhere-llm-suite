@@ -5,6 +5,7 @@
 
 import { baseUrlOf } from "#shared/anythingllm";
 import { Told } from "#shared/errors";
+import { ahead, find } from "#shared/pagekey";
 import { card, headline } from "./card.ts";
 import type { HandlerContext } from "./host.ts";
 import * as manager from "./manager.ts";
@@ -325,15 +326,20 @@ async function run(self: HandlerContext, params: Args): Promise<string> {
   return lines.length ? [...lines, "", reply].join("\n") : reply;
 }
 
+/** The skill, as Settings › Agent Skills names it. */
+const SKILL = { hubId: "apps-lean", name: "Artifacts" };
+
 export const runtime = {
   handler: async function (this: HandlerContext, params: Args = {}): Promise<string> {
+    // The pages' key, found or made (#shared/pagekey), before anything writes a page.
+    const said = await find(SKILL, this?.runtimeArgs?.PAGE_KEY, (m) => this?.logger?.(m));
     try {
       // Models fill parameters they don't mean with null: one left out.
-      return await run(this, Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== null)));
+      return ahead(said, await run(this, Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== null))));
     } catch (e) {
-      if (e instanceof Told) return `Artifacts: ${e.message}`;
+      if (e instanceof Told) return ahead(said, `Artifacts: ${e.message}`);
       this?.logger?.(`apps-lean: ${(e as Error)?.stack || e}`);
-      return `Artifacts failed: ${(e as Error)?.message || e}`;
+      return ahead(said, `Artifacts failed: ${(e as Error)?.message || e}`);
     }
   },
 };
