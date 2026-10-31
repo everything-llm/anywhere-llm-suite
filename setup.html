@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnywhereLLM Suite - Setup</title>
+<style>
+:root { --bg:#fcf8f3; --ink:#1c1b22; --muted:#5b5a66; --accent:#4b5dc3; --line:#dcd7cf; }
+@media (prefers-color-scheme: dark) { :root { --bg:#181922; --ink:#ecebf2; --muted:#a3a2b3; --accent:#9aa7ff; --line:#34364a; } }
+body { background:var(--bg); color:var(--ink); font:1.0625rem/1.5 system-ui, sans-serif; margin:0; }
+main { max-width:40rem; margin:0 auto; padding:1rem 1rem 3rem; }
+section { padding:.9rem 0 .9rem; border-top:1px solid var(--line); scroll-margin-top:.5rem; }
+section:first-child { border-top:0; padding-top:0; }
+h1, h2 { font-size:1.4rem; line-height:1.25; margin:.25rem 0 .6rem; }
+p { margin:0 0 .75rem; }
+.where, nav, figcaption, .note { font-size:.94rem; color:var(--ink); }
+.where { margin:0; }
+a { color:var(--accent); }
+ol { padding-left:1.4rem; margin:.5rem 0 0; }
+ol li { margin:.35rem 0; }
+figure { margin:.5rem 0 .25rem; }
+img { display:block; width:auto; max-width:100%; max-height:44vh; height:auto; border:1px solid var(--line); border-radius:12px; }
+code { font:.9rem/1.4 ui-monospace, monospace; overflow-wrap:anywhere; }
+pre { margin:.5rem 0 .75rem; padding:.9rem 1rem; border:2px solid var(--accent); border-radius:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+pre code { font-size:1rem; }
+nav { display:flex; flex-wrap:wrap; gap:0 1.25rem; }
+nav a { display:inline-flex; align-items:center; min-height:44px; }
+</style>
+</head>
+<body>
+<main>
+
+<section id="top" aria-labelledby="top-h">
+<p class="where">AnywhereLLM Suite · Setup</p>
+<h1 id="top-h">Two steps set up the suite's skills in AnythingLLM</h1>
+<p>You make one key for the skills' pages, once. Then you give each service's key when the Library asks for it. Neither key goes through the chat.</p>
+<ol>
+<li><a href="#imports">On Docker or your own server, allow skill imports first.</a></li>
+<li><a href="#page-key">Make one key, and every suite skill's pages work.</a></li>
+<li><a href="#service-key">Give a service's key in the Library's settings, never in the chat.</a></li>
+</ol>
+</section>
+
+<section id="imports" aria-labelledby="imports-h">
+<p class="where">Before step 1 · Docker or your own server only</p>
+<h2 id="imports-h">Docker and self-hosted AnythingLLM must allow skill imports first</h2>
+<p>AnythingLLM refuses agent skills from its Community Hub until an administrator allows them. Add this line to AnythingLLM's environment, then restart it:</p>
+<pre><code>COMMUNITY_HUB_BUNDLE_DOWNLOADS_ENABLED=allow_all</code></pre>
+<p>Set to anything else, it lets in only the skills the Hub has verified. Import only skills you trust.</p>
+<nav><a href="#top">Back to the overview</a><a href="#page-key">Next: step 1</a></nav>
+<p class="note">AnythingLLM's own instructions: <a href="https://docs.anythingllm.com/configuration#anythingllm-hub-agent-skills">configuration, Hub agent skills</a>.</p>
+</section>
+
+<section id="page-key" aria-labelledby="page-key-h">
+<p class="where">Step 1 of 2 · part 1 of 3</p>
+<h2 id="page-key-h">Settings › Browser Extension makes the key the pages need</h2>
+<p>The skills' pages, such as the Vault, send what you tap to AnythingLLM. They need a browser-extension key. In AnythingLLM, open Settings, then Browser Extension. Tap Generate New API Key, then Create API Key.</p>
+<figure><img src="setup/browser-extension.webp" width="780" height="760" alt="AnythingLLM's Browser Extension API Keys screen on a phone, with the Generate New API Key button outlined."></figure>
+<nav><a href="#top">Back to the overview</a><a href="#copy-key">Next: copy the key</a></nav>
+</section>
+
+<section id="copy-key" aria-labelledby="copy-key-h">
+<p class="where">Step 1 of 2 · part 2 of 3</p>
+<h2 id="copy-key-h">Copy API Key copies the new key</h2>
+<p>AnythingLLM shows the new key in a box. Tap Copy API Key. It copies AnythingLLM's address and the key together: paste it whole, and the skill takes the key out. The key can add documents to AnythingLLM, but it can't read your chats.</p>
+<figure><img src="setup/copy-key.webp" width="780" height="920" alt="The New Browser Extension API Key box, its key shown as brx- and an ellipsis, with the Copy API Key button outlined."></figure>
+<nav><a href="#top">Back to the overview</a><a href="#paste-key">Next: paste it</a></nav>
+</section>
+
+<section id="paste-key" aria-labelledby="paste-key-h">
+<p class="where">Step 1 of 2 · part 3 of 3</p>
+<h2 id="paste-key-h">One skill's PAGE_KEY field gives the key to every suite skill</h2>
+<p>Open Settings, then Agent Skills, and choose Library, Browser or Artifacts. Paste the key into PAGE_KEY and tap Save. The skill checks the key, keeps it in its Vault, encrypted, and empties the field. You do this once.</p>
+<figure><img src="setup/page-key.webp" width="780" height="760" alt="The Library's settings on a phone, with a key pasted into the PAGE_KEY field, outlined, and the Save button below it."></figure>
+<nav><a href="#top">Back to the overview</a><a href="#service-key">Next: step 2</a></nav>
+</section>
+
+<section id="service-key" aria-labelledby="service-key-h">
+<p class="where">Step 2 of 2</p>
+<h2 id="service-key-h">A service's key goes into NEW_KEY, never into the chat</h2>
+<p>When the agent needs a key, such as a GitHub token, it says which site the key is for. Open Settings, then Agent Skills, then Library. Paste the key into NEW_KEY, tap Save, and say “done” in the chat. The Library seals the key in its Vault and empties the field. The model never sees it.</p>
+<figure><img src="setup/new-key.webp" width="780" height="760" alt="The Library's settings on a phone, with a key pasted into the NEW_KEY field, outlined, and the field's hint below it."></figure>
+<nav><a href="#top">Back to the overview</a></nav>
+</section>
+
+<section aria-label="About">
+<p class="note">The pictures are from AnythingLLM 1.16 on a phone, with throwaway values. Home: <a href="index.html">AnywhereLLM Suite</a>. AnywhereLLM Suite is an independent project. It is not affiliated with, endorsed by or sponsored by Mintplex Labs, the makers of AnythingLLM.</p>
+</section>
+
+</main>
+</body>
+</html>
