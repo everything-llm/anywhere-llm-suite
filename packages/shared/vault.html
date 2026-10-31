@@ -943,11 +943,11 @@ input::placeholder{color:var(--muted);opacity:1}
   };
 
   /** A form of `fields` ([name, label, type?, mono?, placeholder?]) that sends with `submit`;
-   *  `onsubmit` answers whether it went, which clears it and hides any field shown. `extra` goes
-   *  between the fields and the button. */
-  function form(fields, submit, onsubmit, extra = []) {
+   *  `onsubmit` answers whether it went, which clears it and hides any field shown. A label is a
+   *  word or two; its example is the placeholder. */
+  function form(fields, submit, onsubmit) {
     const inputs = {};
-    const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), ...extra, el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
+    const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
     node.addEventListener("reset", () => { for (const b of node.querySelectorAll('.peek [aria-pressed="true"]')) b.click(); });
     node.onsubmit = async (e) => {
       e.preventDefault();
@@ -960,8 +960,6 @@ input::placeholder{color:var(--muted);opacity:1}
     };
     return node;
   }
-
-  const sealedNote = () => el("p", { className: "cap", textContent: "Sealed on this device." });
 
   /** The question open in the sheet ({ close }), if any: busy() reads it, so no reload draws under it. */
   let asking = null;
@@ -1030,23 +1028,23 @@ input::placeholder{color:var(--muted);opacity:1}
       const f = form([["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
         if (!v.value) return toast("Paste the key first"), false;
         return post("keys", "key-save", { label: n.label, site: n.site, sealed: await seal(v.value) });
-      }, [sealedNote()]);
-      f.prepend(el("div", { style: "display:flex;flex-direction:column;gap:4px" }, el("b", { style: "font-size:1rem;font-weight:600", textContent: "The agent asked for a key" }), el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: `It goes only to ${n.site}, and the agent never sees it.` })),
-        el("dl", { className: "kv" }, el("dt", { textContent: "Name" }), el("dd", { textContent: n.label }), el("dt", { textContent: "Site" }), el("dd", { textContent: n.site })));
+      });
+      // The headline names the site, so the request needs no Name or Site row.
+      f.prepend(el("div", { style: "display:flex;flex-direction:column;gap:4px" }, el("b", { style: "font-size:1rem;font-weight:600;overflow-wrap:anywhere", textContent: `The agent asks for a key for ${n.site}` }), el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: "Only that site gets it. The agent never sees it." })));
       return el("div", { className: "card need" }, f);
     });
     const saved = ks.secrets.map((k) => {
       const del = remove([`Delete the key ${k.label}?`, `The agent can’t call ${k.site} with it after.`], `Delete the key ${k.label}`, () => post("keys", "key-delete", { label: k.label }));
       return row(k.label, k.site, del);
     });
-    const addForm = form([["label", "Name, like github"], ["site", "The site it goes to, like api.github.com", "text", true], ["value", "Key", "password"]], "Save key", async (v) => {
+    const addForm = form([["label", "Name", "text", false, "github"], ["site", "Site", "text", true, "api.github.com"], ["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
       if (!v.value || !v.label || !v.site) return toast("Fill in every field"), false;
       const taken = named(ks, v.label);
       if (taken?.kind === "signing") return toast("That name is a signing key’s: use another"), false;
       const went = await post("keys", "key-save", { label: v.label, site: v.site, sealed: await seal(v.value) });
       if (went) (adding = false), drawKeys(ks);
       return went;
-    }, [sealedNote()]);
+    });
     const add = el("button", { className: "add", type: "button", onclick: () => ((adding = !adding), drawKeys(ks)) }, icon(adding ? "M4 8h8" : "M8 3v10M3 8h10"), adding ? "Cancel" : "Add a key");
     keys.replaceChildren(...needs, lab("API keys", saved.length), el("div", { className: "card" }, ...saved, ...(saved.length ? [] : [el("p", { className: "empty", textContent: "No keys yet. The agent asks for one when a task needs it." })]), el("div", {}, add, adding ? addForm : null)));
 
@@ -1085,14 +1083,14 @@ input::placeholder{color:var(--muted);opacity:1}
           g.public ? facts : el("p", { className: "say", textContent: "Damaged: delete it and import it again." }),
           el("div", { className: "pair" }, copy, jobs), del));
     });
-    const addForm = form([["label", "Name, like muse"], ["namespace", "The namespace it signs in, like muse-coordination", "text", true], ["seed", "Seed to import, base64 (empty: make a new key)", "password"]], "Save signing key", async (v) => {
+    const addForm = form([["label", "Name", "text", false, "muse"], ["namespace", "Namespace", "text", true, "muse-coordination"], ["seed", "Seed to import, if you have one", "password", false, "base64"]], "Save signing key", async (v) => {
       if (!v.label || !v.namespace) return toast("Fill in the name and the namespace"), false;
       if (named(ks, v.label)) return toast("That name is taken: use another"), false;
       const fields = { label: v.label, namespace: v.namespace };
       const went = v.seed ? await post("keys", "signing-import", { ...fields, sealed: await seal(v.seed) }) : await post("keys", "signing-new", fields);
       if (went) (addingSigning = false), drawSigning(ks);
       return went;
-    }, [sealedNote()]);
+    });
     const add = el("button", { className: "add", type: "button", onclick: () => ((addingSigning = !addingSigning), drawSigning(ks)) }, icon(addingSigning ? "M4 8h8" : "M8 3v10M3 8h10"), addingSigning ? "Cancel" : "Add a signing key");
     $("signing").replaceChildren(lab("Signing keys", items.length),
       el("div", { className: "card" }, ...items, ...(items.length ? [] : [el("p", { className: "empty", textContent: "No signing keys yet. Make one here when a function needs to sign." })]), el("div", {}, add, addingSigning ? addForm : null)));
@@ -1106,7 +1104,7 @@ input::placeholder{color:var(--muted);opacity:1}
       const del = remove(asked, `Delete the ${passkey ? "passkey" : "login"} for ${l.site}`, () => post("logins", "login-delete", { id: l.id }));
       return row(l.site, [l.user, passkey ? "Passkey" : "Password"].filter(Boolean).join(" · "), del);
     });
-    $("logins").replaceChildren(lab("Logins"), el("div", { className: "card" }, ...rows, ...(rows.length ? [] : [el("p", { className: "empty", textContent: "No logins yet. The browser offers to save one when you sign in on its tab’s page." })])),
+    $("logins").replaceChildren(el("div", { className: "card" }, ...rows, ...(rows.length ? [] : [el("p", { className: "empty", textContent: "No logins yet. The browser offers to save one when you sign in on its tab’s page." })])),
       el("p", { className: "cap", textContent: "To change a password, sign in again on the tab." }));
   }
 
@@ -1138,12 +1136,12 @@ input::placeholder{color:var(--muted);opacity:1}
       const allow = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Allow", ariaLabel: `Allow ${r.origin}`, onclick: () => post("addresses", "address-allow", { origin: r.origin }) });
       return addr(row(r.origin, `Refused ${moment(r.at)}`, allow));
     });
-    const addForm = form([["origin", "An address, like http://muse-vm:8463", "text", true]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)));
+    const addForm = form([["origin", "Address", "text", true, "http://muse-vm:8463"]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)));
     $("addresses").replaceChildren(lab("Allowed addresses", allowed.length),
       el("div", { className: "card" }, ...allowed, ...(allowed.length ? [] : [el("p", { className: "empty", textContent: "None yet. The skills reach the public web only." })]), addForm),
       lab("Recently refused"),
       el("div", { className: "card" }, ...refused, ...(refused.length ? [] : [el("p", { className: "empty", textContent: "Nothing refused in the last day." })])),
-      el("p", { className: "cap", textContent: "Machines on your own network the skills may reach. Give a machine’s name or network address, not localhost." }));
+      el("p", { className: "cap", textContent: "Machines on your own network the skills may reach, by name or network address." }));
   }
 
   // ---- The sections there are, each its own state file; a tab for each. A section the user is in
