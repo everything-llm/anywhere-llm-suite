@@ -22,11 +22,11 @@ import { act, checkAct, element, isPassword, notTyped, reachable, settle, settle
 import { chatTab, existing, load, tab, through } from "./browser";
 import { BrowserError } from "./errors";
 import type { HandlerContext } from "./host";
-import { card, caughtUp, searchGiven, settlePages } from "./page";
+import { card, caughtUp, settlePages } from "./page";
 import * as research from "./research";
 import { type Scope, scopeOf } from "./scope";
 import { type Read, type Snap, asksCode, asksPassword, fieldAt, readPage } from "./snapshot";
-import { NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes } from "./state";
+import { HUB_ID, NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes } from "./state";
 import { free } from "./takeover";
 import { render } from "./view";
 
@@ -221,7 +221,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
   guide: (self, scope, args) => entryOf(statics(), "guide", ".md", "topic", args.topic, "index").text,
   search: (self, scope, args) => {
     self.introspect?.(`Searching for ${clean(args.query).slice(0, 100)}`);
-    return research.search(scope.workspace, args.query, self.runtimeArgs?.SEARCH_URL);
+    return research.search(scope.workspace, args.query);
   },
   look: (self, scope, args) => {
     if (!clean(args.url)) throw new BrowserError("look needs url, the address to read");
@@ -245,7 +245,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
 };
 
 /** The skill, as Settings › Agent Skills names it. */
-const SKILL = { hubId: "browser-lean", name: "Browser" };
+const SKILL = { hubId: HUB_ID, name: "Browser" };
 
 export const runtime = {
   handler: async function (this: HandlerContext, args: Args = {}): Promise<string> {
@@ -253,13 +253,12 @@ export const runtime = {
     const fn = ACTIONS[action];
     if (!fn) return `The browser's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
     // The pages' key, found or made (#shared/pagekey), before anything shows a page.
-    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
+    const said = await pageKeys.find(SKILL, this.runtimeArgs, (m) => this.logger?.(m));
     try {
       // The Vault's names follow the links switch on every call (a scheduled job's too): the first call
       // with the switch on replaces the ones the agent may have been given.
       await settlePages().catch((e) => this.logger?.(`browser-lean couldn't settle the Vault page: ${firstLine(e)}`));
-      // What the user did on a tab's page since the last call; a search typed there uses this SEARCH_URL.
-      searchGiven(this.runtimeArgs?.SEARCH_URL);
+      // What the user did on a tab's page since the last call.
       if (workspaceOf(this)) await caughtUp(baseUrlOf(this)).catch((e) => this.logger?.(`browser-lean couldn't apply the tab pages' events: ${firstLine(e)}`));
       const scope = scopeOf(this);
       return pageKeys.ahead(said, await (ON_TAB.has(action) ? onTab(scope, () => fn(this, scope, args)) : fn(this, scope, args)));

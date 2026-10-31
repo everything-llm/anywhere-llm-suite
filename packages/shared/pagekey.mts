@@ -18,7 +18,7 @@
 import crypto from "node:crypto";
 import { perBuild, readPageKey, serial, storageDir } from "./anythingllm.mts";
 import { Told } from "./errors.mts";
-import { remember, repeated, setSettings, setting } from "./settings.mts";
+import { keepArgs, remember, repeated, setSettings, setting } from "./settings.mts";
 import { anythingllmUrl, request } from "./upstream.mts";
 import * as vault from "./vault.mts";
 
@@ -114,16 +114,17 @@ async function fromSetting(skill: Skill, pasted: string): Promise<string | null>
   return told;
 }
 
-/** Finds the pages' key for a call of `skill`, whose PAGE_KEY setting the call was given as `given`
- *  (#shared/settings reads it from plugin.json), in the order above. Answers what the agent tells the
- *  user, as lines (none, mostly). One at a time in this process. It never throws: what fails is
- *  logged with `log`, and the call goes on. */
-export function find(skill: Skill, given: string | undefined, log: (message: string) => void = console.error): Promise<string[]> {
+/** Finds the pages' key for a call of `skill`, given the call's settings (`runtimeArgs`, kept first
+ *  for #shared/settings setting, which reads PAGE_KEY from plugin.json), in the order above. Answers
+ *  what the agent tells the user, as lines (none, mostly). One at a time in this process. It never
+ *  throws: what fails is logged with `log`, and the call goes on. */
+export function find(skill: Skill, runtimeArgs: Record<string, unknown> | undefined, log: (message: string) => void = console.error): Promise<string[]> {
+  keepArgs(skill.hubId, runtimeArgs);
   asking = skill;
   return serial("pagekey.find", async () => {
     const said: string[] = [];
     try {
-      const slot = setting(skill.hubId, SETTING, given);
+      const slot = setting(skill.hubId, SETTING);
       const told = slot ? await fromSetting(skill, slot) : null;
       if (told) said.push(told);
       const { refused } = known();

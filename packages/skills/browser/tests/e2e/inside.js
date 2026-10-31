@@ -126,7 +126,13 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise((r) => server.listen(PORT, r));
   assert.ok(ImportedPlugin.validateImportedPluginHandler(HUB_ID), "the handler is where AnythingLLM looks");
-  const plugin = ImportedPlugin.loadPluginByHubId(HUB_ID).plugin({ SEARCH_URL: `${SITE}/search?q={q}` });
+  // SEARCH_URL as Settings › Agent Skills saves it, in the skill's plugin.json (which the skill reads
+  // it from), and in the runtimeArgs AnythingLLM reads from there.
+  const pluginJson = path.join(process.env.STORAGE_DIR || `${APP}/storage`, "plugins", "agent-skills", HUB_ID, "plugin.json");
+  const config = JSON.parse(fs.readFileSync(pluginJson, "utf8"));
+  config.setup_args.SEARCH_URL.value = `${SITE}/search?q={q}`;
+  fs.writeFileSync(pluginJson, JSON.stringify(config, null, 2));
+  const plugin = ImportedPlugin.loadPluginByHubId(HUB_ID).plugin({ SEARCH_URL: config.setup_args.SEARCH_URL.value });
   const call = async (args, thread = 7, workspace = "e2e") => {
     let fn;
     const agent = { handlerProps: { invocation: { workspace: { slug: workspace }, thread_id: thread }, log: (m) => console.error(m) }, introspect: () => {}, function: (def) => (fn = def) };

@@ -332,7 +332,7 @@ const SKILL = { hubId: "apps-lean", name: "Artifacts" };
 export const runtime = {
   handler: async function (this: HandlerContext, params: Args = {}): Promise<string> {
     // The pages' key, found or made (#shared/pagekey), before anything writes a page.
-    const said = await find(SKILL, this?.runtimeArgs?.PAGE_KEY, (m) => this?.logger?.(m));
+    const said = await find(SKILL, this?.runtimeArgs, (m) => this?.logger?.(m));
     try {
       // Models fill parameters they don't mean with null: one left out.
       return ahead(said, await run(this, Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== null))));

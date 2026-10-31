@@ -10,6 +10,9 @@ import { staticFiles, type StaticFiles } from "#shared/static";
 import { BrowserError } from "./errors";
 import type { Browser, CDPSession, Page, Viewport } from "./host";
 
+/** The skill's hubId, as AnythingLLM knows it. */
+export const HUB_ID = "browser-lean";
+
 /** A tab's screen until its page says how much room it has: a phone's, drawn sharp. */
 export const VIEWPORT = { width: 430, height: 932, deviceScaleFactor: 2 };
 /** The screens a tab's page may ask for, in CSS pixels; wider than phoneMax is drawn at 1x, so a

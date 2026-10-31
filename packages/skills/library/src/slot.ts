@@ -16,7 +16,6 @@ import { Told } from "#shared/errors";
 import { remember, repeated, setSettings, setting } from "#shared/settings";
 import * as vault from "#shared/vault";
 import { LibraryError } from "./errors";
-import type { HandlerContext } from "./host";
 import * as page from "./page";
 import * as secrets from "./secrets";
 
@@ -40,8 +39,8 @@ export const steps = (site: string, label: string): string =>
 /** Takes a key from the slot, if NEW_KEY holds one (see above): what to tell the user, and the key
  *  taken, if one was. A name that is another secret's empties the slot and says why; with no key
  *  asked for, or where the vault can't keep it, the key stays in NEW_KEY for a later call. */
-export async function collect(self: HandlerContext): Promise<{ text: string; taken: Taken | null } | null> {
-  const value = setting(HUB_ID, "NEW_KEY", self.runtimeArgs?.NEW_KEY);
+export async function collect(): Promise<{ text: string; taken: Taken | null } | null> {
+  const value = setting(HUB_ID, "NEW_KEY");
   if (!value) return null;
   if (repeated(HUB_ID, "NEW_KEY", value)) {
     empty(); // a page left open saved it again
@@ -69,7 +68,7 @@ export async function collect(self: HandlerContext): Promise<{ text: string; tak
   let after = "NEW_KEY is empty again";
   try {
     // Nothing written and the value still there: no plugin.json was found to empty it in.
-    if (!empty() && setting(HUB_ID, "NEW_KEY", value)) after = "NEW_KEY couldn't be emptied (the library's plugin.json wasn't found): the user empties it there by hand";
+    if (!empty() && setting(HUB_ID, "NEW_KEY")) after = "NEW_KEY couldn't be emptied (the library's plugin.json wasn't found): the user empties it there by hand";
   } catch (e) {
     after = `NEW_KEY couldn't be emptied (${(e as NodeJS.ErrnoException).code ?? "error"}): the user empties it there by hand`;
   }

@@ -69,7 +69,7 @@ test("PAGE_KEY is checked, kept in the vault ahead of install's and emptied; sav
   writeAtomic(pageKeyFile(storage), "brx-installed\n");
   allm.valid.add("brx-installed").add("brx-given");
   const value = setPageKey("brx-given");
-  const said = await find(SKILL, "stale");
+  const said = await find(SKILL, { PAGE_KEY: "stale" });
   assert.match(said.join("\n"), /The key in PAGE_KEY \(Settings › Agent Skills › Test\) is kept in the Vault for the pages, and the field is empty again\. Every suite skill finds it now\./);
   assert.equal(value(), "", "the field is empty again");
   assert.equal(pageKey(), "brx-given", "the vault's comes before install's");

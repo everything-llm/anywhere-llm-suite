@@ -31,7 +31,6 @@ import { linksHidden, noteTabs, type TabLink } from "#shared/page-links";
 import { inTurn, newSecret, pageHtml, publicPath, readPublic, removePublic, sameSecret, takeEvents, watch, writePublic } from "#shared/pages";
 import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
-import { setting } from "#shared/settings";
 import { type Unsent, isUnsent, submitted, typeIn } from "./act";
 import { MAX_YOURS, closeTab, openYours, refusedHere } from "./browser";
 import * as passkey from "./passkey";
@@ -312,11 +311,6 @@ export const redraw = (workspace: string, entry: Entry, key: string): Promise<vo
 
 const text = (v: unknown, n = MAX_TEXT) => clip(v, n);
 
-/** The SEARCH_URL a call was last given, for a search from a tab's page where the skill's
- *  plugin.json isn't where AnythingLLM keeps it (#shared/settings setting). */
-const given = () => perProcess("browser-lean.search", () => ({ url: "" }));
-export const searchGiven = (url: unknown): void => void (given().url = String(url ?? ""));
-
 /** What the user typed into the home's field, as an address: one with a scheme, or a host (with a
  *  port and a path, perhaps); null for words to search for. */
 function addressOf(q: string): string | null {
@@ -336,7 +330,7 @@ async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
   const q = text(e.q, 2000).trim();
   if (!q) return false;
   if (at.entry.yours.size >= MAX_YOURS) return say(at.entry, at.key, `You have ${MAX_YOURS} tabs of your own open. Close one, then try again.`), true;
-  const url = addressOf(q) ?? searchAt(setting("browser-lean", "SEARCH_URL", given().url) || given().url, q);
+  const url = addressOf(q) ?? searchAt(q);
   if (await at.entry.fence(url)) return say(at.entry, at.key, refusedHere(url)), true;
   const { at: yours, failed } = await openYours(at.workspace, at.entry, url, text(e.made, 40));
   if (failed) say(yours.entry, yours.key, `Couldn’t open ${hostOf(url) || "that address"}. Check the address, then try again.`);
