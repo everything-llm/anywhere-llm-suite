@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { checks, chosen, INNER_STORAGE, put, take, type Payload } from "../src/addons.mts";
+import { checks, chosen, INNER_STORAGE, put, retire, take, type Payload } from "../src/addons.mts";
 import { tempDir } from "./fakes/tmp.mts";
 
 const tmp = tempDir("addons");
@@ -67,6 +67,30 @@ test("take removes the skills it knows, and leaves a skill's data", () => {
   take(dir, PAYLOAD);
   assert.deepEqual(fs.readdirSync(path.join(dir, "plugins", "agent-skills")), []);
   assert.ok(fs.existsSync(path.join(dir, "library-lean", "data.json")));
+});
+
+test("a skill the suite no longer ships (wake-lean) is removed by install and by uninstall, and its data stays; another author's, and one it ships but wasn't chosen, stay", () => {
+  const dir = storage();
+  const skill = (hubId: string, author: string) => {
+    fs.mkdirSync(path.join(dir, "plugins", "agent-skills", hubId), { recursive: true });
+    fs.writeFileSync(path.join(dir, "plugins", "agent-skills", hubId, "plugin.json"), JSON.stringify({ hubId, author }));
+  };
+  const left = () => skill("wake-lean", "anywherellm-suite"); // an older install's
+  fs.mkdirSync(path.join(dir, "wake-lean"));
+  fs.writeFileSync(path.join(dir, "wake-lean", "state.json"), "{}");
+  left();
+  skill("someone-elses", "someone");
+  skill("other-skill", "anywherellm-suite"); // shipped, though not put in here
+  fs.mkdirSync(path.join(dir, "plugins", "agent-skills", "no-config"));
+  assert.match(retire(dir, PAYLOAD).join("\n"), /^removed .*wake-lean, a skill the suite no longer ships$/);
+  assert.ok(!fs.existsSync(path.join(dir, "plugins", "agent-skills", "wake-lean")));
+  assert.deepEqual(fs.readdirSync(path.join(dir, "plugins", "agent-skills")).sort(), ["no-config", "other-skill", "someone-elses"], "the others stay");
+  assert.deepEqual(retire(dir, PAYLOAD), [], "nothing left to remove");
+  left();
+  take(dir, PAYLOAD);
+  assert.ok(!fs.existsSync(path.join(dir, "plugins", "agent-skills", "wake-lean")), "uninstall takes it too");
+  assert.ok(fs.existsSync(path.join(dir, "wake-lean", "state.json")), "its data stays");
+  assert.deepEqual(fs.readdirSync(path.join(dir, "plugins", "agent-skills")).sort(), ["no-config", "someone-elses"]);
 });
 
 test("checks find what is missing or not this version's", () => {

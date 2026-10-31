@@ -116,8 +116,8 @@ const server = http.createServer((req, res) => {
   assert.match(await call({ action: "library" }), /^Finished since last shown [^\n]*\n- digest\.nap: interrupted \(Interrupted: [^\n]*from a scheduled job/);
 
   if (process.env.E2E_SSH_PORT) {
-    // Targets are registered on the Library page (the keys are given on the Vault), which has a token, a
-    // secret and a key of its own.
+    // Machines (targets) are added on the Library page (the keys are given on the Vault), which has a
+    // token, a secret and a key of its own.
     const lib = JSON.parse(fs.readFileSync(`${APP}/public/library-lean/${JSON.parse(fs.readFileSync(`${storage}/library-lean/page.json`, "utf8")).token}.html`, "utf8").match(/const cfg = (\{.*?\});/)[1]);
     const libPub = crypto.createPublicKey({ key: Buffer.from(lib.pub, "base64"), format: "der", type: "spki" });
     // A private key is longer than RSA-OAEP seals: the page seals it with AES-GCM under a sealed key.
@@ -126,10 +126,12 @@ const server = http.createServer((req, res) => {
     const gcm = crypto.createCipheriv("aes-256-gcm", aes, iv);
     const box = Buffer.concat([gcm.update(process.env.E2E_SSH_KEY), gcm.final(), gcm.getAuthTag()]);
     const sealedKey = ["h1", crypto.publicEncrypt({ key: libPub, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" }, aes).toString("base64"), iv.toString("base64"), box.toString("base64")].join(".");
-    const target = { library_lean_event: 1, secret: lib.secret, ev: "target-save", label: "box", host: "127.0.0.1", port: process.env.E2E_SSH_PORT, login: "sandbox", fingerprint: process.env.E2E_SSH_FINGERPRINT, private: true, sealed: sealedKey };
-    fs.writeFileSync(path.join(events, `raw-${lib.title}-${crypto.randomUUID()}.json`), JSON.stringify({ pageContent: JSON.stringify(target) }));
+    // As the page posts it: the address with its port, the line ssh-keygen printed, the key sealed.
+    const pagePost = (event) => fs.writeFileSync(path.join(events, `raw-${lib.title}-${crypto.randomUUID()}.json`), JSON.stringify({ pageContent: JSON.stringify({ library_lean_event: 1, secret: lib.secret, ev: "target-save", ...event }) }));
+    pagePost({ label: "box", host: `127.0.0.1:${process.env.E2E_SSH_PORT}`, login: "sandbox", fingerprint: `256 ${process.env.E2E_SSH_FINGERPRINT} root@sshd (ED25519)`, public: "", sealed: sealedKey });
     await call({ action: "library" });
-    const status = () => JSON.parse(fs.readFileSync(`${APP}/public/library-lean/${lib.token}.json`, "utf8")).targets[0]?.status;
+    const pageState = () => JSON.parse(fs.readFileSync(`${APP}/public/library-lean/${lib.token}.json`, "utf8"));
+    const status = (label = "box") => pageState().targets.find((t) => t.label === label)?.status;
     for (let i = 0; i < 200 && [undefined, "not tried yet"].includes(status()); i++) await new Promise((r) => setTimeout(r, 100));
     assert.equal(status(), "signed in", "the pasted key signs in, the host key matching its fingerprint");
     const run = { name: "run", description: "Runs a command.", inputs: { req: { type: "object", required: true } }, source: "async function main(i, kit) { return kit.ssh.exec(Object.assign({ target: 'box' }, i.req)); }" };
@@ -154,6 +156,24 @@ const server = http.createServer((req, res) => {
     assert.equal((await result({ command: "sha256sum squares.csv | cut -d' ' -f1" })).stdout, `${csv.sha256}\n`, "the same file, by the machine's own hash");
     await moved("put", { path: "squares.csv", content: "replaced\n" });
     assert.equal((await result({ command: "cat squares.csv; ls -a | grep -c part- || true" })).stdout, "replaced\n0\n", "moved over it, no part file left");
+
+    // The page's setup command, as the page builds it, run twice on the machine as the account: the
+    // page's key added once, the permissions sshd wants, and the host key's line printed. A machine
+    // added from that line signs in with the page's key, though the line carries restrict.
+    const html = fs.readFileSync(`${APP}/public/library-lean/${lib.token}.html`, "utf8");
+    const setupCommand = new Function(`${html.slice(html.indexOf("const NAME = "), html.indexOf("  /** A machine's address"))}; return setupCommand;`)();
+    const spare = pageState().spare;
+    const command = setupCommand(spare, "box2");
+    const setUp = await result({ command });
+    assert.equal(setUp.exit, 0, `the command ran: ${setUp.stderr}`);
+    assert.equal((await result({ command })).stdout, setUp.stdout, "run again, it prints the same line");
+    assert.equal((await result({ command: `grep -c ${spare.split(" ")[1]} ~/.ssh/authorized_keys; stat -c %a ~/.ssh ~/.ssh/authorized_keys` })).stdout, "1\n700\n600\n", "the key is in once, and the permissions are sshd's");
+    assert.ok(setUp.stdout.includes(process.env.E2E_SSH_FINGERPRINT), `it printed the host key's fingerprint: ${setUp.stdout}`);
+    pagePost({ label: "box2", host: `127.0.0.1:${process.env.E2E_SSH_PORT}`, login: "sandbox", fingerprint: setUp.stdout.trim(), public: spare, sealed: "" });
+    await call({ action: "library" });
+    for (let i = 0; i < 200 && [undefined, "not tried yet"].includes(status("box2")); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(status("box2"), "signed in", "the machine added with the page's command signs in with the page's key");
+    assert.notEqual(pageState().spare, spare, "the next machine gets a key of its own");
   }
 
   server.close();

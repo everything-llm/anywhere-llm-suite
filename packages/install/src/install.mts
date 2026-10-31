@@ -19,7 +19,7 @@ import { desktopStorage, expandHome, type Place } from "./paths.mts";
 import { anythingllmUrl, request } from "#shared/upstream";
 import { putThisHost, thisHostCheck, type HostView } from "./thishost.mts";
 import { linksCheck } from "./pagelinks.mts";
-import { checks, chosen, INNER_STORAGE, needsPageKey, put, putPageKey, skillDir, take, type Check, type Payload } from "./addons.mts";
+import { checks, chosen, INNER_STORAGE, needsPageKey, put, putPageKey, retire, skillDir, take, type Check, type Payload } from "./addons.mts";
 
 /** This machine: its home, environment and OS (a test may say another), and what install needs. */
 export interface Ctx extends Place {
@@ -58,7 +58,7 @@ export async function install(ctx: Ctx, opts: Options): Promise<void> {
   const skills = chosen(ctx.payload, opts.skills);
   const storage = storageFor(ctx, opts.storage);
   ctx.print(`AnythingLLM's storage: ${storage}`);
-  for (const line of put(storage, skills)) ctx.print(line);
+  for (const line of [...put(storage, skills), ...retire(storage, ctx.payload)]) ctx.print(line);
   if (opts.pageKey) ctx.print(putPageKey(storage, opts.pageKey));
   ctx.print(putThisHost(storage, ctx.host));
   leftForYou(ctx);

@@ -229,6 +229,10 @@ export function readSealed(name: string, dir: string = vaultDir()): unknown {
   return saved ? openBox(dir, saved.box) : null;
 }
 
+/** The sealed file `name`'s stamp (#shared/atomic fileStamp), which changes as it is written; null
+ *  when there's none. For a cache of what it holds, which needn't be opened again until then. */
+export const sealedStamp = (name: string, dir: string = vaultDir()): string | null => fileStamp(sealedFile(name, dir));
+
 /** Seals `value` into the file `name` beside the vault; null removes the file. */
 export function writeSealed(name: string, value: unknown, dir: string = vaultDir()): void {
   const file = sealedFile(name, dir);

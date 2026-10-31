@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import ssh2 from "ssh2";
 import { pageKeyFile } from "#shared/anythingllm";
 import { writeAtomic } from "#shared/atomic";
 import { hiddenFile, linksFile } from "#shared/page-links";
@@ -63,6 +64,16 @@ const handler = (): ((this: unknown, args: Record<string, unknown>) => Promise<s
   return require(bundle).runtime.handler;
 };
 
+/** A new ed25519 key pair ssh2 parses back, as src/targets.ts `made` makes the page's: its generator
+ *  makes one its own parser calls malformed about once in 200, which fails whatever signs in with it. */
+export function keyPair(): { private: string; public: string } {
+  for (;;) {
+    const pair = ssh2.utils.generateKeyPairSync("ed25519");
+    const parsed = ssh2.utils.parseKey(pair.private);
+    if (!(parsed instanceof Error) && !Array.isArray(parsed) && parsed.isPrivateKey()) return pair;
+  }
+}
+
 /** Waits until `ok` holds, as what runs in the background gets there, for at most `ms`. */
 export async function until(ok: () => boolean, ms = 4000): Promise<void> {
   for (const end = Date.now() + ms; !ok() && Date.now() < end; ) await new Promise((r) => setTimeout(r, 20));
@@ -75,8 +86,6 @@ export const cardsShown: unknown[] = [];
 export interface Call {
   slug?: string | null;
   base?: string;
-  /** The skill's other settings (NTFY_URL...), as the user set them. */
-  settings?: Record<string, string>;
 }
 
 /** An agent run in workspace `slug` (null: none), in a chat of AnythingLLM's web UI. */
@@ -89,8 +98,8 @@ function agentRun(slug: string | null): object {
  *  alone, or in a Call), in a chat that could show a question card, and with ANYTHINGLLM_URL set to
  *  `base`. */
 export function call(args: Record<string, unknown>, at: Call | string | null = {}): Promise<string> {
-  const { slug = "work", base, settings } = at === null || typeof at === "string" ? { slug: at } : at;
-  const self = { super: agentRun(slug), runtimeArgs: { ...(base ? { ANYTHINGLLM_URL: base } : {}), ...settings }, logger: () => {} };
+  const { slug = "work", base } = at === null || typeof at === "string" ? { slug: at } : at;
+  const self = { super: agentRun(slug), runtimeArgs: base ? { ANYTHINGLLM_URL: base } : {}, logger: () => {} };
   return handler().call(self, args);
 }
 

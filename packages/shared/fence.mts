@@ -219,13 +219,18 @@ export function allowedFor(origin: string): Set<string> {
   return hosts;
 }
 
+/** Whether `host` (a name or an address, without brackets) is private by itself, with no lookup: an
+ *  address outside the public internet, or a name that is this machine's or this network's by its
+ *  name alone. A name that looks public is public here, whatever it resolves to. */
+export const privateByItself = (host: string): boolean => (net.isIP(host) ? privateAddress(host) : privateName(host));
+
 /** Why `host` (a name or an address, without brackets) is refused by itself, or null; "lookup"
  *  when only its addresses can say. The hosts in `allowed` are let through. */
 export function hostRefused(host: string, allowed: ReadonlySet<string>): string | null {
   if (allowed.has(host.toLowerCase())) return null;
-  if (net.isIP(host)) return privateAddress(host) ? `${host} isn't a public address` : null;
-  if (privateName(host)) return `${host} is a name on this machine or its network`;
-  return "lookup";
+  const ip = net.isIP(host) !== 0;
+  if (privateByItself(host)) return ip ? `${host} isn't a public address` : `${host} is a name on this machine or its network`;
+  return ip ? null : "lookup";
 }
 
 /** Why `host`, which resolves to `addresses`, is refused, or null. */

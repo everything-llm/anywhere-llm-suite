@@ -29,26 +29,6 @@
         "hint": "Optional: the address you open AnythingLLM at. With it, the Vault's and the Library page's links work anywhere."
       }
     },
-    "NTFY_URL": {
-      "type": "string",
-      "required": false,
-      "input": {
-        "type": "text",
-        "default": "",
-        "placeholder": "https://ntfy.example.com/anywherellm",
-        "hint": "Optional: an ntfy topic (ntfy.sh, or your own server) to tell when a run that went on in the background ends, and only that and how it ended: not which function, not its result. Nothing is sent without it."
-      }
-    },
-    "NTFY_TOKEN": {
-      "type": "string",
-      "required": false,
-      "input": {
-        "type": "password",
-        "default": "",
-        "placeholder": "tk_...",
-        "hint": "Optional: the access token, if the topic needs one."
-      }
-    },
     "PAGE_KEY": {
       "type": "string",
       "required": false,

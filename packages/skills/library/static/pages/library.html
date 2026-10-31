@@ -767,103 +767,125 @@ html { font-size: 100%; }
   .hu-root .hu-button:active, .hu-root a.hu-tile:active, .hu-root button.hu-tile:active, .hu-root .hu-chip:active { transform: none; }
 }
 /* end of house ui */
+/* The leaner Library (Library Design canvas, page "Library", section 5, 2026-10-31): three tabs, less
+   on each. Drawn with House UI's tokens only, so code is in the ink colour (the canvas colours it with
+   three of its own); buttons are House UI's hu-button shapes under the page's own names. Every control
+   is at least 44 px tall whatever the pointer. */
 body{margin:0;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input,textarea{font:inherit;color:var(--ink)}
 [hidden]{display:none!important}
-header{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:var(--space-4);padding:calc(var(--space-3) + env(safe-area-inset-top,0px)) max(var(--space-4),calc((100% - 608px) / 2)) var(--space-3);background:var(--ground)}
-h1{min-height:48px;display:flex;align-items:center;margin:0;padding:0 var(--space-2);font:600 1.25rem/1.3 var(--font-display)}
+.view{max-width:640px;margin:0 auto;padding:calc(var(--space-3) + env(safe-area-inset-top,0px)) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-6) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
+h1{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
+h1:focus{outline:none}
+.top{min-height:48px;display:flex;align-items:center;padding:0 var(--space-2)}
 nav{display:flex;padding:3px;border-radius:var(--radius-md);background:var(--sunken)}
-nav button{flex:1;min-height:var(--control-h);padding:0 var(--space-1);border-radius:var(--radius-sm);font-size:1rem;line-height:1.25;text-align:center;color:var(--ink)}
+nav button{flex:1;min-width:0;min-height:var(--size-control-touch);padding:0 var(--space-1);border-radius:var(--radius-sm);font-size:1rem;line-height:1.25;text-align:center;color:var(--ink);overflow-wrap:anywhere}
 nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1.5px var(--line-strong);font-weight:600}
-main{max-width:640px;margin:0 auto;padding:var(--space-1) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-6) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
-section{display:flex;flex-direction:column;gap:var(--space-4)}
-.cap{margin:0;font-size:0.8125rem;line-height:1.4;color:var(--ink)}
-main>.cap,section>.cap,.foot .cap{padding:0 var(--space-2)}
-.card{background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow-tile)}
-.card strong{font-size:1rem;font-weight:600;overflow-wrap:anywhere}
-.row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap}
-.row:has(>.tag){align-items:center}
-.svc{font:0.8125rem var(--font-mono);color:var(--muted)}
-.tag{flex:none;max-width:100%;padding:2px var(--space-2);border-radius:var(--radius-xs);background:var(--warning-soft);color:var(--warning);font-size:0.8125rem;overflow-wrap:anywhere}
+.bar{min-height:72px;margin:calc(-1 * var(--space-2)) calc(-1 * var(--space-1)) 0;display:grid;grid-template-columns:48px minmax(0,1fr) 48px;align-items:center;gap:var(--space-2)}
+.round{width:48px;height:48px;border-radius:50%;color:var(--ink);display:grid;place-items:center;text-decoration:none}
+.back{border:1px solid var(--tile-edge);background:var(--tile);box-shadow:var(--shadow-tile)}
+.ttl{display:flex;flex-direction:column;align-items:center;line-height:1.2;text-align:center;min-width:0}
+.ttl span{font-size:0.8125rem;overflow-wrap:anywhere}
+.card{background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);padding:var(--space-4) var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);box-shadow:var(--shadow-tile)}
+.card.list{padding:0 var(--space-5);gap:0}
+.lastrun{margin-top:-8px}
+.lastrun.ran{padding:14px var(--space-5);gap:10px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);flex-wrap:wrap}
+.head h2{margin:0;min-width:0;font-size:1rem;font-weight:600;overflow-wrap:anywhere}
+.end{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.more{flex:none;width:44px;height:44px;margin:-10px -12px -10px 0;border-radius:50%;color:var(--ink);display:grid;place-items:center}
+.say{margin:0;font-size:1rem;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.view>.say,.day{padding:0 var(--space-2)}
+.cap{margin:0;font-size:0.8125rem;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
+.mono{font-family:var(--font-mono)}
+.tag{flex:none;max-width:100%;display:inline-flex;align-items:center;gap:4px;padding:2px var(--space-2);border-radius:var(--radius-xs);background:var(--sunken);color:var(--ink);font-size:0.8125rem;line-height:1.4;overflow-wrap:anywhere}
 .tag.ok{background:var(--success-soft);color:var(--success)}
-.tag.run{background:var(--sunken);color:var(--ink)}
-.info{margin:0;font:0.8125rem/1.4 var(--font-mono);color:var(--muted);overflow-wrap:anywhere}
-.bad{margin:0;font-size:0.8125rem;line-height:1.4;color:var(--danger)}
-.stack{display:flex;flex-direction:column;gap:var(--space-3)}
-/* A pair of buttons shares a line while each label fits on one line, and otherwise stacks, each
-   full width, the first on top; a label wraps only where it can't fit even alone. */
+.tag.warn{background:var(--warning-soft);color:var(--warning)}
+.tag.bad{background:var(--danger-soft);color:var(--danger)}
+.tag svg,.err svg{flex:none}
+.rows{display:flex;flex-direction:column}
+.card>.rows{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.row{min-height:52px;padding:var(--space-2) 0;display:flex;align-items:center;gap:var(--space-3);color:var(--ink);text-decoration:none}
+.row+.row{border-top:1px solid var(--line)}
+.txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:1rem;overflow-wrap:anywhere}
+.meta{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.day{margin:0 0 calc(-1 * var(--space-2));font-size:0.8125rem;font-weight:600;line-height:1.4}
+.add{min-height:56px;padding:var(--space-2) var(--space-5);display:flex;align-items:center;gap:var(--space-3);background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-tile);color:var(--ink);text-decoration:none}
+.add>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.need{border:2px solid var(--accent)}
 .acts{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .acts>.btn{flex:1 1 0;min-width:fit-content}
-.acts>.btn:only-child,.body>.btn,.stack>.btn{flex:none;align-self:flex-start}
-.stack>.btn{padding:0 18px}
-summary{list-style:none;cursor:pointer;min-height:var(--control-h);display:flex;align-items:center;gap:10px}
-summary::-webkit-details-marker{display:none}
-.chev{flex:none;color:var(--muted);transition:transform var(--duration-quick) var(--ease-out)}
-details[open]>summary .chev{transform:rotate(180deg)}
-@media (prefers-reduced-motion:reduce){.chev{transition:none}}
-.fns:empty{display:none}
-.fns>details{border-top:1px solid var(--line)}
-.fns>details:last-child{border-bottom:1px solid var(--line)}
-.fns summary{font-size:0.8125rem;color:var(--ink)}
-.fns details:not([open])>summary>span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
-.fns summary>span{flex:1;min-width:0;overflow-wrap:anywhere}
-.fns summary b{font-weight:600;color:var(--ink)}
-.body{display:flex;flex-direction:column;gap:10px;padding:0 0 var(--space-3)}
-.card.list{padding:0 var(--space-5);gap:0}
-.list>details{padding:var(--space-3) 0}
-.list>details+details{border-top:1px solid var(--line)}
-.who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.who>span{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
-.who b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
-.who small{font:0.8125rem var(--font-mono);color:var(--muted)}
-.list pre{margin-top:var(--space-2)}
-.list pre:empty{display:none}
-pre{margin:0;padding:10px var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ground);font:0.8125rem/1.4 var(--font-mono);color:var(--ink);white-space:pre-wrap;word-break:break-word;font-variant-ligatures:none;max-height:360px;overflow:auto}
-.stack pre{word-break:break-all}
-.code{position:relative}
-.code pre{padding-right:calc(var(--target) + var(--space-3))}
-.copy{position:absolute;top:4px;right:4px;width:var(--target);height:var(--target);padding:0;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);display:flex;align-items:center;justify-content:center}
-.copy:active{transform:scale(0.97)}
-@media (prefers-reduced-motion:reduce){.copy:active{transform:none}}
-form.card{padding:var(--space-5);gap:var(--space-3)}
-.need{border-color:var(--accent);box-shadow:none}
-.ttl{display:flex;flex-direction:column;gap:var(--space-1)}
-.ff{display:flex;flex-direction:column;gap:6px}
-.ff>span{padding:0 var(--space-2);font-size:0.8125rem;line-height:1.4;color:var(--ink)}
-.fld{width:100%;min-height:calc(var(--control-h) + var(--space-2));padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem}
-.fld.mono{font-family:var(--font-mono);font-size:0.9375rem}
-textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:var(--space-3) var(--space-4);resize:vertical}
-.check{min-height:var(--control-h);display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-1) 0;font-size:0.8125rem;line-height:1.4;color:var(--ink);cursor:pointer}
-.check input{flex:none;width:20px;height:20px;margin:0;accent-color:var(--accent)}
-.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-h);padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);text-align:center;transition:transform var(--duration-quick) var(--ease-out)}
-.btn::after{content:"";position:absolute;inset:calc((var(--control-h) - var(--target)) / 2) -2px;min-height:var(--target)}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:var(--size-control-touch);padding:0 var(--space-5);border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);text-align:center;text-decoration:none;transition:transform var(--duration-quick) var(--ease-out)}
 .btn:active{transform:scale(0.97)}
 @media (prefers-reduced-motion:reduce){.btn:active{transform:none}}
-.btn.pri{min-height:var(--primary-h);padding:0 var(--space-6);border-radius:var(--radius-pill);border-color:transparent;background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
+.btn.pri{min-height:var(--size-primary);border-color:transparent;background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
 .btn.del{border-color:var(--danger);color:var(--danger)}
-.btn.try{color:var(--accent)}
-.foot{display:flex;flex-direction:column;gap:var(--space-2);align-items:flex-start}
-#toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:5;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
+.btn.ghost{align-self:flex-start;padding:0 var(--space-2);border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.btn[aria-busy="true"]{opacity:.7}
+.switchrow{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.switch{flex:none;position:relative;width:52px;height:32px;border-radius:var(--radius-pill);background:var(--sunken);border:2px solid var(--line-strong)}
+.switch::before{content:"";position:absolute;inset:-8px -4px}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--line-strong);transition:transform var(--duration-quick) var(--ease-out)}
+.switch[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
+.switch[aria-checked="true"]::after{transform:translateX(20px);background:var(--on-accent)}
+@media (prefers-reduced-motion:reduce){.switch::after{transition:none}}
+pre{margin:0;padding:10px var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ground);font:0.8125rem/1.4 var(--font-mono);color:var(--ink);white-space:pre-wrap;word-break:break-word;font-variant-ligatures:none;max-height:360px;overflow:auto}
+pre.cmd{word-break:break-all;max-height:none}
+details.card{padding:0 var(--space-5);gap:0}
+summary{list-style:none;cursor:pointer;min-height:52px;display:flex;align-items:center;gap:var(--space-3);font-size:1rem}
+summary::-webkit-details-marker{display:none}
+summary>span{flex:1;min-width:0}
+.chev{flex:none;transition:transform var(--duration-quick) var(--ease-out)}
+details[open]>summary .chev{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+.inside{padding:0 0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)}
+form.card{padding:var(--space-5);gap:var(--space-6)}
+.step{display:flex;flex-direction:column;gap:var(--space-3)}
+.step>.head{justify-content:flex-start;flex-wrap:nowrap;gap:10px}
+.num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--sunken);color:var(--ink);display:grid;place-items:center;font-size:0.8125rem;font-weight:600}
+.ff{display:flex;flex-direction:column;gap:6px}
+.ff>span:first-child,.hint{padding:0 var(--space-2);font-size:0.8125rem;line-height:1.4;color:var(--ink)}
+.fld{width:100%;min-height:52px;padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem}
+.fld.mono{font-size:0.9375rem}
+.fld[aria-invalid="true"]{border-color:var(--danger)}
+textarea.fld{min-height:104px;padding:var(--space-3) var(--space-4);resize:vertical}
+details.own{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.own .inside{padding:var(--space-1) 0 var(--space-3);gap:6px}
+.err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
+.err svg{margin-top:1px}
+.err:empty{display:none}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+dialog.sheet{position:fixed;inset:auto 0 0;margin:0 auto;width:100%;max-width:640px;max-height:90vh;padding:0;border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--tile);color:var(--ink);box-shadow:var(--shadow-sheet)}
+dialog.sheet::backdrop{background:var(--scrim)}
+.grip{display:block;width:40px;height:4px;margin:10px auto 0;border-radius:var(--radius-pill);background:var(--line)}
+.sheetin{padding:14px var(--space-6) calc(var(--space-7) + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:var(--space-5)}
+.sheetin h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
+.menu{position:fixed;z-index:6;min-width:160px;padding:var(--space-1);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--tile);box-shadow:var(--shadow-raised)}
+.menu button{display:flex;align-items:center;width:100%;min-height:48px;padding:0 var(--space-4);border-radius:var(--radius-sm);color:var(--danger);font-size:1rem}
+#toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
 </style>
 </head>
 <body class="hu-root">
-<header>
-  <h1>Library</h1>
+<div class="view" id="home">
+  <div class="top"><h1 tabindex="-1">Library</h1></div>
   <nav role="tablist" aria-label="Show">
     <button role="tab" data-tab="toolkits" aria-selected="true">Toolkits</button>
-    <button role="tab" data-tab="targets">Targets</button>
-    <button role="tab" data-tab="runs">Runs</button>
+    <button role="tab" data-tab="machines" aria-selected="false">Machines</button>
+    <button role="tab" data-tab="runs" aria-selected="false">Runs</button>
   </nav>
-</header>
-<main>
-  <p class="cap" id="vault" hidden>The keys the toolkits call with are in the <a id="vaultlink">Vault</a>.</p>
-  <section id="targets" hidden></section>
-  <section id="toolkits"></section>
-  <section id="runs" hidden></section>
-  <div class="foot"><p class="cap">What you type for a target’s key is sealed on this device; the agent never sees it. Anyone with this page’s link can see what it shows and act on it.</p>
-    <button class="btn del" id="rotate">New link</button></div>
-</main>
+  <div id="tab" class="view" style="padding:0;width:100%" role="tabpanel"></div>
+  <button class="btn ghost" type="button" id="rotate">Replace link</button>
+</div>
+<div class="view" id="screen" hidden></div>
+<div class="menu" id="menu" role="menu" hidden></div>
+<dialog class="sheet" id="sheet" aria-labelledby="sheet-t" aria-describedby="sheet-b">
+  <span class="grip" aria-hidden="true"></span>
+  <form method="dialog" class="sheetin">
+    <div><h2 id="sheet-t"></h2><p class="say" id="sheet-b"></p></div>
+    <div class="acts"><button class="btn pri" value="keep" id="sheet-keep">Keep</button><button class="btn del" value="yes" id="sheet-yes"></button></div>
+  </form>
+</dialog>
 <div id="toast" role="status" hidden></div>
 <script>
 (() => {
@@ -871,10 +893,31 @@ textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:va
   const theme = new URLSearchParams(location.search).get("theme");
   if (/^(light|dark)(-hc)?$/.test(theme ?? "")) document.documentElement.dataset.theme = theme; // House UI's four themes
   const $ = (id) => document.getElementById(id);
-  const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter((k) => k !== null && k !== undefined)); return n; };
-  // The chevron at a summary's end, turned while it's open.
-  const CHEV = Object.assign(document.createElement("template"), { innerHTML: '<svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>' }).content.firstChild;
-  const chev = () => CHEV.cloneNode(true);
+  /** An element: `props` set as properties, `attrs` as attributes, then its children. */
+  const el = (tag, props = {}, ...kids) => {
+    const { attrs = {}, ...rest } = props;
+    const n = Object.assign(document.createElement(tag), rest);
+    for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v === true ? "" : String(v));
+    n.append(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
+    return n;
+  };
+  const ICONS = {
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    next: '<path d="m9 18 6-6-6-6"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    back: '<path d="m15 18-6-6 6-6"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    spin: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+    done: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+    failed: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    stop: '<circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+    warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  };
+  const icon = (name, size = 16, cls = "") => Object.assign(document.createElement("template"), { innerHTML: `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>` }).content.firstChild;
   let toastTimer = 0;
   const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
 
@@ -887,12 +930,12 @@ textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:va
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "library-lean page" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + res.status), false;
+      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
       toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      toast("Can’t reach AnythingLLM. Check your connection, then try again.");
       return false;
     }
   }
@@ -912,164 +955,395 @@ textarea.fld{min-height:calc((var(--control-h) + var(--space-2)) * 2);padding:va
     return ["h1", b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, aes)), b64(iv), b64(sealed)].join(".");
   }
 
-  /** A labelled input: the label holds it, and `inputs[name]` keeps it for the form to read. */
-  // Not a login form: a password field asks for a new value (so the browser fills in no saved
-  // password, nor a user name beside it), and names hold nothing a browser reads as a login.
-  // A private key goes in a textarea, which keeps the line breaks an input drops.
-  // `mono`: a field for a value read as code (a fingerprint, a key).
-  const field = (inputs, name, label, type = "text", mono = false) => {
-    const props = { name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: type === "password" ? "new-password" : "off", spellcheck: false };
-    if (type !== "checkbox") props.className = "fld" + (mono || type === "textarea" ? " mono" : "");
-    const input = (inputs[name] = type === "textarea" ? el("textarea", { ...props, rows: 4 }) : el("input", { ...props, type }));
-    return type === "checkbox" ? el("label", { className: "check" }, input, label) : el("label", { className: "ff" }, el("span", { textContent: label }), input);
+  // ---- Pieces.
+  const say = (text) => el("p", { className: "say", textContent: text });
+  const cap = (text, mono = false) => el("p", { className: "cap" + (mono ? " mono" : ""), textContent: text });
+  const card = (...kids) => el("div", { className: "card" }, ...kids);
+  const tag = (text, kind, glyph) => el("span", { className: `tag ${kind}` }, glyph ? icon(glyph, 14) : null, text);
+  const btn = (text, kind, label, onclick) => el("button", { className: `btn ${kind}`, type: "button", textContent: text, onclick, attrs: { "aria-label": label } });
+  const acts = (...kids) => el("div", { className: "acts" }, ...kids);
+  const rowLink = (href, ...kids) => el("a", { className: "row", href }, el("span", { className: "txt" }, ...kids), icon("next"));
+  const list = (items) => new Intl.ListFormat("en", { type: "conjunction" }).format(items);
+  // The skill's own words as a sentence of the page's: a capital, a full stop, the curly apostrophe.
+  const sentence = (text) => { const line = String(text ?? "").trim().replace(/'/g, "’"); return line ? line[0].toUpperCase() + line.slice(1).replace(/[.:]?$/, ".") : ""; };
+  // Copies `text`; where the clipboard is refused, selects it to copy by hand.
+  const copier = (text, pre) => () => navigator.clipboard.writeText(text()).then(() => toast("Copied"), () => getSelection().selectAllChildren(pre));
+  const copyBtn = (label, text, pre) => el("button", { className: "btn", type: "button", onclick: copier(text, pre), attrs: { "aria-label": label } }, icon("copy", 18), "Copy");
+
+  // ---- The one command a machine is set up with: it adds the page's key to the account's
+  // authorized_keys (once: a line with that key already there is kept) with the right permissions,
+  // and prints the host key's fingerprint. Run with sh, so it reads the same in any login shell.
+  const NAME = /^[a-z][a-z0-9-]{1,30}$/;
+  const KEYGEN = "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub";
+  function setupCommand(keyLine, name) {
+    const [type, body] = String(keyLine ?? "").trim().split(/\s+/);
+    if (!/^ssh-[a-z0-9-]+$/.test(type ?? "") || !/^[A-Za-z0-9+/]+=*$/.test(body ?? "")) return null;
+    const line = `restrict ${type} ${body} library-lean${NAME.test(name) ? ` ${name}` : ""}`;
+    return `sh -c 'mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys && { grep -qF "${body}" ~/.ssh/authorized_keys || echo "${line}" >> ~/.ssh/authorized_keys; } && ${KEYGEN}'`;
+  }
+  /** A machine's address as the user types it: the port only when it isn't 22. */
+  const addressOf = (m) => (m.port === 22 ? m.host : m.host.includes(":") ? `[${m.host}]:${m.port}` : `${m.host}:${m.port}`);
+
+  // ---- The sheet that asks first, and the ⋯ menu.
+  const sheet = $("sheet");
+  let asked = null;
+  function ask(title, body, yes, act) {
+    $("sheet-t").textContent = title;
+    $("sheet-b").textContent = body;
+    $("sheet-yes").textContent = yes;
+    asked = { act, from: document.activeElement };
+    sheet.returnValue = "";
+    sheet.showModal();
+    $("sheet-keep").focus();
+  }
+  sheet.addEventListener("close", () => {
+    const was = asked;
+    asked = null;
+    if (was?.from?.isConnected) was.from.focus();
+    if (was && sheet.returnValue === "yes") was.act();
+  });
+  sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
+
+  const menu = $("menu");
+  let menuFrom = null;
+  function closeMenu() {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    menuFrom?.setAttribute("aria-expanded", "false");
+    if (menuFrom?.isConnected) menuFrom.focus();
+  }
+  function moreButton(label, items, cls = "more") {
+    const b = el("button", { className: cls, type: "button", attrs: { "aria-label": label, "aria-haspopup": "menu", "aria-expanded": "false" } }, icon("more", 20));
+    b.onclick = () => {
+      closeMenu();
+      menu.replaceChildren(...items.map(([text, act]) => el("button", { type: "button", textContent: text, attrs: { role: "menuitem" }, onclick: () => (closeMenu(), act()) })));
+      menu.hidden = false;
+      const box = b.getBoundingClientRect();
+      const below = box.bottom + 4 + menu.offsetHeight <= innerHeight;
+      menu.style.top = `${below ? box.bottom + 4 : Math.max(8, box.top - 4 - menu.offsetHeight)}px`;
+      menu.style.right = `${Math.max(8, innerWidth - box.right)}px`;
+      b.setAttribute("aria-expanded", "true");
+      menuFrom = b;
+      menu.firstChild.focus();
+    };
+    return b;
+  }
+  // ⋯ › Delete, which asks first and then posts `ev`; `after` follows a delete that was sent.
+  const deleteMenu = (name, body, ev, fields, { cls, after } = {}) =>
+    moreButton(`More for ${name}`, [["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
+  document.addEventListener("pointerdown", (e) => !menu.hidden && !menu.contains(e.target) && !e.target.closest?.("[aria-haspopup]") && closeMenu());
+  document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && closeMenu());
+
+  // ---- What a function does, and how a run went.
+  const does = (f) => { const d = String(f.description ?? "").trim(); return (d.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? d).replace(/\.$/, "") || f.name; };
+  const RUN = { running: ["Running", "", "spin"], ok: ["Done", "ok", "done"], error: ["Failed", "bad", "failed"], timeout: ["Timed out", "warn", "clock"], stopped: ["Stopped", "", "stop"], interrupted: ["Interrupted", "warn", "alert"] };
+  const runTag = (status) => tag(...(RUN[status] ?? [status, "", null]));
+  const hm = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  function dayOf(d) {
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const ago = Math.round((day(new Date()) - day(d)) / 86400000);
+    return ago === 0 ? "Today" : ago === 1 ? "Yesterday" : d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  }
+  const took = (ms) => (ms < 1000 ? "under 1 s" : ms < 60000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60000)} min`);
+  const startedAt = (r) => new Date(r.started);
+  const lastLine = (r) => (r.status === "running" ? `since ${hm(startedAt(r))}` : `${/^(Today|Yesterday)$/.test(dayOf(startedAt(r))) ? dayOf(startedAt(r)).toLowerCase() : dayOf(startedAt(r))} ${hm(startedAt(r))} · took ${took(r.ms)}`);
+
+  // ---- Where the page is: a tab (#toolkits, #machines, #runs), a function (#fn/<service>/<name>),
+  // or the form that adds a machine (#add, #add/<the name the agent asked for>, #again/<machine>).
+  const TABS = { toolkits: "Toolkits", machines: "Machines", runs: "Runs" };
+  function place() {
+    const [kind, a = "", b = ""] = decodeURIComponent(location.hash.slice(1)).split("/");
+    if (kind === "fn") return { screen: "fn", service: a, name: b };
+    if (kind === "add") return { screen: "add", need: NAME.test(a) ? a : null };
+    if (kind === "again") return { screen: "add", again: a };
+    return { tab: TABS[kind] ? kind : "toolkits" };
+  }
+  let lastTab = "toolkits";
+  const fnHref = (service, name) => `#fn/${encodeURIComponent(service)}/${encodeURIComponent(name)}`;
+
+  // ---- Toolkits.
+  function reachOf(t) {
+    const parts = [];
+    if (t.hosts.length) parts.push(`Connects to ${list(t.hosts)}`);
+    if (t.machines.length) parts.push(`${parts.length ? "runs" : "Runs"} on the machine${t.machines.length > 1 ? "s" : ""} ${list(t.machines)}`);
+    return parts.length ? cap(parts.join("; ")) : null;
+  }
+  function toolkitsTab(state) {
+    if (!state.toolkits.length) return [card(say("No toolkits yet. Ask the agent to connect a service, and it shows here."))];
+    return state.toolkits.map((t) => card(
+      el("div", { className: "head" }, el("h2", { textContent: t.title }),
+        t.locked ? tag("Locked", "ok", "lock") : deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service })),
+      reachOf(t),
+      t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), does(f)))) : null,
+      t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),
+      // Lock acts at once; Unlock only the page can do, and asks first.
+      acts(t.locked
+        ? btn("Unlock", "", `Unlock ${t.title}`, () => ask(`Unlock ${t.title}?`, "The agent can change its functions again.", "Unlock", () => post("toolkit-unlock", { service: t.service })))
+        : btn("Lock", "pri", `Lock ${t.title}`, () => post("toolkit-lock", { service: t.service })))));
+  }
+
+  // ---- A function, on its own screen.
+  let codeOpen = false;
+  function fnScreen(state, at) {
+    const t = state.toolkits.find((x) => x.service === at.service);
+    const f = t?.functions.find((x) => x.name === at.name);
+    if (!f) return null;
+    const pre = el("pre", { textContent: f.source });
+    const code = el("details", { className: "card", open: codeOpen, ontoggle: (e) => (codeOpen = e.target.open) },
+      el("summary", {}, el("span", { textContent: "Show the code" }), icon("down", 16, "chev")),
+      el("div", { className: "inside" }, pre, acts(copyBtn(`Copy ${f.name}’s code`, () => f.source, pre))));
+    const r = f.last;
+    const run = r
+      ? el("div", { className: "card lastrun ran" }, el("span", { className: "meta" }, runTag(r.status), el("span", { className: "cap", textContent: lastLine(r) })),
+          r.result !== null ? el("pre", { textContent: r.result }) : r.error ? el("pre", { textContent: r.error }) : null)
+      : el("div", { className: "card lastrun" }, say("It hasn’t run yet."));
+    return [
+      el("div", { className: "bar" }, el("a", { className: "round back", href: `#${lastTab}`, attrs: { "aria-label": `Back to ${TABS[lastTab]}` } }, icon("back", 20)),
+        el("div", { className: "ttl" }, el("h1", { tabIndex: -1, textContent: f.name }), el("span", { textContent: t.title })),
+        t.locked ? el("span") : deleteMenu(f.name, "This can’t be undone.", "fn-delete", { fn: `${t.service}.${f.name}` }, { cls: "round", after: () => (location.hash = `#${lastTab}`) })),
+      say(`${f.description}${t.locked ? ` ${t.title} is locked, so the agent can’t change it.` : ""}`),
+      el("h2", { className: "day", textContent: "Last run" }),
+      run,
+      code,
+    ];
+  }
+
+  // ---- Runs: the last 20, in day groups, newest first.
+  function runsTab(state) {
+    if (!state.runs.length) return [card(say("No runs yet. Ask the agent to run a function, and it shows here."))];
+    const fns = new Map(state.toolkits.flatMap((t) => t.functions.map((f) => [`${t.service}.${f.name}`, { t, f }])));
+    const out = [];
+    let group = null;
+    for (const r of state.runs) {
+      const day = dayOf(startedAt(r));
+      if (day !== group?.day) out.push(el("h2", { className: "day", textContent: day }), (group = { day, node: el("div", { className: "card list" }) }).node);
+      const known = fns.get(r.fn);
+      const kids = [el("span", { textContent: known ? does(known.f) : r.fn }), el("span", { className: "meta" }, runTag(r.status), el("span", { className: "cap", textContent: r.status === "running" ? `since ${hm(startedAt(r))}` : hm(startedAt(r)) })), r.status === "error" && r.error ? cap(r.error) : null];
+      group.node.append(known ? rowLink(fnHref(known.t.service, known.f.name), kids) : el("div", { className: "row" }, el("span", { className: "txt" }, kids)));
+    }
+    return out;
+  }
+
+  // ---- Machines.
+  const tryAgain = (m, kind = "pri") => btn("Try again", kind, `Try signing in to ${m.label} again`, () => post("target-check", { label: m.label }));
+  const setUp = (m) => el("a", { className: "btn", href: `#again/${encodeURIComponent(m.label)}`, textContent: "Set it up again" });
+  // A machine that isn't signed in, by why (the skill's barred, else its problem): the tag, what the
+  // card says, and its one next step.
+  const NOT_IN = {
+    barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => tryAgain(m, "")],
+    "host-key": ["Host key changed", "bad", () => "Its host key changed, so nothing was sent. If you rebuilt the machine, set it up again.", setUp],
+    "this-machine": ["Not used", "bad", () => "That’s the machine AnythingLLM runs on, so nothing was sent. Set it up again with another machine’s address.", setUp],
+    fenced: ["Not signed in", "warn", () => "Its name leads to an address that isn’t public, so it wasn’t reached. Set it up again with the address itself, like 192.168.1.20.", setUp],
+    unreachable: ["Not signed in", "warn", (m) => `${m.label} didn’t answer at ${addressOf(m)}. Check that it’s on and its address is right, then try again.`, tryAgain],
+    failed: ["Not signed in", "warn", (m) => (m.status === "not tried yet" ? "It hasn’t been tried yet." : sentence(m.status)), tryAgain],
   };
+  function machineCard(m) {
+    let state, body = [];
+    if (m.trying) state = tag("Signing in", "", "spin");
+    else if (!m.barred && m.status === "signed in") {
+      state = tag("Signed in", "ok", "done");
+      const id = `sw-${m.label}`;
+      const sw = el("button", { className: "switch", type: "button", attrs: { role: "switch", "aria-checked": String(m.unattended), "aria-labelledby": id } });
+      sw.onclick = async () => {
+        const on = sw.getAttribute("aria-checked") !== "true";
+        if (await post("target-unattended", { label: m.label, on })) sw.setAttribute("aria-checked", String(on));
+      };
+      body = [el("div", { className: "switchrow" }, el("span", { className: "say", id, textContent: "Scheduled jobs may use it", onclick: () => sw.click() }), sw)];
+    } else if (!m.barred && m.problem === "key") {
+      state = tag("Key refused", "bad", "warn");
+      const command = m.public && setupCommand(m.public, m.label);
+      if (command) {
+        const pre = el("pre", { className: "cmd", textContent: command });
+        body = [say(`${m.label} didn’t accept the page’s key. On ${m.label}, signed in as ${m.login}, run this command, then try again:`), pre, acts(copyBtn("Copy the command", () => command, pre))];
+      } else body = [say(`${m.label} didn’t accept your key. Add its public half to ~/.ssh/authorized_keys for ${m.login} on ${m.label}, then try again.`)];
+      body.push(acts(tryAgain(m)));
+    } else {
+      const [text, kind, says, next] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
+      state = tag(text, kind, "warn");
+      body = [say(says(m)), acts(next(m))];
+    }
+    return card(
+      el("div", { className: "head" }, el("h2", { textContent: m.label }), el("span", { className: "end" }, state,
+        deleteMenu(m.label, "This can’t be undone.", "target-delete", { label: m.label }))),
+      cap(`${m.login}@${addressOf(m)}`, true),
+      body,
+      m.held ? cap(`Kept for ${S.toolkits.find((t) => t.service === m.held)?.title ?? m.held}, which is locked.`) : null);
+  }
+  function machinesTab(state) {
+    const asking = state.needs.filter((need) => !state.targets.some((m) => m.label === need.label));
+    const add = (href, text, need = false) => el("a", { className: `add${need ? " need" : ""}`, href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
+    return [
+      ...(state.targets.length || asking.length ? [] : [card(say("No machines. When a function needs one, the agent asks you to add it."))]),
+      ...asking.map((need) => add(`#add/${encodeURIComponent(need.label)}`, `Add ${need.label}, which the agent asks for`, true)),
+      ...state.targets.map(machineCard),
+      add("#add", "Add a machine"),
+    ];
+  }
 
-  // The target form waiting to hear whether the skill saved what it posted.
-  let waiting = null;
-
-  // A target: the machine's address and account, its host key's fingerprint, and a key, pasted here
-  // (sealed on this device) or made by the skill, which then shows the public line for the machine.
-  // The form keeps what was typed until the skill says it saved it (answered), so a refusal leaves it.
-  function targetForm(need) {
+  // ---- Add a machine, in three steps. Drawn once when it opens, so what's typed stays; only the
+  // command follows the name, the account and the page's key.
+  let form = null; // { hash, node, refresh, answer }
+  function addScreen(state, at) {
+    const again = at.again ? state.targets.find((m) => m.label === at.again) : null;
+    if (at.again && !again) return null;
+    const named = at.need || again?.label || null;
     const inputs = {};
-    const fields = [...(need ? [] : [["label", "Name, like pi"]]), ["host", "Host or address"], ["port", "Port (22 if empty)"], ["login", "Account to sign in as"], ["fingerprint", "Host key fingerprint, SHA256:…", "text", true],
-      ["key", "Private key, without a passphrase (leave empty to make one, or to keep the one saved)", "textarea"],
-      ["private", "On my network: a private address. The machine must not be this one, and must not be able to reach this AnythingLLM: its pages carry the page secret", "checkbox"], ["unattended", "May run unattended: scheduled jobs may use it", "checkbox"]];
-    const node = el("form", { className: "card" + (need ? " need" : "") },
-      el("div", { className: "ttl" }, el("strong", { textContent: need ? `The agent asks for a target: ${need.label}` : "Add a target" }),
-        el("p", { className: "cap", textContent: "A machine the agent’s functions run commands on over SSH. Read the fingerprint on the machine itself: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub" })),
-      ...fields.map(([name, label, type, mono]) => field(inputs, name, label, type, mono)), el("p", { className: "bad err", hidden: true }), el("button", { className: "btn pri", type: "submit", textContent: "Save" }));
+    const errors = {};
+    const describe = (name) => (errors[name] = el("span", { className: "err", id: `err-${name}`, attrs: { role: "alert" } }));
+    // Not a login form: names hold nothing a browser reads as a login, and nothing is filled in.
+    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false } = {}) => {
+      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}` } };
+      const input = (inputs[name] = textarea ? el("textarea", { ...props, rows: 4 }) : el("input", { type: "text", ...props }));
+      return el("label", { className: "ff" }, el("span", { textContent: label }), input, hint ? el("span", { className: "hint", textContent: hint }) : null, describe(name));
+    };
+    const stepHead = (n, text) => el("div", { className: "head" }, el("span", { className: "num", textContent: String(n), attrs: { "aria-hidden": "true" } }), el("h2", {}, el("span", { className: "vh", textContent: `Step ${n}: ` }), text));
+    const pre = el("pre", { className: "cmd" });
+    const runText = el("p", { className: "say" });
+    const own = el("details", { className: "own" }, el("summary", {}, el("span", { textContent: "Use my own key instead" }), icon("down", 16, "chev")),
+      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
+    const key = inputs.key;
+    const save = el("button", { className: "btn pri", type: "submit", textContent: "Save", style: "align-self:stretch" });
+    const node = el("form", { className: `card${at.need ? " need" : ""}`, noValidate: true },
+      el("div", { className: "step" }, stepHead(1, "Where is it?"),
+        named ? null : field("label", "Name", { placeholder: "pi" }),
+        field("host", "Address", { hint: "Add :port if it isn’t 22.", placeholder: "192.168.1.20", value: again ? addressOf(again) : "" }),
+        field("login", "Account to sign in as", { placeholder: "pi", value: again?.login ?? "" })),
+      el("div", { className: "step" }, stepHead(2, "Run this on it"), runText, pre, acts(copyBtn("Copy the command", () => pre.textContent, pre)), describe("command")),
+      el("div", { className: "step" }, stepHead(3, "Paste what it printed"), field("fingerprint", "The line it printed", { mono: true, placeholder: "256 SHA256:… (ED25519)" })),
+      own,
+      describe("form"),
+      save);
+    const ownKey = () => own.open && key.value.trim() !== "";
+    const name = () => named ?? inputs.label.value.trim().toLowerCase();
+    // The machine's own key while it stays where it was (set up again); otherwise the page's spare.
+    const keyLine = () => (again?.public && inputs.host.value.trim().toLowerCase() === addressOf(again) && inputs.login.value.trim() === again.login ? again.public : state.spare);
+    function refresh(now = state) {
+      state = now;
+      runText.textContent = ownKey() ? "Your key goes in that account’s ~/.ssh/authorized_keys. To read the machine’s host key, run this on it:" : "Signed in as that account, paste this into the machine’s terminal:";
+      pre.textContent = (ownKey() ? KEYGEN : setupCommand(keyLine(), name())) ?? "The page has no key yet: reload it.";
+    }
+    for (const input of [inputs.label, inputs.host, inputs.login, key]) input?.addEventListener("input", () => refresh());
+    own.addEventListener("toggle", () => refresh());
+    const fail = (name, text) => {
+      const at = errors[name] ?? errors.form;
+      at.replaceChildren(icon("warn"), el("span", { textContent: text }));
+      const input = inputs[name];
+      if (name === "key") own.open = true;
+      input?.setAttribute("aria-invalid", "true");
+      return input ?? at;
+    };
+    const clear = () => {
+      for (const e of Object.values(errors)) e.replaceChildren();
+      for (const i of Object.values(inputs)) i?.removeAttribute("aria-invalid");
+    };
+    let waiting = 0;
+    const done = () => (clearTimeout(waiting), (waiting = 0), save.removeAttribute("aria-busy"));
     node.onsubmit = async (e) => {
       e.preventDefault();
-      node.querySelector(".err").hidden = true;
-      const v = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.type === "checkbox" ? i.checked : i.value.trim()]));
-      const label = need ? need.label : v.label;
-      if (!label || !v.host || !v.login || !v.fingerprint) return toast("Give a name, the host, the account and the fingerprint");
-      const sent = await post("target-save", { label, host: v.host, port: v.port, login: v.login, fingerprint: v.fingerprint, private: v.private, unattended: v.unattended, sealed: v.key ? await seal(v.key) : "" });
-      if (sent) (waiting = node), setTimeout(() => waiting === node && (waiting = null), 30000); // not for ever if no answer comes
+      if (waiting) return;
+      clear();
+      const v = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value.trim()]));
+      const bad = [];
+      // Only what's left empty: the skill's refusals say the rest, under the field they concern.
+      if (!named && !name()) bad.push(fail("label", "Give the machine a name, like pi."));
+      if (!v.host) bad.push(fail("host", "Give the machine’s address, like 192.168.1.20."));
+      if (!v.login) bad.push(fail("login", "Give the account to sign in as, like pi."));
+      if (!v.fingerprint) bad.push(fail("fingerprint", "Paste the line the command printed."));
+      if (bad.length) return bad[0].focus();
+      const mine = ownKey();
+      const sent = await post("target-save", { label: name(), host: v.host, login: v.login, fingerprint: v.fingerprint, public: mine ? "" : keyLine() ?? "", sealed: mine ? await seal(key.value.trim()) : "" });
+      if (!sent) return;
+      save.setAttribute("aria-busy", "true");
+      waiting = setTimeout(done, 30000); // not for ever if no answer comes
     };
-    return node;
+    // How the skill took the save: a refusal under the field it concerns, or Machines, where it signs in.
+    const answer = (said) => {
+      if (!waiting) return;
+      done();
+      if (!said.error) return void (location.hash = "#machines");
+      fail(said.field ?? "form", said.error).focus();
+    };
+    refresh();
+    form = { hash: location.hash, node, refresh, answer };
+    return [
+      el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
+        el("div", { className: "ttl" }, el("h1", { tabIndex: -1, textContent: again ? `Set up ${again.label} again` : "Add a machine" })), el("span")),
+      el("p", { className: "say", textContent: at.need ? `The agent asks for a machine named ${at.need}, to run commands on.` : again ? `Run the command on ${again.label} again, then paste what it printed.` : "A machine the agent’s functions can run commands on." }),
+      node,
+    ];
   }
 
-  // Copies `text`; where the clipboard is refused, selects it to copy by hand.
-  const copier = (text, pre) => () => navigator.clipboard.writeText(text).then(() => toast("Copied"), () => getSelection().selectAllChildren(pre));
-  const copyable = (text) => {
-    const pre = el("pre", { textContent: text });
-    return el("div", { className: "stack" }, pre, el("button", { className: "btn", type: "button", textContent: "Copy", ariaLabel: "Copy the line", onclick: copier(text, pre) }));
-  };
-
-  // A code view: the text in a box with an icon button that copies it, held at the corner while the code scrolls.
-  const COPY = Object.assign(document.createElement("template"), { innerHTML: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>' }).content.firstChild;
-  const codeBox = (text, what) => {
-    const pre = el("pre", { textContent: text });
-    return el("div", { className: "code" }, pre, el("button", { className: "copy", type: "button", ariaLabel: `Copy ${what}`, title: "Copy", onclick: copier(text, pre) }, COPY.cloneNode(true)));
-  };
-
-  const remove = (text, ev, fields, asked = `${text}?`) => el("button", { className: "btn del", type: "button", textContent: text, onclick: () => confirm(asked) && post(ev, fields) });
-
-  function drawTargets(s) {
-    const machines = $("targets");
-    machines.replaceChildren(...s.needs.map((n) => targetForm(n)));
-    for (const m of s.targets) {
-      machines.append(el("div", { className: "card" },
-        el("div", { className: "row" }, el("strong", { textContent: m.label }), el("span", { className: m.status === "signed in" ? "tag ok" : "tag", textContent: m.status })),
-        el("p", { className: "info", textContent: `${m.login}@${m.host}:${m.port}; ${m.fingerprint}${m.private ? "; on my network" : ""}${m.unattended ? "; may run unattended" : ""}` }),
-        m.barred ? el("p", { className: "bad", textContent: `Not used: ${m.barred}.` }) : null,
-        ...m.notes.map((n) => el("p", { className: "cap", textContent: n })),
-        m.held ? el("p", { className: "cap", textContent: `Kept for locked toolkits (${m.held}): an unlocked toolkit can’t use it.` }) : null,
-        m.public ? el("div", { className: "stack" }, el("p", { className: "cap", textContent: `Add this line to ~${m.login}/.ssh/authorized_keys on the machine (restrict keeps it to commands and files):` }), copyable(`restrict ${m.public}`)) : null,
-        el("div", { className: "acts" },
-          el("button", { className: "btn try", type: "button", textContent: "Try signing in", onclick: () => post("target-check", { label: m.label }) }),
-          Object.assign(remove("Delete", "target-delete", { label: m.label }), { ariaLabel: `Delete the target ${m.label}` }))));
+  // ---- Drawing: the view the address names, from the state last read. A tab or a function is drawn
+  // again when what it shows changes; the form only when it opens.
+  let S = null;
+  let shown = null;
+  function draw(moved = false) {
+    if (!S) return;
+    const at = place();
+    if (at.screen === "add" && form?.hash === location.hash) return form.refresh(S);
+    const key = JSON.stringify([location.hash, at.tab === "toolkits" ? S.toolkits : at.tab === "machines" ? [S.needs, S.targets] : at.tab === "runs" ? [S.runs, S.toolkits] : S.toolkits, at.screen === "add" ? S.targets : null]);
+    if (key === shown && !moved) return;
+    closeMenu();
+    if (at.screen !== "add") form = null;
+    if (at.tab) {
+      lastTab = at.tab;
+      for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-selected", String(b.dataset.tab === at.tab));
+      $("tab").replaceChildren(...(at.tab === "machines" ? machinesTab(S) : at.tab === "runs" ? runsTab(S) : toolkitsTab(S)));
+      $("tab").setAttribute("aria-label", TABS[at.tab]);
+      $("home").hidden = false;
+      $("screen").hidden = true;
+    } else {
+      const kids = at.screen === "fn" ? fnScreen(S, at) : addScreen(S, at);
+      if (!kids) return location.replace(`#${lastTab}`); // gone: a function deleted, a machine removed
+      $("screen").replaceChildren(...kids);
+      $("home").hidden = true;
+      $("screen").hidden = false;
     }
-    machines.append(targetForm(null));
+    shown = key;
+    if (moved) (at.tab ? $("home") : $("screen")).querySelector("h1")?.focus(), scrollTo(0, 0);
   }
+  addEventListener("hashchange", () => {
+    if (place().screen !== "fn") codeOpen = false;
+    draw(true);
+  });
 
-  function drawToolkits(s) {
-    const toolkits = $("toolkits");
-    toolkits.replaceChildren(...(s.toolkits.length ? [] : [el("p", { className: "cap", textContent: "No toolkits yet." })]));
-    for (const t of s.toolkits) {
-      // A locked toolkit: the agent can't change or remove it, nor this page delete in it, until it's unlocked.
-      const lock = t.locked
-        ? remove("Unlock", "toolkit-unlock", { service: t.service }, "Unlock? The agent can change its functions again.")
-        : el("button", { className: "btn pri", type: "button", textContent: "Lock", onclick: () => post("toolkit-lock", { service: t.service }) });
-      toolkits.append(el("div", { className: "card" },
-        el("div", { className: "row" }, el("strong", { textContent: t.title }), el("span", { className: t.locked ? "tag ok" : "svc", textContent: t.locked ? `${t.service} · locked` : t.service })),
-        el("p", { className: "info", textContent: `${t.reach.join(", ") || "no base address or target"}; keys: ${t.secrets.join(", ") || "none"}` }),
-        el("div", { className: "fns" }, ...t.functions.map((f) => el("details", {},
-          el("summary", {}, el("span", {}, el("b", { textContent: f.name }), `: ${f.description} (v${f.version})`), chev()),
-          el("div", { className: "body" }, codeBox(f.source, `${f.name}\u2019s source`), t.locked ? null : remove("Delete this function", "fn-delete", { fn: `${t.service}.${f.name}` }))))),
-        el("p", { className: "cap", textContent: t.locked ? "Locked: the agent can’t change or remove it. Unlock it to let it, or to delete here." : "Read its functions, then lock it: the agent can’t change a locked toolkit. Locking also pins its targets (machine, account and host key): they stay as they are for it, and unlocked toolkits can’t use them." }),
-        el("div", { className: "acts" }, lock, t.locked ? null : remove("Delete the toolkit", "toolkit-delete", { service: t.service }))));
-    }
-
-  }
-
-  function drawRuns(s) {
-    const runs = $("runs");
-    // The runs are rows of one tile.
-    const list = el("div", { className: "card list" });
-    runs.replaceChildren(s.runs.length ? list : el("p", { className: "cap", textContent: "No runs yet." }));
-    for (const r of s.runs) {
-      list.append(el("details", {},
-        el("summary", {}, el("span", { className: "who" },
-          el("span", {}, el("b", { textContent: r.fn }), el("span", { className: r.status === "ok" ? "tag ok" : r.status === "running" ? "tag run" : "tag", textContent: r.status })),
-          el("small", { textContent: `${new Date(r.ended).toLocaleString()}${r.status === "running" ? "" : `, ${(r.ms / 1000).toFixed(1)} s`}${r.trigger === "job" ? ", scheduled job" : ""}` })), chev()),
-        el("pre", { textContent: r.error || r.result || "" })));
-    }
-  }
-
-  // The Targets form isn't drawn over while the user is in one of its fields, or while a save is
-  // out and the skill hasn't said how it went (answered): a pasted key would go with it.
-  const busy = () => {
-    const at = document.activeElement;
-    return !!waiting || (["INPUT", "TEXTAREA"].includes(at?.tagName) && $("targets").contains(at));
-  };
-
-  // What the skill said of the last thing it was asked: a refusal in its words, or a target saved.
-  // The first state read has an old one at most, which isn't news.
+  // What the skill said of the last thing it was asked: a refusal, or a machine saved. The first state
+  // read has an old one at most, which isn't news.
   let seen = null;
-  function answered(s) {
-    const n = s.result ? s.result.n : 0;
+  function answered(state) {
+    const n = state.result ? state.result.n : 0;
     const news = seen !== null && n > seen;
     seen = n;
     if (!news) return;
-    const said = s.result, form = waiting && waiting.isConnected && said.ev === "target-save" ? waiting : null;
-    if (said.error) {
-      toast(said.error);
-      if (form) (form.querySelector(".err").textContent = said.error), (form.querySelector(".err").hidden = false);
-    } else if (form) form.reset();
-    if (said.ev === "target-save") waiting = null;
+    if (state.result.ev === "target-save" && form) form.answer(state.result);
+    else if (state.result.error) toast(state.result.error);
   }
 
-  // Each part: what it's drawn from, and how. It's drawn when that changes, so an open function or a typed form stays as it is.
-  const parts = { targets: [(s) => JSON.stringify([s.needs, s.targets]), drawTargets], toolkits: [(s) => JSON.stringify(s.toolkits), drawToolkits], runs: [(s) => JSON.stringify(s.runs), drawRuns] };
-  const shown = {};
+  let lastRead = null;
   async function load() {
     try {
       const res = await fetch(cfg.token + ".json", { cache: "no-cache" });
       // Gone: AnythingLLM answers a path it doesn't serve with its own page, 200.
       if (res.status === 404 || (res.ok && !/json/i.test(res.headers.get("content-type") || ""))) return clearInterval(poll), toast("This link was replaced. Open the page again from where you got it: the agent, AnywhereLLM Lite, or anywherellm-suite pages."); // gone for good: said once
-      const s = JSON.parse(await res.text());
-      $("vault").hidden = !s.vault;
-      if (s.vault) $("vaultlink").href = s.vault;
-      answered(s);
-      for (const [name, [keyOf, draw]] of Object.entries(parts)) {
-        const key = keyOf(s);
-        if (key !== shown[name] && !(name === "targets" && busy())) (shown[name] = key), draw(s);
-      }
+      const text = await res.text();
+      if (text === lastRead) return; // as it was: nothing to draw
+      lastRead = text;
+      const first = S === null;
+      S = JSON.parse(text);
+      // Opened while the agent asks for a machine: Machines, where it's added.
+      if (first && !location.hash && S.needs.length) history.replaceState(null, "", "#machines");
+      draw();
+      answered(S);
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      toast("Can’t reach AnythingLLM. Check your connection, then try again.");
     }
   }
 
-  for (const b of document.querySelectorAll("nav button")) {
-    b.onclick = () => {
-      for (const x of document.querySelectorAll("nav button")) x.setAttribute("aria-selected", String(x === b));
-      for (const section of document.querySelectorAll("main section")) section.hidden = section.id !== b.dataset.tab;
-    };
+  function replaceLink() {
+    ask("Replace this page’s link?", "Anyone with the link can see this page and act on it. The old link stops working.", "Replace link", () => post("rotate"));
   }
-  $("rotate").onclick = () => confirm("Make a new link? This one stops working.") && post("rotate");
+  for (const b of document.querySelectorAll("nav button")) b.onclick = () => (location.hash = `#${b.dataset.tab}`);
+  $("rotate").onclick = replaceLink;
   const poll = setInterval(load, 5000);
   load();
 })();
