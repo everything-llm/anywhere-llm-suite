@@ -353,7 +353,12 @@ export const runtime = {
     // The pages' key, found or made (#shared/pagekey), before anything shows a page; then a key in the
     // slot, whatever the call (slot.ts): it's in plain text until it's taken.
     const said = await pageKeys.find(SKILL, this.runtimeArgs, (m) => this.logger?.(m));
-    const took = await slot.collect().catch((e) => void this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`));
+    const took = await slot.collect().catch((e) => {
+      this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`);
+      // In the answer too: the agent can't read the log, and a key it believes saved isn't.
+      said.push(`The key in NEW_KEY (${slot.SETTINGS}) couldn't be taken (${(e as NodeJS.ErrnoException)?.code ?? "an error"}): it may still be there. Tell the user it wasn't saved; AnythingLLM's log has the detail.`);
+      return null;
+    });
     if (took) said.push(took.text);
     try {
       const base = baseOf(this);

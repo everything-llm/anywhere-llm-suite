@@ -66,6 +66,12 @@ export const secrets = (): Secret[] =>
     .filter(named())
     .map((e): Secret => ({ site: e.site, label: e.user }));
 
+/** The saved key whose value is `value`, without its value; undefined when none is. */
+export function savedAs(value: string): Secret | undefined {
+  const e = vault.entries().find((e) => named()(e) && e.value === value);
+  return e && { site: e.site, label: e.user };
+}
+
 /** The name of the secret a request to `host` goes with when it names none: the one saved for the
  *  host's site, the closest site first; a LibraryError when there's none, or no one. */
 export function labelForHost(host: string): string {
