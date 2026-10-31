@@ -139,35 +139,41 @@ function leftovers(storage: string, skill: Skill): string[] {
   return listDir(skillDir(storage, skill)).filter((name) => !(name in skill.files));
 }
 
-/** The folders of skills the suite no longer ships, by hubId: install and uninstall remove what an
- *  older install left of them, so an upgrade leaves no dead skill running. wake-lean went on
- *  2026-10-31 (a scheduled job that polls with a library function does its work). */
-export const RETIRED = ["wake-lean"];
+/** The author every suite skill's plugin.json names. */
+const AUTHOR = "anywherellm-suite";
 
-const retiredDirs = (storage: string): string[] => RETIRED.map((hubId) => path.join(storage, "plugins", "agent-skills", hubId));
-
-/** Removes what an older install left of the skills the suite no longer ships (RETIRED); what it
- *  did. Their data stays, as every skill's does. */
-export function retire(storage: string): string[] {
-  const done: string[] = [];
-  for (const folder of retiredDirs(storage)) {
-    if (!fs.existsSync(folder)) continue;
-    writable(folder, () => fs.rmSync(folder, { recursive: true }));
-    done.push(`removed ${folder}, a skill the suite no longer ships`);
-  }
-  return done;
+/** The folders of the skills the suite put in and no longer ships: a skill folder whose plugin.json
+ *  names the suite as its author and a hubId that isn't one of `payload`'s (every skill it ships, not
+ *  only those chosen), as an older install or an import from the Hub left it. */
+function retired(storage: string, payload: Payload): string[] {
+  const shipped = new Set(payload.skills.map((s) => s.hubId));
+  const skills = path.join(storage, "plugins", "agent-skills");
+  return listDir(skills).flatMap((name) => {
+    const folder = path.join(skills, name);
+    try {
+      const config = JSON.parse(fs.readFileSync(path.join(folder, "plugin.json"), "utf8"));
+      return config?.author === AUTHOR && !shipped.has(config.hubId) ? [folder] : [];
+    } catch {
+      return []; // not a skill of the suite's: no plugin.json, or not JSON
+    }
+  });
 }
+
+/** Removes each of `folders` that is there; what it did, each line ending with `why`. */
+function removed(folders: string[], why = ""): string[] {
+  return folders.filter((folder) => fs.existsSync(folder)).map((folder) => (writable(folder, () => fs.rmSync(folder, { recursive: true })), `removed ${folder}${why}`));
+}
+
+/** Removes what an older install left of the skills the suite no longer ships (retired), so an
+ *  upgrade leaves no dead skill running; what it did. Their data stays, as every skill's does. */
+export const retire = (storage: string, payload: Payload): string[] => removed(retired(storage, payload), ", a skill the suite no longer ships");
 
 /** Takes out what `put` put in (the skills it knows of, and the ones it no longer ships); what it
  *  did. A skill's data stays. */
 export function take(storage: string, payload: Payload): string[] {
   const done: string[] = [];
   if (fs.existsSync(pageKeyFile(storage))) done.push("the pages' key goes with it: revoke it in AnythingLLM's Settings > Browser Extension");
-  for (const folder of [path.join(storage, SUITE_DIR), ...payload.skills.map((s) => skillDir(storage, s)), ...retiredDirs(storage)]) {
-    if (!fs.existsSync(folder)) continue;
-    writable(folder, () => fs.rmSync(folder, { recursive: true }));
-    done.push(`removed ${folder}`);
-  }
+  done.push(...removed([path.join(storage, SUITE_DIR), ...payload.skills.map((s) => skillDir(storage, s))]), ...retire(storage, payload));
   return done;
 }
 

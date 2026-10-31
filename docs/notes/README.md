@@ -140,7 +140,7 @@ The background-run notice over ntfy was removed on 2026-10-31 at Shane's choice:
 
 ## wake-lean removed, 2026-10-31
 
-wake-lean removed on 2026-10-31 at Shane's choice; a scheduled job that polls with a library function replaces it (board #58's polling trial). Gone: `packages/skills/wake/` (its own ntfy client, its AnythingLLM client and its tests), its row in the root README, the installer's bundle test for it and its check in `tools/e2e`. The build and the installer find the skills by their folders, so nothing else named it. An older install's `plugins/agent-skills/wake-lean` is removed by the next `install` and by `uninstall` (`RETIRED` in `install/src/addons.mts`), so an upgrade leaves no dead skill listening; its data (`wake-lean/state.json`) stays, as every skill's does. The entries above that describe it are kept as they were.
+wake-lean removed on 2026-10-31 at Shane's choice; a scheduled job that polls with a library function replaces it (board #58's polling trial). Gone: `packages/skills/wake/` (its own ntfy client, its AnythingLLM client and its tests), its row in the root README, the installer's bundle test for it and its check in `tools/e2e`. The build and the installer find the skills by their folders, so nothing else named it. An older install's `plugins/agent-skills/wake-lean` is removed by the next `install` and by `uninstall` (`retire` in `install/src/addons.mts`: any skill folder whose `plugin.json` names `anywherellm-suite` as its author and a hubId the installer doesn't ship, so no list of retired skills is kept), so an upgrade leaves no dead skill listening; its data (`wake-lean/state.json`) stays, as every skill's does. The entries above that describe it are kept as they were.
 
 ## House rules
 

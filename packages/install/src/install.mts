@@ -58,7 +58,7 @@ export async function install(ctx: Ctx, opts: Options): Promise<void> {
   const skills = chosen(ctx.payload, opts.skills);
   const storage = storageFor(ctx, opts.storage);
   ctx.print(`AnythingLLM's storage: ${storage}`);
-  for (const line of [...put(storage, skills), ...retire(storage)]) ctx.print(line);
+  for (const line of [...put(storage, skills), ...retire(storage, ctx.payload)]) ctx.print(line);
   if (opts.pageKey) ctx.print(putPageKey(storage, opts.pageKey));
   ctx.print(putThisHost(storage, ctx.host));
   leftForYou(ctx);
