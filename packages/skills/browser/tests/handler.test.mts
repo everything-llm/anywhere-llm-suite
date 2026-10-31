@@ -72,6 +72,7 @@ test("a login with none saved is asked for on the tab's page, sealed, typed in, 
   const asked = await call({ action: "login", user_ref: "e1", pass_ref: "e2", submit_ref: "e3" });
   assert.match(asked, /^The user is asked on the tab's page: login\.example needs the user to sign in, and no login is saved for it\. Tell them to tap the card below/);
   assert.match(asked, /Never ask for it in the chat/);
+  assert.match(asked, /\[!\[Sign in · Sign in\]\([^)]+\)\]\([^)]+\.html\)\n\n\*\*Sign in · Sign in\*\* · login\.example/, "the card says it's for signing in");
   assert.deepEqual(tabState().need, { kind: "login", host: "login.example", text: "", label: null, hasUser: true, confirm: false, until: tabState().need.until });
 
   post({ ev: "need-answer", user: "ada@example.com", sealed: seal("pw-s3cret-1"), save: true });
@@ -410,7 +411,7 @@ test("a code taken on a new page isn't asked again for the same ref there; one t
   await call({ action: "open", url: "https://step.example/code" });
   const asked = await call({ action: "login", what: "code", ref: "e4", submit_ref: "e6" });
   assert.match(asked, /The code sent to your phone for step\.example/, "the page's words choose which code");
-  assert.match(asked, /\n\[!\[Two-step\][^\n]*\n[\s\S]*\nPage: Two-step/, "the card before the read while the user is asked");
+  assert.match(asked, /\n\[!\[Sign in · Two-step\][^\n]*\n[\s\S]*\nPage: Two-step/, "the card before the read while the user is asked");
   post({ ev: "need-answer", text: "123456" }, { workspace: "step" });
   const after = await call({ action: "read" });
   assert.doesNotMatch(after, /may not have been accepted|may have refused/);

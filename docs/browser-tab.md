@@ -16,7 +16,7 @@ An answer about the tab ends with its card, as Markdown:
 
 - `<base>` is the skill's `ANYTHINGLLM_URL` setting, or empty (links from AnythingLLM's own root).
 - `<token>` names the chat's tab: it stays the same for the tab's life, and a new tab gets a new one. It's a capability: whoever has it can read the tab's state and post to its page.
-- `<name>` and `<host>` hold no brackets or line breaks. A reply without a picture has the last line alone.
+- `<name>` is the page's title (its host where it has none), as "Sign in · <title>" while the user is asked for a login or a code on the tab's page. It and `<host>` hold no brackets or line breaks. A reply without a picture has the last line alone.
 
 A client finds the card by the link `…/browser-lean/<token>.html` and reads the files beside it, all served by AnythingLLM's public folder with no sign-in. The tab's page draws no Close: a client shows it with its own (AnywhereLLM Lite opens it in a Custom Tab, whose toolbar shows the page's `<title>`, the tab's title), and in a browser tab the browser's Back does it.
 

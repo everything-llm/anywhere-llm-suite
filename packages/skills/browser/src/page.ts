@@ -279,14 +279,15 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
 
 /** Draws the tab `at` for the agent's answer, from the page as just read: its card's Markdown lines
  *  (a crop of its picture that opens its page, then its title and address; those alone where there's
- *  no picture) and whether it has a page the user can answer on. `base` is the address the user's
- *  browser reaches AnythingLLM at (null: links from its own root). */
+ *  no picture) and whether it has a page the user can answer on. While the user is asked to sign in
+ *  there (a login or a code), the title reads "Sign in · <title>", as the canvas's card has it. `base`
+ *  is the address the user's browser reaches AnythingLLM at (null: links from its own root). */
 export async function card(at: Tab, base: string | null, read: Read): Promise<{ lines: string[]; page: boolean }> {
   const token = await draw(at, true, read);
   const { title } = read;
   const url = at.page.url();
   const host = hostOf(url);
-  const name = plain(title) || plain(host || url);
+  const name = (pendingNeed(at.entry, at.key) ? "Sign in · " : "") + (plain(title) || plain(host || url));
   const lines = [`**${name}** · ${plain(host || url, 200)}`];
   if (!token) return { lines, page: false };
   const link = `${base ?? ""}/browser-lean/${token}`;
