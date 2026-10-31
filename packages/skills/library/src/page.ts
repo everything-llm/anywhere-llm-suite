@@ -361,7 +361,7 @@ async function drain(base: string | null): Promise<void> {
       // is only logged, with a plain line for the page.
       const told = err instanceof Told;
       if (!told) console.error(`library-lean couldn't apply a page event (${text(e.ev, 40)}): ${(err as Error).message}`);
-      result = { ev: text(e.ev, 40), label: text(e.label, 60), error: told ? err.message.slice(0, 400) : e.ev === "target-save" ? "Couldn’t save the machine. The log says why." : "Couldn’t do that. The log says why.", field: err instanceof targets.Refused ? err.field : null };
+      result = { ev: text(e.ev, 40), label: text(e.label, 60), error: told ? err.message.slice(0, 400) : e.ev === "target-save" ? "Couldn’t save the machine. Try again, or check AnythingLLM’s log." : "Couldn’t do that. Try again, or check AnythingLLM’s log.", field: err instanceof targets.Refused ? err.field : null };
     }
   }
   const outcome = result;

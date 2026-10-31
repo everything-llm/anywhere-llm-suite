@@ -843,14 +843,16 @@ nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1
 .need{border:2px solid var(--accent)}
 .acts{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .acts>.hu-button{flex:1 1 0;min-width:fit-content}
+.acts>.hu-button.fit{flex:none}
 #rotate{align-self:flex-start;padding:0 var(--space-2)}
 .hu-button[aria-busy="true"]{opacity:.7}
 .switchrow{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
 .switch{flex:none;position:relative;width:52px;height:32px;border-radius:var(--radius-pill);background:var(--sunken);border:2px solid var(--line-strong)}
 .switch::before{content:"";position:absolute;inset:-8px -4px}
-.switch::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--line-strong);transition:transform var(--duration-quick) var(--ease-out)}
-.switch[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
-.switch[aria-checked="true"]::after{transform:translateX(20px);background:var(--on-accent)}
+.switch::after{content:"";position:absolute;top:2px;left:3px;width:26px;height:26px;border-radius:50%;background:var(--line-strong);box-shadow:var(--shadow-tile);transition:transform var(--duration-quick) var(--ease-out)}
+.switch[aria-checked="true"]{background:var(--accent);border:0}
+.switch[aria-checked="true"]::before{inset:-6px -2px}
+.switch[aria-checked="true"]::after{transform:translate(20px,1px);background:var(--tile)}
 @media (prefers-reduced-motion:reduce){.switch::after{transition:none}}
 pre{margin:0;padding:10px var(--space-3);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--ground);font:0.8125rem/1.4 var(--font-mono);color:var(--ink);white-space:pre-wrap;word-break:break-word;font-variant-ligatures:none;max-height:360px;overflow:auto}
 pre.cmd{word-break:break-all;max-height:none}
@@ -873,6 +875,7 @@ form.card{padding:var(--space-5);gap:var(--space-6)}
 .fld[aria-invalid="true"]{border-color:var(--danger)}
 textarea.fld{min-height:104px;padding:var(--space-3) var(--space-4);resize:vertical}
 details.own{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.own>summary{min-height:48px}
 details.own .inside{padding:var(--space-1) 0 var(--space-3);gap:6px}
 .err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
 .err svg{margin-top:1px}
@@ -951,12 +954,12 @@ dialog.sheet::backdrop{background:var(--scrim)}
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "library-lean page" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
+      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
       toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Check your connection, then try again.");
+      toast("Can’t reach AnythingLLM. Try again in a moment.");
       return false;
     }
   }
@@ -1099,7 +1102,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),
       // Lock acts at once; Unlock only the page can do, and asks first.
       acts(t.locked
-        ? btn("Unlock", "secondary", `Unlock ${t.title}`, () => ask(`Unlock ${t.title}?`, "The agent can change its functions again.", "Unlock", () => post("toolkit-unlock", { service: t.service })))
+        ? btn("Unlock", "secondary fit", `Unlock ${t.title}`, () => ask(`Unlock ${t.title}?`, "The agent can change its functions again.", "Unlock", () => post("toolkit-unlock", { service: t.service })))
         : btn("Lock", "primary", `Lock ${t.title}`, () => post("toolkit-lock", { service: t.service })))));
   }
 
@@ -1151,9 +1154,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
   // A machine that isn't signed in, by why (the skill's barred, else its problem): the tag, what the
   // card says, and its one next step.
   const NOT_IN = {
-    barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => tryAgain(m, "secondary")],
+    barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => (/try again\.?$/i.test(m.barred) ? tryAgain(m) : null)],
     "host-key": ["Host key changed", "bad", () => "Its host key changed, so nothing was sent. If you rebuilt the machine, set it up again.", setUp],
-    "this-machine": ["Not used", "bad", () => "That’s the machine AnythingLLM runs on, so nothing was sent. Set it up again with another machine’s address.", setUp],
+    "this-machine": ["Not used", "bad", () => "This is the machine AnythingLLM runs on, so nothing was sent. Use another machine.", setUp],
     fenced: ["Not signed in", "warn", () => "Its name leads to an address that isn’t public, so it wasn’t reached. Set it up again with the address itself, like 192.168.1.20.", setUp],
     unreachable: ["Not signed in", "warn", (m) => `${m.label} didn’t answer at ${addressOf(m)}. Check that it’s on and its address is right, then try again.`, tryAgain],
     failed: ["Not signed in", "warn", (m) => (m.status === "not tried yet" ? "It hasn’t been tried yet." : sentence(m.status)), tryAgain],
@@ -1181,14 +1184,15 @@ dialog.sheet::backdrop{background:var(--scrim)}
     } else {
       const [text, kind, says, next] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
       state = tag(text, kind, "warn");
-      body = [say(says(m)), acts(next(m))];
+      const step = next(m);
+      body = [say(says(m)), step ? acts(step) : null];
     }
     return card(
       el("div", { className: "head" }, el("h2", { textContent: m.label }), el("span", { className: "end" }, state,
         deleteMenu(m.label, "This can’t be undone.", "target-delete", { label: m.label }))),
       cap(`${m.login}@${addressOf(m)}`, true),
       body,
-      m.held ? cap(`Kept for ${S.toolkits.find((t) => t.service === m.held)?.title ?? m.held}, which is locked.`) : null);
+      m.held ? cap(`Kept for locked toolkits (${S.toolkits.find((t) => t.service === m.held)?.title ?? m.held}). Unlocked toolkits can’t use it.`) : null);
   }
   function machinesTab(state) {
     const asking = state.needs.filter((need) => !state.targets.some((m) => m.label === need.label));
@@ -1212,16 +1216,17 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const errors = {};
     const describe = (name) => (errors[name] = el("span", { className: "err", id: `err-${name}`, attrs: { role: "alert" } }));
     // Not a login form: names hold nothing a browser reads as a login, and nothing is filled in.
-    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false } = {}) => {
-      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}` } };
+    // A field with `named` has no label shown, only its name for a screen reader.
+    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false, named = false } = {}) => {
+      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}`, "aria-label": named ? label : null } };
       const input = (inputs[name] = textarea ? el("textarea", { ...props, rows: 4 }) : el("input", { type: "text", ...props }));
-      return el("label", { className: "ff" }, el("span", { textContent: label }), input, hint ? el("span", { className: "hint", textContent: hint }) : null, describe(name));
+      return el(named ? "div" : "label", { className: "ff" }, named ? null : el("span", { textContent: label }), input, hint ? el("span", { className: "hint", textContent: hint }) : null, describe(name));
     };
     const stepHead = (n, text) => el("div", { className: "head" }, el("span", { className: "num", textContent: String(n), attrs: { "aria-hidden": "true" } }), el("h2", {}, el("span", { className: "vh", textContent: `Step ${n}: ` }), text));
     const pre = el("pre", { className: "cmd" });
     const runText = el("p", { className: "say" });
     const own = el("details", { className: "own" }, el("summary", {}, el("span", { textContent: "Use my own key instead" }), icon("down", 16, "chev")),
-      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
+      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, named: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
     const key = inputs.key;
     const save = el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: "Save", style: "align-self:stretch" });
     const node = el("form", { className: `card${at.need ? " need" : ""}`, noValidate: true },
@@ -1358,7 +1363,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       draw();
       answered(S);
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Check your connection, then try again.");
+      toast("Can’t reach AnythingLLM. Try again in a moment.");
     }
   }
 
