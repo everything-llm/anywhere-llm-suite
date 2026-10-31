@@ -978,8 +978,8 @@ input::placeholder{color:var(--muted);opacity:1}
    *  the scrim close it; focus goes back to `from`. One at a time. */
   function ask(title, line, yes, run, from) {
     asking?.close();
-    const shade = [document.querySelector("header"), document.querySelector("main")];
-    const was = shade.map((part) => part.inert);
+    const page = document.querySelector("main");
+    const was = page.inert;
     const id = "q" + Math.random().toString(36).slice(2, 8);
     const keep = el("button", { className: "keep", type: "button", textContent: "Keep" });
     const go = el("button", { className: "go", type: "button", textContent: yes });
@@ -992,7 +992,7 @@ input::placeholder{color:var(--muted);opacity:1}
         if (asking !== me) return;
         asking = null;
         scrim.remove(), sheet.remove();
-        shade.forEach((part, i) => (part.inert = was[i]));
+        page.inert = was;
         if (from.isConnected) from.focus();
       },
     };
@@ -1002,7 +1002,7 @@ input::placeholder{color:var(--muted);opacity:1}
       me.close();
       if (live) run();
     };
-    for (const part of shade) part.inert = true;
+    page.inert = true;
     document.body.append(scrim, sheet);
     asking = me;
     keep.focus();
@@ -1081,6 +1081,7 @@ input::placeholder{color:var(--muted);opacity:1}
       const copy = g.public && canCopy && el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Copy public key", onclick: async () => {
         try { await navigator.clipboard.writeText(g.public); toast("Copied"); } catch (e) {
           for (const x of pub) x.hidden = false;
+          copy.hidden = true; // the public key shows in its place, to select by hand
           toast("Can’t copy here. Select the public key and copy it.");
         }
       } });
@@ -1181,7 +1182,8 @@ input::placeholder{color:var(--muted);opacity:1}
       for (const b of tabs) b.hidden = !shown.has(b.dataset.tab);
       document.querySelector("nav").hidden = tabs.filter((b) => !b.hidden).length < 2; // one tab says nothing
       $("rotate").hidden = !shown.size;
-      if (!tabs.some((b) => !b.hidden && b.getAttribute("aria-selected") === "true")) select(tabs.find((b) => !b.hidden));
+      // First the tab the link names (#logins, as the browser's tab page links here), else the first there is.
+      if (!tabs.some((b) => !b.hidden && b.getAttribute("aria-selected") === "true")) select(tabs.find((b) => !b.hidden && location.hash === `#${b.dataset.tab}`) ?? tabs.find((b) => !b.hidden));
     } catch (e) {
       toast("Can’t reach AnythingLLM. Try again in a moment.");
     }

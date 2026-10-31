@@ -149,7 +149,7 @@ test("the tab's page links to the Vault, whose logins section lists the saved lo
   await logins.save("vault.example", "ada", "pw-vault-1");
   await call({ action: "open", url: "https://shop.example/" });
   const { token } = vaultNames();
-  assert.equal(tabState("vaultlink").vault, `/vault-lean/${token}.html`);
+  assert.equal(tabState("vaultlink").vault, `/vault-lean/${token}.html#logins`, "on its Logins tab");
   const html = fs.readFileSync(path.join(publicDir, "vault-lean", `${token}.html`), "utf8");
   assert.ok(!html.includes("pw-vault-1") && !fs.readFileSync(path.join(publicDir, "vault-lean", `${token}-logins.json`), "utf8").includes("pw-vault-1"), "no password");
   assert.ok(!fs.existsSync(path.join(publicDir, "vault-lean", `${token}-keys.json`)), "no keys section without the library");
@@ -183,7 +183,7 @@ test("with the links kept from the agent, the tab's state carries no Vault link,
     hideLinks(false);
   }
   await call({ action: "read" });
-  assert.equal(tabState("vaulthidden").vault, `/vault-lean/${vaultNames().token}.html`, "given again once the switch is off");
+  assert.equal(tabState("vaulthidden").vault, `/vault-lean/${vaultNames().token}.html#logins`, "given again once the switch is off");
 });
 
 test("the first call after the links switch goes on replaces the Vault's names, even a scheduled job's that draws no page", async () => {

@@ -252,6 +252,39 @@ const server = http.createServer((req, res) => {
   assert.match(await read10(), /Passkey refused: NotAllowedError/, "deleted on the Vault, it signs in no more");
   assert.deepEqual(passkeys.log, ["registered", "registered", "signed in", "signed in"]);
 
+  // ---- The Vault itself, in a real Chrome (the collector's) at a phone's width: the tab's link opens
+  // it on its Logins tab (another tab when the link names it), and a Delete asks first in a sheet over
+  // the inert page, which Esc closes, giving the focus back to the Delete.
+  const puppeteer = require("/app/collector/node_modules/puppeteer");
+  const viewer = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+  try {
+    const vaultAt = `http://127.0.0.1:${process.env.INNER_PORT || 3001}${tabPage(10).state().vault}`;
+    assert.match(vaultAt, /\.html#logins$/);
+    const open = async (url) => {
+      const shown = await viewer.newPage();
+      await shown.setViewport({ width: 390, height: 844 });
+      const errors = [];
+      shown.on("pageerror", (e) => errors.push(e.message));
+      await shown.goto(url, { waitUntil: "load" });
+      await shown.waitForFunction(() => document.querySelector("#logins .row") && [...document.querySelectorAll("nav button")].some((b) => b.getAttribute("aria-selected") === "true"), { timeout: 10_000 });
+      const tabs = await shown.evaluate(() => [...document.querySelectorAll("nav button")].filter((b) => !b.hidden).map((b) => `${b.textContent}${b.getAttribute("aria-selected") === "true" ? " (shown)" : ""}`));
+      return { shown, errors, tabs };
+    };
+    assert.deepEqual((await open(vaultAt.replace(/#logins$/, "#addresses"))).tabs, ["Logins", "Addresses (shown)"], "the tab the link names");
+    const { shown, errors, tabs } = await open(vaultAt);
+    assert.deepEqual(tabs, ["Logins (shown)", "Addresses"], "the tab's link opens it on Logins");
+    await shown.click("#logins .hu-button--danger");
+    const asked = await shown.evaluate(() => [document.querySelector(".sheet h2")?.textContent, document.querySelector("main").inert, document.activeElement.textContent]);
+    assert.match(asked[0] ?? "", /^Delete this (login|passkey)\?$/, "asked first");
+    assert.deepEqual(asked.slice(1), [true, "Keep"], "over the inert page, Keep focused");
+    await shown.keyboard.press("Escape");
+    const closed = await shown.evaluate(() => [!!document.querySelector(".sheet"), document.querySelector("main").inert, document.activeElement.matches("#logins .hu-button--danger")]);
+    assert.deepEqual(closed, [false, false, true], "Esc closes it and gives the focus back");
+    assert.deepEqual(errors, [], "no error on the page");
+  } finally {
+    await viewer.close();
+  }
+
   // ---- Fields in a shadow root, "Show password", a form that needs more than the login, and a new
   // account's "Confirm password".
   const refIn = (text, label) => text.match(new RegExp(`\\[(e\\d+)\\] ${label}`))[1];

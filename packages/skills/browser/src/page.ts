@@ -437,11 +437,11 @@ export const settlePages = (): Promise<void> => vaultPage.settle("logins", drain
 const loginsState = () => ({ logins: logins.list() });
 
 /** Writes the Vault with its logins and addresses sections and watches for their events for a while;
- *  answers its path on this host, for the tab's page to link to. */
+ *  answers its path on this host, for the tab's page to link to: on its Logins tab (#logins). */
 async function showVault(): Promise<string> {
   const link = await vaultPage.show("logins", loginsState(), drainLogins, null);
   addresses.show(null);
-  return link;
+  return `${link}#logins`;
 }
 
 /** Applies what the user did in the Vault's logins section since the last time (#shared/vault-page
