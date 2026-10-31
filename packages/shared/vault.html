@@ -894,12 +894,13 @@ input::placeholder{color:var(--muted);opacity:1}
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: "vault-lean-" + section, docSource: "vault-lean page" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + res.status), false;
+      // Not the canvas's install --page-key: the pages' key is the user's, pasted into a skill's PAGE_KEY.
+      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
       toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      toast("Can’t reach AnythingLLM. Try again in a moment.");
       return false;
     }
   }
@@ -909,7 +910,7 @@ input::placeholder{color:var(--muted);opacity:1}
   const b64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   let pubKey = null;
   async function seal(text) {
-    if (!crypto.subtle) throw new Error("Open this page over https to give a key: over plain http, the browser can’t seal it");
+    if (!crypto.subtle) throw new Error("Open this page over https to save a key. Over plain http it can’t be sealed.");
     const bytes = new TextEncoder().encode(text);
     pubKey ||= await crypto.subtle.importKey("spki", Uint8Array.from(atob(cfg.pub), (c) => c.charCodeAt(0)), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
     if (bytes.length <= 190) return b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, bytes));
@@ -1039,7 +1040,7 @@ input::placeholder{color:var(--muted);opacity:1}
     const addForm = form([["label", "Name", "text", false, "github"], ["site", "Site", "text", true, "api.github.com"], ["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
       if (!v.value || !v.label || !v.site) return toast("Fill in every field"), false;
       const taken = named(ks, v.label);
-      if (taken?.kind === "signing") return toast("That name is a signing key’s: use another"), false;
+      if (taken?.kind === "signing") return toast("A signing key has that name. Use another."), false;
       const went = await post("keys", "key-save", { label: v.label, site: v.site, sealed: await seal(v.value) });
       if (went) (adding = false), drawKeys(ks);
       return went;
@@ -1062,7 +1063,7 @@ input::placeholder{color:var(--muted);opacity:1}
   function drawSigning(ks) {
     const list = ks.signing ?? [];
     const items = list.map((g) => {
-      const del = remove([`Delete the signing key ${g.label}?`, `Nothing signs as it after, and it can’t be made again: its peers would need a new public key.`], `Delete the signing key ${g.label}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key" });
+      const del = remove([`Delete the signing key ${g.label}?`, "It can’t be made again. Anything that checks its signatures will need a new public key."], `Delete the signing key ${g.label}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key" });
       // The open row shows the fingerprint, and the public key itself only where it can't be copied:
       // the clipboard needs https, and a refusal shows it too.
       const canCopy = !!(window.isSecureContext && navigator.clipboard);
@@ -1071,7 +1072,7 @@ input::placeholder{color:var(--muted);opacity:1}
       const copy = g.public && canCopy && el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Copy public key", onclick: async () => {
         try { await navigator.clipboard.writeText(g.public); toast("Copied"); } catch (e) {
           for (const x of pub) x.hidden = false;
-          toast("Can’t copy here: select the public key and copy it");
+          toast("Can’t copy here. Select the public key and copy it.");
         }
       } });
       const jobs = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: g.unattended ? "Stop it signing in scheduled jobs" : "Let it sign in scheduled jobs", onclick: () => post("keys", "signing-unattended", { label: g.label, on: !g.unattended }) });
@@ -1084,7 +1085,7 @@ input::placeholder{color:var(--muted);opacity:1}
     });
     const addForm = form([["label", "Name", "text", false, "muse"], ["namespace", "Namespace", "text", true, "muse-coordination"], ["seed", "Seed to import, if you have one", "password", false, "base64"]], "Save signing key", async (v) => {
       if (!v.label || !v.namespace) return toast("Fill in the name and the namespace"), false;
-      if (named(ks, v.label)) return toast("That name is taken: use another"), false;
+      if (named(ks, v.label)) return toast("That name is taken. Use another."), false;
       const fields = { label: v.label, namespace: v.namespace };
       const went = v.seed ? await post("keys", "signing-import", { ...fields, sealed: await seal(v.seed) }) : await post("keys", "signing-new", fields);
       if (went) (addingSigning = false), drawSigning(ks);
@@ -1173,7 +1174,7 @@ input::placeholder{color:var(--muted);opacity:1}
       $("rotate").hidden = !shown.size;
       if (!tabs.some((b) => !b.hidden && b.getAttribute("aria-selected") === "true")) select(tabs.find((b) => !b.hidden));
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      toast("Can’t reach AnythingLLM. Try again in a moment.");
     }
   }
 
