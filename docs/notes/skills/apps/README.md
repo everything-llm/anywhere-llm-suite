@@ -16,6 +16,8 @@ Later the same day, with highlights: Change this in the collector's real Chrome,
 
 On 2026-10-18, with Change this renamed Comment (one text for all picks, the button beside the page's first heading, `dismiss` for an ask that needs no change), it printed ok again. Headless Chromium on four starters' pages checked the rest: the button sits in the heading's row (in the corner on the explainer, which has no `h1`), the tray goes on the body while open and back beside the heading after, Send stays off until there's text, keys typed in the tray don't reach the deck, and a page that redraws its heading's container gets the button back on the next sync.
 
+On 2026-10-31 it printed ok with the apps manager drawn as pictures of the pages: in the collector's Chrome at 390 px, both artifacts' pages drawn in frames sandboxed with scripts only, each in an origin of its own, grouped under their workspace and newest first, and neither frame asking AnythingLLM for anything in 5 s. A first try that framed each page's address drew nothing: AnythingLLM sends `X-Frame-Options: DENY` on its public folder, so the manager gives each frame the page's HTML (srcdoc).
+
 A container's public folder (`/app/server/public`, which also holds AnythingLLM's web app, so only `public/apps-lean` could be bind-mounted) is its own, so a podman quadlet that makes the container again on each restart empties it: the pages go, and the first chat call after the restart writes them again (`upgrade` writes any page that isn't there, as well as any of an older version).
 
 Not tried: a real agent driving it, AnythingLLM Desktop, Docker Desktop's bind mounts (where the 30 s poll stands in for the folder watch), and the upgrade on the live instance's 47 artifacts.

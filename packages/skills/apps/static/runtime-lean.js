@@ -13,8 +13,29 @@
 // A change sent but not recorded stays applied over newer data, in this browser's storage, until
 // the app lists its id (patched with App.apply, the page's one patch engine). App.log gives the
 // newest changes the page was written with.
+// A page whose <html> has data-picture is a picture: the apps manager draws it small, its HTML the
+// document of a sandboxed frame, and says so. It shows the data it was written with, reads and posts
+// nothing, has no Comment, and tells the frame's parent once it's drawn ("apps-lean:drawn"), so the
+// manager shows it in place of the icon. Any other page, framed or not, is a page.
 var AppsLean = (() => {
   const cfg = JSON.parse(document.getElementById("apps-lean").textContent);
+  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  const native = window.fetch.bind(window);
+  // app.js's two addresses answered by `append` and `sync`; any other, as the browser would.
+  const serve = (append, sync) => {
+    window.fetch = (url, opts) => (url === "lean:append" ? append(JSON.parse(opts.body)) : url === "lean:sync" ? sync(JSON.parse(opts.body)) : native(url, opts));
+  };
+  const app = (data, line) => ({ title: cfg.title, card: cfg.card, data, line, append: "lean:append", sync: "lean:sync" });
+  // App.log asks without waiting: the newest changes, as the page was written with them.
+  const log = (since, line) => answer(200, { line, lines: cfg.log.filter((l) => l.n > (since || 0)) });
+
+  if (document.documentElement.hasAttribute("data-picture")) {
+    serve(() => answer(409, { error: "A picture of the page saves nothing." }), (body) => (body.wait === false ? log(body.since, cfg.line) : new Promise(() => {})));
+    // Drawn: app.js and the parts draw as the page loads, so a moment after it the picture is ready.
+    window.addEventListener("load", () => setTimeout(() => window.parent.postMessage("apps-lean:drawn", "*"), 100));
+    return { app: () => app(cfg.data, cfg.line) };
+  }
+
   const KEY = "apps-lean:" + cfg.workspace + "/" + cfg.app;
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ pending })); } catch (e) {} };
@@ -31,9 +52,7 @@ var AppsLean = (() => {
     keep();
     return data;
   }
-  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   const uuid = () => (self.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(16).slice(2));
-  const native = window.fetch.bind(window);
 
   /** Posts the change as an event of this app's page, with its secret, as a document AnythingLLM only
    *  stores; relative, as the page is served by AnythingLLM itself at whatever address the user
@@ -90,8 +109,7 @@ var AppsLean = (() => {
   const typing = () => { let a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || !!(a && a.isContentEditable); };
   let gone = false;
   async function sync(body) {
-    // App.log asks without waiting: the newest changes, as the page was written with them.
-    if (body.wait === false) return answer(200, { line, lines: cfg.log.filter((l) => l.n > (body.since || 0)) });
+    if (body.wait === false) return log(body.since, line);
     if (gone) return new Promise(() => {}); // nothing more will come
     await pause();
     if (!/^https?:$/.test(location.protocol)) return answer(200, { line: body.since, lines: [] });
@@ -263,13 +281,9 @@ var AppsLean = (() => {
       new MutationObserver(() => (host.isConnected && clear.isConnected) || !document.body || place()).observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  window.fetch = (url, opts) => {
-    if (url === "lean:append") return append(JSON.parse(opts.body));
-    if (url === "lean:sync") return sync(JSON.parse(opts.body));
-    return native(url, opts);
-  };
+  serve(append, sync);
   return {
     /** The app as app.js's App.start takes it. */
-    app: () => ({ title: cfg.title, card: cfg.card, data: over(cfg.data), line, append: "lean:append", sync: "lean:sync" }),
+    app: () => app(over(cfg.data), line),
   };
 })();
