@@ -39,8 +39,8 @@ test("a search or an address on a tab's page opens a tab of the user's own, list
   assert.ok(yours, "the user's tab is named you-1, a name no chat's thread has");
   const chat = tabState("own");
   assert.deepEqual(
-    chat.tabs.map((t: Record<string, unknown>) => [t.mine, t.agent, t.here, t.made, t.title]),
-    [[false, true, true, null, "The chat's page"], [true, false, false, "m-1", "Mine"]],
+    chat.tabs.map((t: Record<string, unknown>) => [t.path === `${tabsOf("own")["1"].token}.html`, t.agent, t.made, t.title]),
+    [[true, true, null, "The chat's page"], [false, false, "m-1", "Mine"]],
     "the chat's tab, the agent's, then the user's own, found by the id its page gave",
   );
   assert.equal(chat.tabs[1].path, `${yours.token}.html`, "its page, beside this one");
@@ -50,7 +50,7 @@ test("a search or an address on a tab's page opens a tab of the user's own, list
   assert.equal(mine.who, "user", "always the user's");
   assert.equal(mine.url, MINE, "a bare host opens over https");
   assert.equal(mine.need, null);
-  assert.deepEqual(mine.tabs.map((t: { here: boolean }) => t.here), [false, true]);
+  assert.deepEqual(mine.tabs.map((t: { path: string }) => t.path), chat.tabs.map((t: { path: string }) => t.path), "the same tabs along the top of every page");
   assert.ok(mine.sites.includes("mine.example") && mine.sites.includes("chat.example"), "Your sites: the open tabs' hosts");
 
   // Its own cookies: a context of its own, apart from the chats' tabs.
@@ -93,7 +93,7 @@ test("a search or an address on a tab's page opens a tab of the user's own, list
   post({ ev: "close" }, opts);
   await call({ action: "guide" });
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(publicDir, "browser-lean", `${yours.token}.json`), "utf8")), { closed: true });
-  assert.deepEqual(tabState("own").tabs.map((t: { mine: boolean }) => t.mine), [false, false], "the two chats' tabs left");
+  assert.deepEqual(tabState("own").tabs.map((t: { made: string | null }) => t.made), [null, null], "the two chats' tabs left");
   assert.equal(browserState().browsers.get("own")!.yours.size, 0);
 });
 

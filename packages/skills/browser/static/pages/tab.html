@@ -1212,17 +1212,20 @@ svg{flex:none}
     return s;
   }
   const goTo = (path) => location.replace(path + location.search);
+  // This tab along the top: the one whose page is this one.
+  const isHere = (t) => t.path === cfg.token + ".html";
   function drawStrip() {
     const kids = [];
     for (const t of st.tabs || []) {
-      const agent = t.here ? !st.mine && st.who !== "user" : t.agent;
+      const here = isHere(t);
+      const agent = here ? !st.mine && st.who !== "user" : t.agent;
       const name = (t.title || t.host || "Tab") + (agent ? ", the agent is using it" : "");
-      const cur = t.here && !homeView;
+      const cur = here && !homeView;
       const a = attr(el("a", { href: t.path + location.search, className: cur ? "cur" : "" }, fav(t, agent)), { "aria-label": name });
       if (cur) a.setAttribute("aria-current", "page"), a.append(el("span", { textContent: t.title || t.host || "Tab" }));
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        if (t.here) return homeView && showHome(false);
+        if (here) return homeView && showHome(false);
         closeField(true);
         goTo(t.path);
       });
@@ -1308,7 +1311,7 @@ svg{flex:none}
     closeMore();
     closeField(true);
     const tabs = st.tabs || [];
-    const i = tabs.findIndex((t) => t.here);
+    const i = tabs.findIndex(isHere);
     closing = { next: tabs[i - 1] || tabs[i + 1] || null, until: Date.now() + 10000, shown };
     post("close");
   });

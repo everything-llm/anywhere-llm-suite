@@ -311,7 +311,7 @@ const server = http.createServer((req, res) => {
   assert.match(await call({ action: "open", url: `${SITE}/who` }), /Page: Signed in/, "the chat's tab is signed in");
   const read7 = await seven.post({ ev: "new", q: `${SITE}/who`, made: "e2e-own" });
   const own = seven.state().tabs.find((t) => t.made === "e2e-own");
-  assert.ok(own && own.mine && !own.agent, `the user's tab along the top: ${JSON.stringify(seven.state().tabs)}`);
+  assert.ok(own && !own.agent, `the user's tab along the top: ${JSON.stringify(seven.state().tabs)}`);
   const ownTab = tabPage("you-1");
   assert.equal(ownTab.state().title, "Not signed in", "its own cookies: the chat's sign-in isn't there");
   assert.equal(ownTab.state().who, "user");

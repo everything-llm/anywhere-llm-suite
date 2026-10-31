@@ -233,6 +233,10 @@ test("each tab's state says when its workspace's browser closes, and the open ta
   await called({ action: "open", url: "https://shop.example/" }, { workspace: "lite", thread: 1 });
   const first = tabState("lite", "1").until;
   assert.ok(first >= before + IDLE && first <= Date.now() + IDLE, "20 minutes after its last step");
+  // A step in another chat of the workspace keeps the first tab open too: its state is stamped again
+  // once the closing time moved a minute or more (here, as if stamped two minutes before).
+  const statePath = (tab: string) => path.join(publicDir, "browser-lean", `${tabConfig("lite", tab).token}.json`);
+  fs.writeFileSync(statePath("1"), JSON.stringify({ ...tabState("lite", "1"), until: first - 2 * 60 * 1000 }));
   await new Promise((r) => setTimeout(r, 5));
   await called({ action: "open", url: "https://shop.example/" }, { workspace: "lite", thread: 2 });
   assert.ok(tabState("lite", "1").until > first, "a step in another chat of the workspace keeps the first tab open too");
@@ -241,6 +245,10 @@ test("each tab's state says when its workspace's browser closes, and the open ta
   const pages = ["1", "2"].map((tab) => `/browser-lean/${tabConfig("lite", tab).token}.html`);
   assert.deepEqual(listed("lite").map((t) => t.path), pages.reverse(), "each tab's page, newest drawn first");
   assert.ok(listed("lite").every((t) => Math.abs(t.until - tabState("lite", "2").until) < 60 * 1000));
+  const second = fs.readFileSync(statePath("2"), "utf8");
+  await new Promise((r) => setTimeout(r, 5));
+  await called({ action: "read" }, { workspace: "lite", thread: 1 });
+  assert.equal(fs.readFileSync(statePath("2"), "utf8"), second, "a move of less than a minute isn't written again where nothing else changed");
   await called({ action: "open", url: "https://shop.example/" }, { workspace: null });
   await settle();
   assert.deepEqual(listed("_jobs"), [], "a scheduled job's tab isn't a chat's");

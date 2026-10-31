@@ -37,7 +37,7 @@ Read `<token>.json` with a query that changes (`?t=<now>`) or no cache: it's rew
 | `url` | string | the tab's address, at most 2000 characters |
 | `host` | string | its host |
 | `mine` | boolean | whether it's a tab the user opened themselves (below), which is always theirs and has no bar saying who holds it |
-| `tabs` | array | the workspace's tabs, for the strip along the top of the page: each chat's, then the user's own, each `{path, title, host, mine, agent, here, made}`: `path` is its page beside this one (`<token>.html`), `agent` says the agent has it (a chat's tab the user doesn't hold), `here` marks this tab, and `made` is the id the page that asked for a tab of the user's own gave (null for a chat's) |
+| `tabs` | array | the workspace's tabs, for the strip along the top of the page: each chat's, then the user's own, each `{path, title, host, agent, made}`: `path` is its page beside this one (`<token>.html`; this tab is the one whose `path` is this page's), `agent` says the agent has it (a chat's tab the user doesn't hold), and `made` is the id the page that asked for a tab of the user's own gave (null for a chat's) |
 | `sites` | array of strings | the sites a new tab's home lists: the ones with a saved login first, then the open tabs' hosts |
 | `back` | boolean | whether the tab can go back (true where the page can't say) |
 | `forward` | boolean | whether it can go forward |
