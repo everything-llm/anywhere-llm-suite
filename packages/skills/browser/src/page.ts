@@ -336,7 +336,7 @@ async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
   const q = text(e.q, 2000).trim();
   if (!q) return false;
   if (at.entry.yours.size >= MAX_YOURS) return say(at.entry, at.key, `You have ${MAX_YOURS} tabs of your own open. Close one, then try again.`), true;
-  const url = addressOf(q) ?? searchAt(setting("browser-lean", "SEARCH_URL", given().url), q);
+  const url = addressOf(q) ?? searchAt(setting("browser-lean", "SEARCH_URL", given().url) || given().url, q);
   if (await at.entry.fence(url)) return say(at.entry, at.key, refusedHere(url)), true;
   const { at: yours, failed } = await openYours(at.workspace, at.entry, url, text(e.made, 40));
   if (failed) say(yours.entry, yours.key, `Couldn’t open ${hostOf(url) || "that address"}. Check the address, then try again.`);

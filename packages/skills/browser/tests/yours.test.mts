@@ -106,11 +106,11 @@ test("a search uses SEARCH_URL, else DuckDuckGo; an address the fence refuses op
   await call({ action: "guide" }, { SEARCH_URL: "https://search.example/?q={q}" });
   assert.equal(tabState("own-search", "you-2").url, "https://search.example/?q=export%20statements");
 
-  post({ ev: "new", q: "http://192.168.1.20:8123", made: "s-3" }, opts);
+  post({ ev: "new", q: "http://10.1.2.3/", made: "s-3" }, opts);
   await call({ action: "guide" });
-  assert.equal(tabState("own-search").msg.text, "http://192.168.1.20:8123 isn’t let through. Allow it in the Vault, under Addresses, then try again.");
+  assert.equal(tabState("own-search").msg.text, "http://10.1.2.3 isn’t let through. Allow it in the Vault, under Addresses, then try again.");
   assert.equal(tabsOf("own-search")["you-3"], undefined, "no tab opened");
-  assert.ok(vaultAddresses().refused.some((r) => r.origin === "http://192.168.1.20:8123"), "offered on the Vault, to let through");
+  assert.ok(vaultAddresses().refused.some((r) => r.origin === "http://10.1.2.3"), "offered on the Vault, to let through");
   post({ ev: "new", q: "nowhere.example", made: "s-4" }, opts);
   await call({ action: "guide" });
   assert.match(tabState("own-search", "you-3").msg.text, /^Couldn’t open nowhere\.example\. Check the address, then try again\.$/);
