@@ -1,13 +1,20 @@
-// The machines the library's functions run commands on over SSH, which the user registers on the
-// Library page: each a vault entry of kind "ssh" (#shared/vault) holding its host, port and login,
-// the private key it signs in with, and the SHA-256 fingerprint of the host key the machine must
-// show. A function names a target and nothing else of it (runs.ts), so the key goes to its own
-// machine and nowhere else, and never into a script. What a target is (a cloud VM, a Pi, a port
-// this machine forwards) is the user's: the library sees a host and a port.
+// The machines the library's functions run commands on over SSH, which the user adds on the Library
+// page, under Machines ("targets" is the agent's word and the code's): each a vault entry of kind
+// "ssh" (#shared/vault) holding its host, port and login, the private key it signs in with, and the
+// SHA-256 fingerprint of the host key the machine must show. A function names a target and nothing
+// else of it (runs.ts), so the key goes to its own machine and nowhere else, and never into a script.
+// What a target is (a cloud VM, a Pi, a port this machine forwards) is the user's: the library sees a
+// host and a port.
+//
+// The page's key for the next machine is made before the user adds it (spare), so the one command
+// the page shows can carry it: the user runs that command on the machine, as the account, and pastes
+// back the host key's fingerprint it prints.
 //
 // The connection goes through the fence (#shared/net connect). A private address is reached only as
-// a target the user ticked "on my network", at its own host and port; FENCE_ALLOW and the origins
-// let through for requests (allowed.json) play no part.
+// a target whose address is private by itself (a private IP, or a name that is this network's by its
+// name alone: #shared/fence hostRefused), at its own host and port; a name that looks public is
+// public, so one that resolves to a private address is refused when it connects. FENCE_ALLOW and the
+// origins let through for requests (allowed.json) play no part.
 // The client is ssh2 (docs/notes/README.md): public-key sign-in only, no agent, no forwarding, no
 // X11, and a channel the machine opens toward us is refused (ssh2 refuses any it didn't ask for).
 // Files go over SFTP, the subsystem OpenSSH offers by default.
@@ -21,7 +28,7 @@ import path from "node:path";
 import { Client, utils, type ClientChannel, type SFTPWrapper } from "ssh2";
 import { lastBase, perProcess } from "#shared/anythingllm";
 import { NetError, bareHost, hostRefused, lookupAll, portOf } from "#shared/fence";
-import { connect, send } from "#shared/net";
+import { Unreachable, connect, send } from "#shared/net";
 import { removePublic, writePublic } from "#shared/pages";
 import { OWN_PORTS, alwaysOwn, bare, sshFingerprint, thisHostAddresses, thisHostKeyRefusal, thisHostRefusal, thisHostUsable } from "#shared/thishost";
 import * as vault from "#shared/vault";
@@ -55,6 +62,29 @@ const LOGIN = /^[a-z_][a-z0-9_.-]{0,31}$/i;
 // Exactly 43 characters: a longer run is a mistyped fingerprint, not one with something after it.
 const FINGERPRINT = /SHA256:[A-Za-z0-9+/]{43}(?![A-Za-z0-9+/])/;
 
+/** Why the last try didn't sign in, as the page tells it: the key refused, another host key, this
+ *  machine, an address the fence refuses, no answer, or anything else (its status says what). */
+export type Problem = "key" | "host-key" | "this-machine" | "fenced" | "unreachable" | "failed";
+
+/** A refusal of what the user gave on the page, in the user's words, with the field it concerns
+ *  (null: the form as a whole). Only the page saves a target, so these go only to the page. */
+export class Refused extends LibraryError {
+  readonly field: "label" | "host" | "login" | "fingerprint" | "key" | "command" | null;
+  constructor(message: string, field: Refused["field"]) {
+    super(message);
+    this.field = field;
+  }
+}
+
+/** A sign-in that failed, and why, as the page tells it. */
+class SignInError extends LibraryError {
+  readonly problem: Problem;
+  constructor(message: string, problem: Problem) {
+    super(message);
+    this.problem = problem;
+  }
+}
+
 /** A target as the agent and the page see it: never its key. */
 export interface Target {
   label: string;
@@ -62,7 +92,7 @@ export interface Target {
   port: number;
   login: string;
   fingerprint: string;
-  /** Whether the user ticked "on my network": the host may be a private address. */
+  /** Whether its address is private by itself (#shared/fence hostRefused), so the fence lets it through. */
   private: boolean;
   /** Whether scheduled jobs may use it. */
   unattended: boolean;
@@ -70,6 +100,10 @@ export interface Target {
   public: string | null;
   /** How the last try went: "signed in", or why not; "not tried yet". */
   status: string;
+  /** Why the last try didn't sign in, for the page; null when it did, or wasn't tried. */
+  problem: Problem | null;
+  /** Whether a try is going: from a save or a "Try again" until it ends. */
+  trying: boolean;
   /** Why it isn't used (it reaches this AnythingLLM's pages, or is this machine's account), or null. */
   barred: string | null;
   /** What the last try found that the user should know, short sentences. */
@@ -86,10 +120,14 @@ interface Entry extends vault.Entry {
   unattended: boolean;
   public: string | null;
   status: string | null;
+  problem?: Problem | null;
   barred: string | null;
   notes: string[];
   /** Whether what the machine reaches was looked at (check) since it was saved. */
   probed: boolean;
+  /** When a try was asked for, and when the last one ended (ms). */
+  since?: number;
+  tried?: number;
 }
 
 const named = (label: string) => (e: Readonly<vault.Entry>): e is Entry => e.kind === "ssh" && e.user === label;
@@ -104,6 +142,9 @@ const shown = (e: Readonly<Entry>): Target => ({
   unattended: e.unattended,
   public: e.public,
   status: e.status ?? "not tried yet",
+  problem: e.status && e.status !== "signed in" ? (e.problem ?? "failed") : null,
+  // Not for ever: a try ends within checkMs, and one cut off by a restart says nothing.
+  trying: (e.since ?? 0) > (e.tried ?? 0) && Date.now() - e.since! < 2 * LIMITS.checkMs,
   barred: e.barred,
   notes: e.notes,
 });
@@ -126,9 +167,58 @@ export interface Given {
   port: unknown;
   login: unknown;
   fingerprint: unknown;
-  private: unknown;
   unattended: unknown;
+  /** The page's key the setup command carried ("ssh-ed25519 AAAA…"), or empty: a target's own, kept,
+   *  or the spare. */
+  public?: unknown;
   key: string;
+}
+
+/** The sealed file beside the vault that holds the spare: the page's key for the next machine. */
+const SPARE = "library-ssh-spare";
+
+interface Spare {
+  private: string;
+  public: string;
+}
+
+const spareKept = (): Spare | null => {
+  const kept = vault.readSealed(SPARE) as Spare | null;
+  return kept && typeof kept.private === "string" && typeof kept.public === "string" ? kept : null;
+};
+
+/** A new ed25519 key pair for signing in to a machine. */
+const made = (): Spare => {
+  const pair = utils.generateKeyPairSync("ed25519", { comment: "library-lean" });
+  return { private: pair.private, public: pair.public.trim() };
+};
+
+/** The public half of the page's key for the next machine ("ssh-ed25519 AAAA… library-lean"), made
+ *  the first time it's asked for and kept, sealed beside the vault, until a save takes it: the page
+ *  shows it in the setup command before the machine is saved. */
+export function spare(): string {
+  const kept = spareKept();
+  if (kept) return kept.public;
+  const fresh = made();
+  vault.writeSealed(SPARE, fresh);
+  return fresh.public;
+}
+
+/** A public key line's key ("AAAA…"), to compare: its type and comment aside. */
+const keyBody = (line: unknown): string => String(line ?? "").trim().split(/\s+/)[1] ?? "";
+
+/** The host and port of an address the user typed: a name or an address, with ":port" when it isn't
+ *  22 ("[v6]:port" for IPv6). `port` is a port given apart, for an address without one. */
+export function addressOf(rawHost: unknown, rawPort: unknown = ""): { host: string; port: number } {
+  let host = String(rawHost ?? "").trim().toLowerCase();
+  let port = String(rawPort ?? "").trim();
+  const v6 = host.match(/^\[([^\]]*)\](?::(.*))?$/);
+  if (v6) [host, port] = [v6[1], v6[2] || port];
+  else if (/^[^:]*:[^:]*$/.test(host)) [host, port] = [host.split(":")[0], host.split(":")[1] || port];
+  if (!(HOST.test(host) || net.isIP(host))) throw new Refused("Give a name or an address, like build.example.net or 192.168.1.20, with :port after it if it isn’t 22.", "host");
+  const n = Number(port || 22);
+  if (!/^\d*$/.test(port) || !Number.isInteger(n) || n < 1 || n > 65535) throw new Refused("The port after the : is a number from 1 to 65535.", "host");
+  return { host, port: n };
 }
 
 /** Why `host` is this machine, or null: a literal address is checked as it is, a name by what it
@@ -143,52 +233,66 @@ async function thisMachine(host: string): Promise<string | null> {
   return null;
 }
 
-/** Saves a target; its name. A key made here keeps its public half for the page to show. */
+/** Saves a target; its name. What the user gave is checked first, each refusal in the user's words
+ *  for the field it concerns (Refused). The key is the one the user pasted; or the target's own, kept
+ *  when it stays at the same host, port and account; or the page's spare, which the setup command
+ *  carried (`public` says which the page showed: one that is neither is refused, since the machine
+ *  was given another key). */
 export async function save(given: Given): Promise<string> {
-  const label = nameOf(given.label);
-  const host = String(given.host ?? "").trim().toLowerCase().replace(/^\[|\]$/g, "");
-  if (!(HOST.test(host) || net.isIP(host))) throw new LibraryError("a target's host is a name or an address, like build.example.com or 192.168.1.20");
-  const port = Number(String(given.port ?? "").trim() || 22);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new LibraryError("a target's port is a number from 1 to 65535");
+  const label = String(given.label ?? "").trim().toLowerCase();
+  if (!NAME.test(label)) throw new Refused("A name is 2 to 31 lower-case letters, digits and -, starting with a letter, like pi or build-box.", "label");
+  const { host, port } = addressOf(given.host, given.port);
   const login = String(given.login ?? "").trim();
-  if (!LOGIN.test(login)) throw new LibraryError("a target needs the account to sign in as, like sandbox");
+  if (!LOGIN.test(login)) throw new Refused("Give the account to sign in as, like pi.", "login");
   const fingerprint = String(given.fingerprint ?? "").match(FINGERPRINT)?.[0];
-  if (!fingerprint) throw new LibraryError("a target needs its host key's fingerprint, SHA256:… as ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub prints it on the machine");
+  if (!fingerprint) throw new Refused("That line has no SHA256 fingerprint. Paste the whole line the command printed, like 256 SHA256:… root@pi (ED25519).", "fingerprint");
   // Without a record of this machine (the installer writes it) nothing can be told from it: no target.
-  const usable = thisHostUsable();
-  if (!usable.ok) throw new LibraryError(usable.reason);
-  const ownKey = thisHostKeyRefusal(fingerprint);
-  if (ownKey) throw new LibraryError(ownKey);
-  const onNetwork = given.private === true;
+  if (!thisHostUsable().ok) throw new Refused("No machine can be added yet: this AnythingLLM’s own machine isn’t recorded, so no other can be told from it. Run the installer on the host, as its README says.", null);
+  if (thisHostKeyRefusal(fingerprint)) throw new Refused("That’s the machine AnythingLLM runs on. Add a different machine.", "fingerprint");
+  // The address tells a private one: an address outside the public internet, or a name that is this
+  // network's by its name alone. The fence lets that host through for this target, and nothing else.
   const why = hostRefused(host, new Set());
-  if (why && why !== "lookup" && !onNetwork) throw new LibraryError(`${why}: tick "On my network" to reach it as this target`);
-  const itself = await thisMachine(host);
-  if (itself) throw new LibraryError(`${itself}, whatever the tick`);
+  const onNetwork = why !== null && why !== "lookup";
+  if (await thisMachine(host)) throw new Refused(net.isIP(host) ? "That’s an address of the machine AnythingLLM runs on. Add a different machine." : `${host} leads to the machine AnythingLLM runs on. Add a different machine.`, "host");
   const was = found(label);
+  const samePlace = !!was && was.site === host && was.port === port && was.login === login;
+  const shown = keyBody(given.public);
   let key = given.key.trim();
   let pub: string | null = null;
+  let taken = false;
   if (key) {
     // No passphrase: the vault keeps the key encrypted already, and opening one on every connect
     // costs about 0.4 s of pure-JavaScript bcrypt.
     const parsed = utils.parseKey(key);
-    if (parsed instanceof Error || Array.isArray(parsed) || !parsed.isPrivateKey()) throw new LibraryError(`that isn't a private key ssh can sign in with, without a passphrase (ssh-keygen -p -N "" -f <file> removes one)${parsed instanceof Error ? `: ${parsed.message}` : ""}`);
+    if (parsed instanceof Error || Array.isArray(parsed) || !parsed.isPrivateKey()) throw new Refused("That isn’t a private key ssh can sign in with. It needs no passphrase: ssh-keygen -p -N \"\" -f <file> removes one.", "key");
     key = `${key}\n`;
-  } else if (was && was.site === host && was.port === port && was.login === login) [key, pub] = [was.key, was.public];
+  } else if (samePlace && (!shown || shown === keyBody(was.public))) [key, pub] = [was.key, was.public];
   else {
-    // A new target, or an old one moved to another host, port or account: the saved key doesn't
-    // follow it (an edit must not aim the user's key at another machine), a new one is made, whose
-    // public line goes into the new account's authorized_keys.
-    const made = utils.generateKeyPairSync("ed25519", { comment: `library-lean ${label}` });
-    [key, pub] = [made.private, made.public.trim()];
+    // A new target, or one moved to another host, port or account: the saved key doesn't follow it
+    // (an edit must not aim the user's key at another machine). It takes the spare, whose public line
+    // the setup command put in the account's authorized_keys.
+    const spared = spareKept();
+    if (shown && shown !== keyBody(spared?.public)) throw new Refused("This command’s key was used for another machine. Copy the command again and run it on the machine.", "command");
+    const use = spared ?? made();
+    [key, pub, taken] = [use.private, `${use.public.split(/\s+/).slice(0, 2).join(" ")} library-lean ${label}`, !!spared];
   }
-  const entry = { kind: "ssh" as const, site: host, user: label, port, login, key, fingerprint, private: onNetwork, unattended: given.unattended === true, public: pub, status: null, barred: null, notes: [], probed: false };
+  // Scheduled jobs keep what they had at the same place, unless the user says otherwise.
+  const unattended = given.unattended === undefined ? samePlace && was.unattended : given.unattended === true;
+  const entry = { kind: "ssh" as const, site: host, user: label, port, login, key, fingerprint, private: onNetwork, unattended, public: pub, status: null, problem: null, barred: null, notes: [], probed: false, since: Date.now() };
   await vault.update((v) => {
     const at = v.entries.findIndex(named(label));
     if (at >= 0) v.entries[at] = { id: v.entries[at].id, ...entry };
     else v.entries.push({ id: vault.newId(), ...entry });
   });
+  if (taken) vault.writeSealed(SPARE, null); // the next machine gets a key of its own
   return label;
 }
+
+/** Marks a target as being tried, for the page: a save does, and "Try again". */
+export const trying = (label: string): Promise<void> => patch(label, { since: Date.now() });
+
+/** Lets scheduled jobs use a target, or not: the page's "Scheduled jobs may use it". */
+export const setUnattended = (label: string, on: boolean): Promise<void> => patch(label, { unattended: on });
 
 /** Deletes a target and its key; whether there was one. */
 export const remove = (label: string): Promise<boolean> =>
@@ -326,7 +430,7 @@ async function looked(client: Client, base: string | null, until: number, signal
 
 /** Keeps what was learned of a target, for the page and the agent to see: how signing in went
  *  (`status`), or what looking at it found. */
-const patch = (label: string, fields: Partial<Pick<Entry, "status" | "barred" | "notes" | "probed">>): Promise<void> =>
+const patch = (label: string, fields: Partial<Pick<Entry, "status" | "problem" | "barred" | "notes" | "probed" | "since" | "tried" | "unattended">>): Promise<void> =>
   vault.update((v) => {
     const now = v.entries.find(named(label));
     if (now) Object.assign(now, fields);
@@ -348,19 +452,25 @@ export async function check(label: string, base: string | null = null): Promise<
       { deadline: until, job: false },
       until,
       async (client) => {
-        await patch(label, { status: "signed in" });
+        await patch(label, { status: "signed in", problem: null });
         signedIn = true;
         seen = await looked(client, base ?? lastBase(), until);
       },
       true,
     );
   } catch (err) {
-    if (!(err instanceof NetError || err instanceof LibraryError)) throw err;
-    if (!signedIn) await patch(label, { status: err.message });
+    if (!(err instanceof NetError || err instanceof LibraryError)) {
+      await patch(label, { status: "couldn't try signing in (see the log)", problem: "failed", tried: Date.now() });
+      throw err;
+    }
+    if (!signedIn) await patch(label, { status: err.message, problem: problemOf(err) });
     else seen = { barred: null, notes: [`couldn't finish looking at what it reaches: ${err.message}`], probed: false };
   }
-  if (seen) await patch(label, seen);
+  await patch(label, { ...seen, tried: Date.now() });
 }
+
+/** Why a sign-in failed, as the page tells it. */
+const problemOf = (err: Error): Problem => (err instanceof SignInError ? err.problem : err instanceof Unreachable ? "unreachable" : err instanceof NetError ? "fenced" : "failed");
 
 /** A turn at one of a target's command slots: waits for one to free up, at most until `until`. */
 async function turn(label: string, until: number, signal?: AbortSignal): Promise<() => void> {
@@ -378,12 +488,20 @@ async function turn(label: string, until: number, signal?: AbortSignal): Promise
  *  none of it is waited for once it has passed. */
 async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Promise<Client> {
   const label = e.user;
-  const outOfTime = () => new LibraryError(`the target "${label}" (${e.site}:${e.port}) wasn't signed in to in time: the call's time ran out first`);
+  const outOfTime = () => new SignInError(`the target "${label}" (${e.site}:${e.port}) wasn't signed in to in time: the call's time ran out first`, "unreachable");
   const left = () => Math.min(LIMITS.connectMs, until - Date.now());
   const usable = thisHostUsable();
   if (!usable.ok) throw new LibraryError(usable.reason);
   if (left() <= 0) throw outOfTime();
-  const sock = await connect({ host: e.site, port: e.port, allow: e.private ? [e.site] : [], timeout: left(), signal, refuse: thisHostRefusal });
+  let mine = false; // whether the fence refused an address of this machine's
+  const refuse = (a: string) => {
+    const why = thisHostRefusal(a);
+    mine ||= why !== null;
+    return why;
+  };
+  const sock = await connect({ host: e.site, port: e.port, allow: e.private ? [e.site] : [], timeout: left(), signal, refuse }).catch((err: Error) => {
+    throw mine ? new SignInError(err.message, "this-machine") : err;
+  });
   const timeout = left();
   if (timeout <= 0) {
     sock.destroy();
@@ -399,11 +517,11 @@ async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Pr
       signal?.removeEventListener("abort", onAbort);
       client.end();
       sock.destroy();
-      if (ownKey) return reject(new LibraryError(`the target "${label}" (${e.site}:${e.port}) is this machine: ${ownKey}. Nothing was sent`));
-      if (seen && seen !== e.fingerprint) return reject(new LibraryError(`the target "${label}" showed a host key that isn't the one saved for it (saved ${e.fingerprint}, shown ${seen}): nothing was sent. If the machine was set up again, the user saves its new fingerprint on the Library page`));
-      if (err.level === "client-authentication") return reject(new LibraryError(`the target "${label}" refused its key: the public line goes in ~${e.login}/.ssh/authorized_keys on the machine (the Library page shows it)`));
-      if (err.level === "client-timeout") return reject(new LibraryError(`the target "${label}" (${e.site}:${e.port}) didn't finish signing in within ${Math.ceil(timeout / 1000)} s`));
-      reject(new LibraryError(`the target "${label}" (${e.site}:${e.port}) couldn't be reached: ${err.message}`));
+      if (ownKey) return reject(new SignInError(`the target "${label}" (${e.site}:${e.port}) is this machine: ${ownKey}. Nothing was sent`, "this-machine"));
+      if (seen && seen !== e.fingerprint) return reject(new SignInError(`the target "${label}" showed a host key that isn't the one saved for it (saved ${e.fingerprint}, shown ${seen}): nothing was sent. If the machine was rebuilt, the user sets it up again on the Library page, under Machines`, "host-key"));
+      if (err.level === "client-authentication") return reject(new SignInError(`the target "${label}" refused its key: the user runs the setup command the Library page shows under Machines on the machine, as ${e.login}, then tries again`, "key"));
+      if (err.level === "client-timeout") return reject(new SignInError(`the target "${label}" (${e.site}:${e.port}) didn't finish signing in within ${Math.ceil(timeout / 1000)} s`, "unreachable"));
+      reject(new SignInError(`the target "${label}" (${e.site}:${e.port}) couldn't be reached: ${err.message}`, "unreachable"));
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     client.once("ready", () => {
@@ -453,7 +571,7 @@ async function withTarget<T>(label: string, { job, signal }: Use, until: number,
   const e = found(label);
   if (!e) throw new LibraryError(`no target "${label}" is saved: ask the user for it with secret, kind "ssh"`);
   if (e.barred && !checking) throw new LibraryError(`the target "${label}" isn't used: ${e.barred}`);
-  if (job && !e.unattended) throw new LibraryError(`scheduled jobs don't use the target "${label}": the user ticks "May run unattended" for it on the Library page`);
+  if (job && !e.unattended) throw new LibraryError(`scheduled jobs don't use the target "${label}": the user switches on "Scheduled jobs may use it" for it on the Library page, under Machines`);
   countUse("library-lean.ssh-uses", e.id, (max) => `the target "${label}" was used ${max} times in the last minute: wait a minute, and do more in each command`);
   const done = await turn(label, until, signal);
   try {

@@ -6,10 +6,11 @@
 //   seed, sealed the same way (signing.ts). It's a second place to give a key, beside the skill's own
 //   settings (slot.ts): the agent asks, the need shows at the top of Keys, and the user may enter it
 //   there.
-// - The Library page (static/pages/library.html): the targets (machines the functions run commands
-//   on over SSH; the user registers one there, with a key pasted or made, sealed on their device
-//   with the vault's public key), the toolkits, their functions' sources and the recent runs; the
-//   user deletes a function, a toolkit or a target there.
+// - The Library page (static/pages/library.html): the machines the functions run commands on over
+//   SSH (targets.ts: "targets" to the agent, "machines" to the user; one is added there with the
+//   address, the account and the host key's fingerprint, and a key of the user's, sealed on their
+//   device with the vault's public key, or the page's own), the toolkits, their functions' sources
+//   and the recent runs; the user deletes a function, a toolkit or a machine there.
 // What the user does is applied at once while a page is open, and at the start of the agent's next
 // call; library then shows it (a key saved, a target tried).
 //
@@ -43,24 +44,26 @@ import * as targets from "./targets";
 const TITLE = "library-lean-event";
 /** How long the page is watched for events after it was last shown. */
 const WATCH_MS = 30 * 60 * 1000;
-/** How long the agent's request for a key shows in the Vault, or for a target on the Library page. */
+/** How long the agent's request for a key shows in the Vault, or for a machine on the Library page. */
 const NEED_MS = 30 * 60 * 1000;
 
 interface Need {
   label: string;
   site: string;
-  /** A key is given on the Vault; a target is registered on the Library page. */
+  /** A key is given on the Vault; a target is added on the Library page, under Machines. */
   kind: "key" | "target";
   until: number;
 }
 
 /** How the last thing the page was asked to do that it can show went: a refusal (the skill's own
- *  words), or a target saved. `n` counts them, so the page knows one is new. */
+ *  words, the user's for a machine's form), or a machine saved. `n` counts them, so the page knows
+ *  one is new; `field` is the form's field a refusal concerns (targets.ts Refused), or null. */
 interface Result {
   n: number;
   ev: string;
   label: string;
   error: string | null;
+  field?: string | null;
 }
 
 interface PageFile extends Names {
@@ -106,12 +109,13 @@ function template(): string {
 /** The needs of `kind` that haven't run out, as a page shows them. */
 const needsOf = (p: PageFile | null, kind: Need["kind"]) => (p?.needs ?? []).filter((n) => n.kind === kind && n.until > Date.now()).map(({ label, site }) => ({ label, site }));
 
-/** The Library page's state, as it reads it: nothing secret. */
+/** The Library page's state, as it reads it: nothing secret (the spare is a public key). */
 function state(p: PageFile, base: string | null) {
   const heldBy = store.holders();
   return {
     vault: vaultPage.linkOf(base),
     needs: needsOf(p, "target"),
+    spare: targets.spare(),
     targets: targets.targets().map((m) => ({ ...m, held: heldBy(m.label) })),
     result: p.result ?? null,
     toolkits: store.services().map((service) => {
@@ -207,7 +211,7 @@ export async function met(label: string): Promise<void> {
 const needId = (kind: Need["kind"], label: string) => `${kind}:${label}`;
 
 /** Shows a need: at the top of the Vault's keys, where the agent asked for a key the user gives, or
- *  of the Library page's Targets, where it asked for a machine the user registers. */
+ *  on the Library page's Machines, where it asked for a machine the user adds. */
 export const need = (label: string, site: string, kind: Need["kind"] = "key"): Promise<void> =>
   change((p) => {
     p.needs = [...p.needs.filter((n) => needId(n.kind, n.label) !== needId(kind, label) && n.until > Date.now()), { label, site, kind, until: Date.now() + NEED_MS }];
@@ -216,7 +220,7 @@ export const need = (label: string, site: string, kind: Need["kind"] = "key"): P
 const text = (v: unknown, n = 500) => String(v ?? "").trim().slice(0, n);
 
 /** What applying an event did beyond the store: a need it met, a new link, a function gone from the
- *  skill's description, a target to try signing in to, or a change the page shows. */
+ *  skill's description, a machine to try signing in to, or a change the page shows. */
 type Applied = { met?: string; rotate?: true; relist?: true; check?: string; changed?: true } | null;
 
 /** Applies one event the Library page posted. */
@@ -238,11 +242,17 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
       return { relist: true };
     case "target-save": {
       const sealed = text(e.sealed, 20000);
-      const name = await targets.save({ label, host: e.host, port: e.port, login: e.login, fingerprint: e.fingerprint, private: e.private, unattended: e.unattended, key: sealed ? vault.openSealed(sealed) : "" });
+      const name = await targets.save({ label, host: e.host, port: e.port, login: e.login, fingerprint: e.fingerprint, unattended: e.unattended, public: e.public, key: sealed ? vault.openSealed(sealed) : "" });
       return { met: needId("target", name), check: name };
     }
-    case "target-check":
-      return { check: targets.nameOf(label) };
+    case "target-check": {
+      const name = targets.nameOf(label);
+      await targets.trying(name);
+      return { check: name };
+    }
+    case "target-unattended":
+      await targets.setUnattended(targets.nameOf(label), e.on === true);
+      return { changed: true };
     case "target-delete":
       await targets.remove(label);
       return { changed: true };
@@ -316,7 +326,8 @@ export function plain(text: string): string {
 
 /** Applies every event the Library page posted since the last time, in order, then writes its state
  *  again (or a new page, after a rotate). One the skill refuses is skipped, and its words go to the
- *  page in the state's `result`; so does a target saved, which tells the form it can clear. */
+ *  page in the state's `result`, with the field they concern; so does a machine saved, which tells
+ *  the form it can clear. */
 async function drain(base: string | null): Promise<void> {
   const events = takeEvents(TITLE, "library_lean_event");
   if (!events.length) return;
@@ -327,7 +338,7 @@ async function drain(base: string | null): Promise<void> {
     try {
       const done = await apply(e, page.secret);
       applied.push(done);
-      if (e.ev === "target-save" && done) result = { ev: "target-save", label: text(e.label, 60), error: null }; // a forgery is dropped, and says nothing
+      if (e.ev === "target-save" && done) result = { ev: "target-save", label: text(e.label, 60), error: null, field: null }; // a forgery is dropped, and says nothing
     } catch (err) {
       // The events are taken already: one that breaks (not a refusal) is logged, and the rest go on.
       // Whatever breaks is told to the page: a form left waiting for an answer that never comes holds
@@ -335,7 +346,7 @@ async function drain(base: string | null): Promise<void> {
       // is only logged, with a plain line for the page.
       const told = err instanceof Told;
       if (!told) console.error(`library-lean couldn't apply a page event (${text(e.ev, 40)}): ${(err as Error).message}`);
-      result = { ev: text(e.ev, 40), label: text(e.label, 60), error: told ? err.message.slice(0, 400) : e.ev === "target-save" ? "couldn't save the target (see the log)" : "couldn't do that (see the log)" };
+      result = { ev: text(e.ev, 40), label: text(e.label, 60), error: told ? err.message.slice(0, 400) : e.ev === "target-save" ? "Couldn’t save the machine. The log says why." : "Couldn’t do that. The log says why.", field: err instanceof targets.Refused ? err.field : null };
     }
   }
   const outcome = result;
@@ -348,7 +359,7 @@ async function drain(base: string | null): Promise<void> {
     await names.rotate();
     await write(base, true);
   } else if (result || applied.some(Boolean)) writeState(base);
-  // A sign-in takes up to 20 s: tried after the turn, so neither the page nor the agent waits on it.
+  // A sign-in takes up to 30 s: tried after the turn, so neither the page nor the agent waits on it.
   const checks = new Set(applied.flatMap((a) => (a?.check ? [a.check] : [])));
   if (checks.size) void Promise.all([...checks].map((l) => targets.check(l, base))).then(() => refresh(base), (e) => console.error(`library-lean couldn't try a target: ${(e as Error).message}`));
 }

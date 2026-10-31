@@ -193,11 +193,11 @@ test("with the pages' links kept from the agent, library, secret and target carr
   const where = /they open it in AnywhereLLM Lite, or with `anywherellm-suite pages` on the AnythingLLM host/;
   const answers = [await call({ action: "library" }), await giveKey("demo", "https://127.0.0.1/", KEY), await call({ action: "secret", kind: "ssh", label: "box" })];
   const [listing, key, machine] = answers;
-  assert.match(listing, /The Vault \(every key and browser login, by name\) and the Library page \(the toolkits and runs\) are the user's own pages: they open them in AnywhereLLM Lite, or with `anywherellm-suite pages` on the AnythingLLM host\. You are never given their links: don't ask the user for them, and never fetch them\./);
+  assert.match(listing, /The Vault \(every key and browser login, by name\) and the Library page \(the toolkits, the machines and the runs\) are the user's own pages: they open them in AnywhereLLM Lite, or with `anywherellm-suite pages` on the AnythingLLM host\. You are never given their links: don't ask the user for them, and never fetch them\./);
   assert.match(key, /^The user gives the key in the library's own settings/);
   assert.equal((key.match(/at the top of Keys/g) ?? []).length, 1, "said once");
   assert.match(key, where);
-  assert.match(machine, /^The user registers the target "box" on the Library page, under Targets \(/);
+  assert.match(machine, /^The user adds the machine "box" on the Library page, under Machines \(/);
   assert.match(machine, where);
   const tokens = [pageConfig().token, vaultConfig().token];
   for (const said of answers) {
@@ -216,7 +216,7 @@ test("the switch is read on every call: turned off, the links are in the answers
   hideLinks(false);
   const open = await call({ action: "library" });
   assert.match(open, new RegExp(`The Vault and the Library page are the user's own pages\\. Give the user each card as it is, in its own quote, so they open it from your answer:\\n\\n${VAULT_CARD}\\n\\n${LIBRARY_CARD}`));
-  assert.match(await call({ action: "secret", kind: "ssh", label: "box" }), new RegExp(`^The user registers the target "box" on the Library page, under Targets\\. Give them this card as it is, in its own quote:\\n\\n${LIBRARY_CARD}\\n\\nTell them to open it`));
+  assert.match(await call({ action: "secret", kind: "ssh", label: "box" }), new RegExp(`^The user adds the machine "box" on the Library page, under Machines\\. Give them this card as it is, in its own quote:\\n\\n${LIBRARY_CARD}\\n\\nTell them to open it`));
   hideLinks(true);
   assert.ok(!/library-lean\/|vault-lean\//.test(await call({ action: "library" })));
 });

@@ -120,7 +120,7 @@ async function pageLine(self: HandlerContext): Promise<string> {
     const base = baseOf(self);
     const vault = await page.showVault(base);
     const library = await page.show(base);
-    if (linksHidden()) return `The Vault (every key and browser login, by name) and the Library page (the toolkits and runs) are the user's own pages: they open them ${OPEN_PAGES}. You are never given their links: don't ask the user for them, and never fetch them.`;
+    if (linksHidden()) return `The Vault (every key and browser login, by name) and the Library page (the toolkits, the machines and the runs) are the user's own pages: they open them ${OPEN_PAGES}. You are never given their links: don't ask the user for them, and never fetch them.`;
     return `The Vault and the Library page are the user's own pages. Give the user each card as it is, in its own quote, so they open it from your answer:\n\n${vaultCard(vault)}\n\n${libraryCard(library)}`;
   } catch (e) {
     return `The Vault and the Library page aren't available here: ${page.plain((e as Error).message)}.`;
@@ -195,13 +195,14 @@ async function onVault(self: HandlerContext): Promise<string> {
   }
 }
 
-/** Asks the user to register a target, a machine the library's functions run commands on: its
- *  address, login, key and host key's fingerprint are given on the Library page. */
+/** Asks the user to add a target, a machine the library's functions run commands on: its address and
+ *  account are given on the Library page, under Machines, which shows one command to run on it and
+ *  takes back the host key's fingerprint that prints. */
 async function target(args: Args, self: HandlerContext): Promise<string> {
   const label = targets.nameOf(args.label);
   await page.need(label, "", "target");
   const library = await page.show(baseOf(self));
-  return `${linksHidden() ? `The user registers the target "${label}" on the Library page, under Targets (they open it ${OPEN_PAGES}).` : `The user registers the target "${label}" on the Library page, under Targets. ${giveCard(libraryCard(library))}`}\n\nTell them to open it and give the machine's address, port and the account to sign in as, and the fingerprint of its host key, read on the machine itself (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). The page makes a key and shows the line to add to that account's ~/.ssh/authorized_keys, or takes one of theirs. Never ask for a key, a password or a fingerprint in the chat. When they say it's done, call library: "${label}" shows whether it signed in. Name it in a toolkit's targets: ["${label}"] (guide topic targets).`;
+  return `${linksHidden() ? `The user adds the machine "${label}" on the Library page, under Machines (they open it ${OPEN_PAGES}).` : `The user adds the machine "${label}" on the Library page, under Machines. ${giveCard(libraryCard(library))}`}\n\nTell them to open it, give the machine's address and the account to sign in as, run the one command the page shows on the machine, signed in as that account, and paste back the line it prints. The command adds the page's key to the account's ~/.ssh/authorized_keys and prints the host key's fingerprint; the page also takes a key of theirs. Never ask for a key, a password, an address or a fingerprint in the chat. When they say it's done, call library: "${label}" shows whether it signed in. Name it in a toolkit's targets: ["${label}"] (guide topic targets).`;
 }
 
 /** auth as call takes it: none, how the key saved for the address's site goes ("bearer"), or

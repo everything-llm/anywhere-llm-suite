@@ -143,7 +143,8 @@ test("while the Vault is open, what the user does is applied without waiting for
 });
 
 const FINGERPRINT = `SHA256:${"A".repeat(43)}`;
-const saveTarget = (fields: Record<string, unknown> = {}) => post({ ev: "target-save", label: "box", host: "box.internal", port: "22", login: "sandbox", fingerprint: FINGERPRINT, private: true, sealed: "", ...fields });
+/** A machine saved as the page saves it: the address, the account and the line the setup command printed. */
+const saveTarget = (fields: Record<string, unknown> = {}) => post({ ev: "target-save", label: "box", host: "box.internal", login: "sandbox", fingerprint: `256 ${FINGERPRINT} root@box (ED25519)`, sealed: "", ...fields });
 
 test("a target the user deletes with the page open is gone from its state without the agent's next call", async () => {
   await call({ action: "library" });
@@ -159,35 +160,58 @@ test("a save posted with another page's secret is dropped: no target, and no wor
   saveTarget({ label: "forged", secret: "not-the-secret" });
   saveTarget({ label: "real" }); // after it, so that the forgery was taken before this was applied
   await until(() => pageState().result?.n === 1);
-  assert.deepEqual(pageState().result, { n: 1, ev: "target-save", label: "real", error: null });
+  assert.deepEqual(pageState().result, { n: 1, ev: "target-save", label: "real", error: null, field: null });
   assert.deepEqual(pageState().targets.map((m: { label: string }) => m.label), ["real"]);
   saveTarget({ label: "forged", secret: "not-the-secret" });
   await new Promise((r) => setTimeout(r, 500));
   assert.equal(pageState().result.n, 1, "a forgery alone makes no result");
 });
 
-test("what the skill refuses on a target the user saves reaches the page in its own words, one reason each; a save that works says so", async () => {
+test("what the skill refuses on a machine the user saves reaches the page in the user's words, one reason each, with the field it concerns; a save that works says so", async () => {
   await call({ action: "library" });
   assert.equal(pageState().result, null);
-  const refusals: [Record<string, unknown>, RegExp][] = [
-    [{ sealed: seal("not a key") }, /isn't a private key/],
-    [{ fingerprint: "SHA256:short" }, /needs its host key's fingerprint/],
-    [{ private: false }, /tick "On my network"/],
-    [{ host: "bad host!" }, /host is a name or an address/],
+  const refusals: [Record<string, unknown>, RegExp, string][] = [
+    [{ label: "Pi!" }, /^A name is 2 to 31 lower-case letters/, "label"],
+    [{ host: "bad host!" }, /^Give a name or an address, like build\.example\.net or 192\.168\.1\.20, with :port after it/, "host"],
+    [{ host: "box.internal:70000" }, /^The port after the : is a number from 1 to 65535/, "host"],
+    [{ host: "[fd00::1]:x" }, /^The port after the : is a number/, "host"],
+    [{ login: "" }, /^Give the account to sign in as/, "login"],
+    [{ fingerprint: "256 SHA256:short root@box (ED25519)" }, /^That line has no SHA256 fingerprint\. Paste the whole line the command printed/, "fingerprint"],
+    [{ sealed: seal("not a key") }, /^That isn’t a private key ssh can sign in with/, "key"],
+    [{ public: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAInotthespare library-lean" }, /^This command’s key was used for another machine/, "command"],
   ];
   let n = 0;
-  for (const [fields, why] of refusals) {
+  for (const [fields, why, field] of refusals) {
     saveTarget({ label: "bad", ...fields });
     n++;
     await until(() => pageState().result?.n === n);
     assert.equal(pageState().result.ev, "target-save");
     assert.match(pageState().result.error, why);
+    assert.equal(pageState().result.field, field, JSON.stringify(fields));
   }
   assert.deepEqual(pageState().targets, [], "nothing was saved");
-  saveTarget();
+  saveTarget({ public: pageState().spare });
   n++;
   await until(() => pageState().result?.n === n);
-  assert.deepEqual(pageState().result, { n, ev: "target-save", label: "box", error: null });
+  assert.deepEqual(pageState().result, { n, ev: "target-save", label: "box", error: null, field: null });
+});
+
+test("the address tells a private one, in place of a tick: a name of this network or a private address is let through as one, a name that looks public isn't, whatever the page posts; a port rides on the address", async () => {
+  await call({ action: "library" });
+  const saved: [string, Record<string, unknown>, { host: string; port: number; private: boolean }][] = [
+    ["lan", { host: "Box.Internal:2222" }, { host: "box.internal", port: 2222, private: true }],
+    ["single", { host: "nas" }, { host: "nas", port: 22, private: true }],
+    ["public", { host: "box.invalid", private: true }, { host: "box.invalid", port: 22, private: false }],
+    ["apart", { host: "box.internal", port: "2200" }, { host: "box.internal", port: 2200, private: true }],
+  ];
+  for (const [label, fields, want] of saved) {
+    const n = pageState().result?.n ?? 0;
+    saveTarget({ label, ...fields });
+    await until(() => (pageState().result?.n ?? 0) > n, 15000); // a save looks the name up, which may take its 3 s
+    assert.equal(pageState().result.error, null, label);
+    const m = pageState().targets.find((t: { label: string }) => t.label === label);
+    assert.deepEqual({ host: m.host, port: m.port, private: m.private }, want, label);
+  }
 });
 
 test("an event that breaks (not a refusal) is logged, and the events after it are still applied", async () => {
@@ -224,10 +248,12 @@ test("every field the pages read from their state is one the skill writes", asyn
   await call({ action: "secret", kind: "ssh", label: "pi" });
   postVault({ ev: "signing-new", label: "signer", namespace: "test-ns" });
   await call({ action: "library" });
+  saveTarget({ label: "box", public: pageState().spare });
+  await until(() => pageState().targets.length === 1);
   const state = pageState();
   const html = pageSource("library.html");
-  for (const [, field] of html.matchAll(/\bs\.([a-z_]+)/g)) assert.ok(field in state, `s.${field}`);
-  const items = { t: state.toolkits[0], f: state.toolkits[0].functions[0], r: state.runs[0], need: state.needs[0] };
+  for (const [, field] of html.matchAll(/\b[sS]\.([a-z_]+)/g)) assert.ok(field in state, `s.${field}`);
+  const items = { t: state.toolkits[0], f: state.toolkits[0].functions[0], r: state.runs[0], need: state.needs[0], m: state.targets[0] };
   for (const [name, item] of Object.entries(items)) for (const [, field] of html.matchAll(new RegExp(`\\b${name}\\.([a-z_]+)`, "g"))) assert.ok(field in item, `${name}.${field}`);
   const keys = vaultState();
   const vault = vaultSource();
