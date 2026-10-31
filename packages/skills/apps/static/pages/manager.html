@@ -8,9 +8,9 @@
 <title>Artifacts</title>
 <style>
 /* The apps manager (src/manager.ts): every workspace's apps on one page, and the trash. What's done
-   here is posted under the manager's title and applied by the apps skill. The look is the Vault's
-   (AnywhereLLM Lite's), its list the canvas's Apps sheet; ?theme keeps it to one theme, and
-   #ws=<workspace> opens on that workspace's apps. */
+   here is posted under the manager's title and applied by the apps skill. The look is the design
+   canvas's (page "Apps", sections 4 and 5, 2026-10-31): each app a picture of its page, grouped by
+   workspace; ?theme keeps it to one theme, and #ws=<workspace> puts that workspace's group first. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
    tokens.css with the indigo scheme only, then bundle.css's root, density and focus rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
@@ -778,32 +778,40 @@ input{font:inherit;color:var(--ink)}
 a{color:inherit;text-decoration:none}
 .fld:focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 [hidden]{display:none!important}
-.top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--ground)}
-.top .name{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
-.top h1{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
-.top small{font-size:0.8125rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));background:var(--ground)}
+/* The title keeps its longest word whole: where it and Trash don't fit on one line, Trash goes under it. */
+.top .name{flex:1 1 min-content;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.top h1{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:break-word}
+.top small{width:0;min-width:100%;font-size:0.8125rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top small.mono{font-size:0.8125rem;color:var(--muted)}
-.pill{flex:none;min-height:var(--control-h);padding:0 14px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);display:flex;align-items:center;gap:6px;font-size:1rem;font-weight:600;white-space:nowrap}
-.rb{flex:none;width:max(var(--control-h),var(--target));height:max(var(--control-h),var(--target));border-radius:50%;background:var(--tile);color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--line-strong),var(--shadow-raised)}
-.rb.back{border:1px solid var(--tile-edge);box-shadow:var(--shadow-tile)}
+.pill{flex:none;margin-left:auto;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);display:flex;align-items:center;gap:6px;font-size:1rem;font-weight:600;white-space:nowrap}
+.rb{flex:none;width:var(--size-target-touch);height:var(--size-target-touch);border-radius:50%;background:var(--tile);color:var(--ink);display:flex;align-items:center;justify-content:center;border:1px solid var(--tile-edge);box-shadow:var(--shadow-tile)}
 main{flex:1 0 auto;box-sizing:border-box;width:100%;max-width:640px;margin:0 auto;padding:4px max(16px,env(safe-area-inset-right,0px)) calc(32px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
 .lead,.cap{margin:0;padding:0 8px;font-size:0.8125rem;line-height:1.4;color:var(--ink)}
-.chips{display:flex;gap:6px;margin:0 -16px -12px;padding:4px 16px 16px;overflow-x:auto;scrollbar-width:none}
-.chips::-webkit-scrollbar{display:none}
-.chips button{flex:none;min-height:var(--control-h);padding:0 14px;border-radius:var(--radius-pill);border:1px solid var(--tile-edge);background:var(--tile);color:var(--ink);box-shadow:var(--shadow-tile);display:flex;align-items:center;gap:6px;font-size:1rem;font-weight:600;white-space:nowrap}
-.chips [aria-pressed="true"]{padding-left:12px;background:var(--accent-soft);color:var(--accent);box-shadow:none}
-.grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.tile{position:relative;min-width:0;background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-tile)}
-.tile .open{width:100%;display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:var(--radius-lg);text-align:left}
-.tile .open:focus-visible{outline-offset:calc(-1 * var(--size-focus))}
-.tile .who b{line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tile .more{position:absolute;top:4px;right:4px;width:max(var(--control-h),var(--target));height:max(var(--control-h),var(--target));border-radius:var(--radius-pill);display:flex;align-items:center;justify-content:center}
 section{display:flex;flex-direction:column;gap:var(--space-4)}
-.lab{padding:0 20px;margin-bottom:-8px;font-size:0.8125rem;font-weight:500;line-height:1.4;color:var(--ink)}
+#apps{gap:var(--space-7)}
+/* The apps: a group for each workspace, each app a picture of its page with its title under it. */
+.ws{gap:var(--space-3)}
+.ws h2{margin:0;padding:0 4px;font-size:1rem;font-weight:600;line-height:1.4;overflow-wrap:break-word}
+/* Two to a row; one, where two would leave a title less than 8rem (large text). */
+.grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(max(8rem,calc((100% - var(--space-4)) / 2)),1fr));gap:var(--space-5) var(--space-4)}
+.tile{position:relative;min-width:0;align-self:start}
+.tile .open{width:100%;display:flex;flex-direction:column;gap:var(--space-2);color:var(--ink);text-align:left;border-radius:var(--radius-lg)}
+.pic{display:block;position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;border-radius:var(--radius-lg);border:1px solid var(--line-strong);background:var(--ground);box-shadow:var(--shadow-tile)}
+.pic .none{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-2);background:var(--sunken);color:var(--ink);text-align:center}
+.pic .none small{font-size:0.8125rem;line-height:1.4}
+/* The page at a phone's width (390 px), scaled to the tile by the script; shown once it says it's drawn. */
+.pic iframe{position:absolute;left:0;top:0;width:390px;height:487.5px;border:0;transform-origin:0 0;pointer-events:none;opacity:0}
+.pic.drawn iframe{opacity:1}
+.pic.drawn .none{visibility:hidden}
+/* ⋯ sits level with the title's last line, at any text size. */
+.tile .label{padding:0 40px 0 4px;font-size:1rem;line-height:1.4;overflow-wrap:break-word}
+.tile .more{position:absolute;right:-8px;bottom:calc((1.4rem - var(--size-control-touch)) / 2);width:var(--size-control-touch);height:var(--size-control-touch);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ink)}
 .card{background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);padding:0 20px;display:flex;flex-direction:column;box-shadow:var(--shadow-tile)}
 .card>*+*{border-top:1px solid var(--line)}
-.row{min-height:calc(var(--row-h) + var(--space-3));display:flex;align-items:center;gap:12px;padding:10px 0}
-.chip{flex:none;width:40px;height:40px;border-radius:var(--radius-sm);background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:600;line-height:1}
+.lab{padding:0 20px;margin-bottom:-8px;font-size:0.8125rem;font-weight:500;line-height:1.4;color:var(--ink)}
+.row{min-height:calc(var(--size-row-touch) + var(--space-3));display:flex;align-items:center;gap:12px;padding:10px 0}
+.chip{flex:none;width:48px;height:48px;border-radius:var(--radius-md);background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:1.25rem;font-weight:600;line-height:1}
 .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .who b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
 .who b.mono{font-size:0.9375rem;font-weight:500}
@@ -811,52 +819,48 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .mono{font-family:var(--font-mono);font-size:0.9375rem}
 .cap .mono{font-size:inherit}
 #one .who small{white-space:normal}
-.act{flex:none;min-height:var(--control-h);padding:0 14px;border-radius:var(--radius-pill);color:var(--accent);font-size:1rem;font-weight:600}
-.btn{position:relative;min-height:var(--control-h);padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);text-align:center}
-.btn.pri{min-height:var(--primary-h);padding:0 var(--space-6);border-radius:var(--radius-pill);background:var(--accent);border-color:transparent;color:var(--on-accent);box-shadow:var(--shadow-glow)}
-.btn.bad,.bar .btn{border-color:var(--danger);color:var(--danger)}
+.act{flex:none;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);color:var(--accent);font-size:1rem;font-weight:600}
+/* Buttons: House UI's hu-button shapes (secondary, primary, danger, ghost), each at least 44 px tall
+   whatever the pointer. */
+.btn{position:relative;min-height:var(--size-control-touch);padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font:600 1rem/1.25 var(--font-sans);display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);text-align:center;transition:transform var(--duration-quick) var(--ease-out)}
+.btn:active{transform:scale(0.97)}
+.btn.pri{min-height:var(--size-primary);padding:0 var(--space-6);border-radius:var(--radius-pill);background:var(--accent);border-color:transparent;color:var(--on-accent);box-shadow:var(--shadow-glow)}
+.btn.bad{border-color:var(--danger);color:var(--danger)}
+.btn.ghost{align-self:flex-start;margin-top:calc(-1 * var(--space-2));border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .pair{display:flex;gap:12px}.pair>*{flex:1}
 .card.solo{padding:16px;gap:14px}
 .card.gone{padding:20px;gap:8px}
 .card.solo>*+*{border-top:0}
 .sum{margin:0;font-size:1rem;line-height:1.5;color:var(--ink)}
 .empty{margin:0;padding:20px 0;font-size:1rem;color:var(--muted)}
-.bar{position:sticky;bottom:0;z-index:1;background:var(--ground);border-top:1px solid var(--line)}
-.bar>div{max-width:640px;margin:0 auto;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:12px}
-.bar .cap{flex:1;min-width:0;padding:0}
-.bar .btn{flex:none}
+.card.blank{padding:16px 20px}
 .scrim{position:fixed;inset:0;z-index:3;background:var(--scrim);animation:fade var(--duration-panel) var(--ease-out)}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;max-width:640px;margin:0 auto;display:flex;flex-direction:column;background:var(--tile);border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:var(--shadow-sheet);animation:rise var(--duration-panel) var(--ease-out)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;max-width:640px;max-height:90vh;overflow:auto;margin:0 auto;display:flex;flex-direction:column;background:var(--tile);border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:var(--shadow-sheet);animation:rise var(--duration-panel) var(--ease-out)}
 .grip{align-self:center;flex:none;width:40px;height:4px;margin-top:10px;border-radius:var(--radius-pill);background:var(--line)}
 .q{display:flex;flex-direction:column;gap:20px;padding:14px 24px calc(28px + env(safe-area-inset-bottom,0px))}
-.q h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display)}
+.q h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
 .q h2+p{margin:0;font-size:1rem;line-height:1.5;color:var(--ink)}
 .acts{display:flex;flex-direction:column;gap:16px;padding:12px 20px calc(24px + env(safe-area-inset-bottom,0px))}
 .acts .hd{display:flex;align-items:center;gap:12px}
 .acts .hd .name{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .acts h2{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
 .acts .hd small{font-family:var(--font-mono);font-size:0.8125rem;color:var(--muted)}
-.chip.big{width:48px;height:48px;border-radius:var(--radius-md);font-size:1.25rem}
 .last{border-radius:var(--radius-md);background:var(--sunken);padding:4px 8px 4px 16px;display:flex;align-items:center;gap:12px}
 .last .who{padding:10px 0}
 .last .who small:first-child{font-weight:500}
 .stack{display:flex;flex-direction:column;gap:8px}
 .stack .cap{text-align:center}
 .q label{display:flex;flex-direction:column;gap:6px;font-size:0.8125rem;font-weight:500;line-height:1.4;color:var(--ink)}
-.fld{width:100%;min-height:calc(var(--control-h) + var(--space-2));padding:0 16px;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font-size:1rem;font-weight:400}
+.fld{width:100%;min-height:calc(var(--size-control-touch) + var(--space-2));padding:0 16px;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--tile);color:var(--ink);font-size:1rem;font-weight:400}
 .two{display:flex;gap:12px}
-.two button{flex:1;min-height:var(--control-h);padding:0 var(--space-3);border-radius:var(--radius-md);background:var(--tile);font-size:1rem;font-weight:600;line-height:1.25}
-.two .keep{min-height:calc(var(--control-h) + var(--space-2));border:2px solid var(--accent);color:var(--ink)}
-.two .keep.soft{min-height:var(--control-h);border:1px solid var(--line-strong)}
-.two .go{border:1px solid var(--danger);color:var(--danger)}
-.two .yes{min-height:var(--primary-h);padding:0 var(--space-6);border:0;border-radius:var(--radius-pill);background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow-glow)}
+.two .btn{flex:1;min-width:0;padding:0 var(--space-3)}
 @keyframes rise{from{transform:translateY(100%)}}
 @keyframes fade{from{opacity:0}}
-@media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
-@media (hover:hover){.rb:hover,.act:hover,.pill:hover,.more:hover,.bar .btn:hover{background:var(--sunken)}}
+@media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}.btn:active{transform:none}}
+@media (hover:hover){.rb:hover,.act:hover,.pill:hover,.more:hover,.btn.ghost:hover{background:var(--sunken)}}
 #toast{--focus:var(--ground);position:fixed;left:16px;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;max-width:600px;margin:0 auto;min-height:56px;padding:0 8px 0 20px;border-radius:var(--radius-md);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font-size:1rem;display:flex;align-items:center;gap:12px}
 #toast span{flex:1;min-width:0;padding:8px 0}
-#toast button{flex:none;min-height:var(--control-h);padding:0 14px;border-radius:var(--radius-pill);color:var(--ground);font-weight:700}
+#toast button{flex:none;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);color:var(--ground);font-weight:700}
 #toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 </style>
 </head>
@@ -864,15 +868,14 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 <header class="top">
   <button class="rb" id="close" aria-label="Close"></button>
   <div class="name"><h1 id="title">Artifacts</h1><small id="sub" hidden></small></div>
-  <button class="pill" id="bin" type="button"></button>
+  <button class="pill" id="bin" type="button" hidden></button>
 </header>
 <main>
-  <div class="chips" role="group" aria-label="Show artifacts from" id="chips"></div>
   <section id="apps"></section>
+  <button class="btn ghost" id="rotate" type="button" hidden>Replace link</button>
   <section id="trash" hidden></section>
   <section id="one" hidden></section>
 </main>
-<footer class="bar" id="foot"><div><p class="cap">Anyone with this page’s link can see what it shows and act on it.</p></div></footer>
 <div id="toast" role="status" hidden><span></span><button type="button" hidden>Undo</button></div>
 <script>
 (() => {
@@ -883,9 +886,12 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...kids) => { const node = Object.assign(document.createElement(tag), props); node.append(...kids.filter((kid) => kid !== null && kid !== undefined && kid !== false)); return node; };
   const icon = (d, size = 18) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); for (const [k, v] of [["width", size], ["height", size], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.6"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"], ["aria-hidden", "true"]]) s.setAttribute(k, v); s.innerHTML = `<path d="${d}"/>`; return s; };
-  const CLOSE = "M4 4l8 8M12 4l-8 8", BACK = "M10 3.5 5.5 8l4.5 4.5", CHECK = "M3.5 8.5l3 3 6-7", BIN = "M2.5 4.5h11 M6.2 4.5V2.8h3.6v1.7 M4 4.5l.7 8.7h6.6l.7-8.7",
-    OPEN = "M9.5 2.5h4v4 M13.5 2.5 7.5 8.5 M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3", PEN = "M10.5 2.8l2.7 2.7L6 12.7l-3.5.8.8-3.5z", CLOCK = "M2.8 8a5.2 5.2 0 1 0 1.5-3.7 M2.5 2.5v2.3h2.3 M8 5.2V8l2 1.3";
-  const dots = () => { const s = icon("", 18); s.setAttribute("fill", "currentColor"); s.innerHTML = '<circle cx="3.5" cy="8" r="0.9"/><circle cx="8" cy="8" r="0.9"/><circle cx="12.5" cy="8" r="0.9"/>'; return s; };
+  const CLOSE = "M4 4l8 8M12 4l-8 8", BACK = "M10 3.5 5.5 8l4.5 4.5", BIN = "M2.5 4.5h11 M6.2 4.5V2.8h3.6v1.7 M4 4.5l.7 8.7h6.6l.7-8.7",
+    OPEN = "M9.5 2.5h4v4 M13.5 2.5 7.5 8.5 M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3", PEN = "M10.5 2.8l2.7 2.7L6 12.7l-3.5.8.8-3.5z", CLOCK = "M2.8 8a5.2 5.2 0 1 0 1.5-3.7 M2.5 2.5v2.3h2.3 M8 5.2V8l2 1.3",
+    // An app's icon, where its page can't be drawn: this edition has no icon set, so every app has the
+    // grid, as AnywhereLLM Lite draws an icon name it doesn't know.
+    GRID = "M2 2h5v5H2z M9 2h5v5H9z M9 9h5v5H9z M2 9h5v5H2z";
+  const dots = () => { const s = icon("", 20); s.setAttribute("fill", "currentColor"); s.innerHTML = '<circle cx="3.5" cy="8" r="0.9"/><circle cx="8" cy="8" r="0.9"/><circle cx="12.5" cy="8" r="0.9"/>'; return s; };
   const initial = (title) => (title.trim()[0] || "?").toUpperCase();
 
   // ---- The toast: what was sent or done, or a refusal; with `undo`, an Undo button while it shows.
@@ -924,7 +930,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   let asking = null;
   function sheet(kind, head, kids, from) {
     asking?.close();
-    const shade = [...document.querySelectorAll("body > header, body > main, body > footer")];
+    const shade = [...document.querySelectorAll("body > header, body > main")];
     const was = shade.map((part) => part.inert);
     const scrim = el("div", { className: "scrim" });
     const box = el("section", { className: "sheet" }, el("span", { className: "grip" }), el("div", { className: kind }, ...kids));
@@ -945,10 +951,10 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   }
 
   // One question: `body` goes between it and its two buttons; `yes` runs with what `value` reads,
-  // unless `from` was drawn away.
+  // unless `from` was drawn away. Asked before something is lost (`danger`), Keep is the main action.
   function ask({ title, line, yes, danger = true, body = null, value = () => null }, run, from) {
-    const keep = el("button", { className: danger ? "keep" : "keep soft", type: "button", textContent: "Keep" });
-    const go = el("button", { className: danger ? "go" : "yes", type: "button", textContent: yes });
+    const keep = el("button", { className: danger ? "btn pri" : "btn", type: "button", textContent: "Keep" });
+    const go = el("button", { className: danger ? "btn bad" : "btn pri", type: "button", textContent: yes });
     const head = el("h2", { textContent: title });
     const me = sheet("q", head, [el("div", {}, head, line ? el("p", { textContent: line }) : null), body, el("div", { className: "two" }, keep, go)], from);
     keep.onclick = me.close;
@@ -983,16 +989,26 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   const at = (t) => { const d = new Date(t); return isNaN(d) ? "" : `${date(d)}, ${hm(d)}`; };
   const changeText = (c) => `${c.ev}${c.text ? `: ${c.text}` : ""}`;
   const daysLeft = (until) => Math.max(0, Math.ceil((Date.parse(until) - Date.now()) / 86400000));
-  // The theme this page has now (a client may switch it while it's open), at the moment the link is followed.
-  const pageHref = (page) => { const now = document.documentElement.dataset.theme; return page + (now === "light" || now === "dark" ? `?theme=${now}` : ""); };
+  // The theme this page has now (a client may switch it while it's open): light or dark, which an app's
+  // page takes, or none while it follows the device.
+  const shownTheme = () => /^(light|dark)/.exec(document.documentElement.dataset.theme ?? "")?.[1] ?? null;
+  // An app's page in that theme, at the moment the link is followed.
+  const pageHref = (page) => { const t = shownTheme(); return page + (t ? `?theme=${t}` : ""); };
 
-  // ---- Views: the apps (all, or one workspace's), the trash, or one app; the last two are entries
-  // of the browser's history, so Back returns to the apps.
-  let now = null, view = history.state ?? {}, ws = new URLSearchParams(location.hash.slice(1)).get("ws") || "all", forward = false;
+  // ---- Views: the apps, the trash, or one app; the last two are entries of the browser's history,
+  // so Back returns to the apps.
+  let now = null, view = history.state ?? {}, replaced = false, forward = false;
+  // #ws=<workspace> puts that workspace's group first (AnywhereLLM Lite opens the page so, on the
+  // workspace it has open).
+  const wsOf = () => new URLSearchParams(location.hash.slice(1)).get("ws") || null;
+  let ws = wsOf();
   const find = (key) => { for (const w of now?.workspaces ?? []) for (const a of w.apps) if (`${w.workspace}/${a.name}` === key) return { workspace: w.workspace, app: a }; return null; };
-  // Every app, newest first; the workspace chosen, or all where it has none now.
-  const everyApp = () => now.workspaces.flatMap((w) => w.apps.map((a) => ({ workspace: w.workspace, app: a }))).sort((p, q) => (q.app.changed > p.app.changed) - (q.app.changed < p.app.changed));
-  const chosen = () => (now.workspaces.some((w) => w.workspace === ws) ? ws : "all");
+  const newer = (p, q) => (q.changed > p.changed) - (q.changed < p.changed);
+  // The groups: the one with the newest app first, newest first within each; the workspace #ws names
+  // ahead of them all.
+  const groups = () => now.workspaces
+    .map((w) => ({ workspace: w.workspace, apps: [...w.apps].sort(newer) }))
+    .sort((p, q) => (q.workspace === ws) - (p.workspace === ws) || newer(p.apps[0], q.apps[0]));
   const count = (n) => `${n} artifact${n === 1 ? "" : "s"}`;
   // A workspace by its name in AnythingLLM, which the state doesn't carry: read once with the page's
   // key, and its folder name until then, or where AnythingLLM has none (the scheduled jobs' own).
@@ -1012,21 +1028,18 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   function head(one) {
     const deep = !!(one || view.trash), sub = $("sub");
     $("close").replaceChildren(icon(deep ? BACK : CLOSE));
-    $("close").classList.toggle("back", deep);
     $("close").setAttribute("aria-label", deep ? "Back to Artifacts" : "Close");
     $("title").textContent = one ? one.app.title : view.trash ? "Trash" : "Artifacts";
     sub.classList.toggle("mono", !!one);
-    const shown = chosen(), n = everyApp().filter((x) => shown === "all" || x.workspace === shown).length;
-    sub.textContent = one ? `${named(one.workspace)} · ${one.app.name}` : view.trash ? count(now.trash.length) : `${shown === "all" ? "All" : named(shown)} · ${count(n)} · newest first`;
+    sub.textContent = one ? `${named(one.workspace)} · ${one.app.name}` : view.trash ? count(now.trash.length) : "";
     sub.hidden = !sub.textContent;
-    for (const id of ["bin", "chips", "apps", "foot"]) $(id).hidden = deep;
-    if (!deep) $("chips").hidden = now.workspaces.length < 2;
+    for (const id of ["bin", "apps", "rotate"]) $(id).hidden = deep;
     $("trash").hidden = !view.trash || !!one;
     $("one").hidden = !one;
   }
 
   function draw() {
-    if (!now) return;
+    if (!now || replaced) return;
     const one = view.app && find(view.app);
     if (view.app && !one) return back();
     drawApps();
@@ -1035,35 +1048,91 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     if (one) drawOne(one);
   }
 
+  // ---- Pictures: each app's page drawn small, at a phone's width, in a frame of its own, once its tile
+  // comes near the screen. AnythingLLM forbids framing what it serves (X-Frame-Options), so the page's
+  // HTML is read here and given to the frame as its document (srcdoc). The frame is sandboxed with
+  // scripts only: the page runs in an origin of its own, so it can't reach this page (and the
+  // manager's secret in it), AnythingLLM's own storage or a cookie; it can't navigate, open windows
+  // or submit, and it is inert, so it takes no tap or focus. Framed so, the page reads and posts
+  // nothing (runtime-lean.js) and says once it's drawn; until then, and for good where it can't be read
+  // or doesn't say so in time, the tile shows the app's icon.
+  const PAGE_WIDTH = 390, DRAWN_MS = 6000;
+  // The page in the theme this page has now, as ?theme would give it.
+  const themed = (html) => { const t = shownTheme(); return t ? html.replace(/<html\b/i, `<html data-theme="${t}"`) : html; };
+  async function frameIn(pic, page) {
+    let html;
+    try {
+      const res = await fetch(page, { cache: "no-cache" });
+      if (!res.ok || !/html/i.test(res.headers.get("content-type") || "")) return;
+      html = await res.text();
+    } catch {
+      return;
+    }
+    if (!pic.isConnected) return;
+    const frame = document.createElement("iframe");
+    for (const [k, v] of [["sandbox", "allow-scripts"], ["referrerpolicy", "no-referrer"], ["tabindex", "-1"], ["title", ""]]) frame.setAttribute(k, v);
+    frame.srcdoc = themed(html);
+    // A page that doesn't say it's drawn soon after it loads (it broke, or an older page that keeps
+    // up and would go on reading) is taken out: the icon stays.
+    frame.addEventListener("load", () => setTimeout(() => pic.classList.contains("drawn") || frame.remove(), DRAWN_MS), { once: true });
+    pic.append(frame);
+    fit();
+  }
+  const near = typeof IntersectionObserver === "function"
+    ? new IntersectionObserver((seen) => { for (const e of seen) if (e.isIntersecting) near.unobserve(e.target), frameIn(e.target, e.target.dataset.page); }, { rootMargin: "400px 0px" })
+    : { observe: (pic) => frameIn(pic, pic.dataset.page) };
+  function picture(app) {
+    const pic = el("span", { className: "pic" }, el("span", { className: "none" }, icon(GRID, 32), app.page ? null : el("small", { textContent: "No page yet" })));
+    pic.inert = true;
+    pic.setAttribute("aria-hidden", "true");
+    if (app.page) (pic.dataset.page = app.page), near.observe(pic);
+    return pic;
+  }
+  window.addEventListener("message", (e) => {
+    if (e.data !== "apps-lean:drawn") return;
+    const frame = [...document.querySelectorAll(".pic iframe")].find((f) => f.contentWindow === e.source);
+    frame?.parentNode.classList.add("drawn");
+  });
+  // Each picture scaled from the page's width to its tile's.
+  function fit() {
+    for (const frame of document.querySelectorAll(".pic iframe")) frame.style.transform = `scale(${frame.parentNode.clientWidth / PAGE_WIDTH})`;
+  }
+  if (typeof ResizeObserver === "function") new ResizeObserver(fit).observe($("apps"));
+
+  // The apps are drawn again only when what they show changed: a picture drawn again loads its page again.
+  let shown = null;
   function drawApps() {
-    const all = everyApp(), shown = chosen(), apps = all.filter((x) => shown === "all" || x.workspace === shown);
-    const chip = (key, label, n) => {
-      const on = key === shown, b = el("button", { type: "button", ariaPressed: String(on), ariaLabel: `${label}, ${count(n)}`, onclick: () => pick(key) }, on ? icon(CHECK, 16) : null, label);
-      b.dataset.ws = key;
-      return b;
-    };
-    $("chips").replaceChildren(chip("all", "All", all.length), ...now.workspaces.map((w) => chip(w.workspace, named(w.workspace), w.apps.length)));
-    const tiles = apps.map(({ workspace, app: a }) => {
-      const key = `${workspace}/${a.name}`, time = when(a.changed), where = shown === "all" ? [named(workspace), time].filter(Boolean).join(" · ") : time;
-      const open = el("button", { className: "open", type: "button", ariaLabel: `${a.title}, ${named(workspace)}${a.summary ? `: ${a.summary}` : ""}${time ? ` · ${time}` : ""}`, onclick: () => openApp(key) },
-        el("span", { className: "chip", ariaHidden: "true", textContent: initial(a.title) }),
-        el("span", { className: "who" }, el("b", { textContent: a.title }), a.summary ? el("small", { textContent: a.summary }) : null, where ? el("small", { textContent: where }) : null));
+    const all = groups();
+    const says = JSON.stringify([shownTheme(), all.map((g) => [g.workspace, g.apps.map((a) => [a.name, a.title, a.page, a.changed])])]);
+    if (says === shown) {
+      for (const h of $("apps").querySelectorAll("h2[data-ws]")) h.textContent = named(h.dataset.ws); // its name in AnythingLLM, read since
+      return;
+    }
+    shown = says;
+    const tile = (workspace, a) => {
+      const key = `${workspace}/${a.name}`;
+      const kids = [picture(a), el("span", { className: "label", textContent: a.title })];
+      const open = a.page
+        ? el("a", { className: "open", href: pageHref(a.page), ariaLabel: `Open ${a.title}`, onclick() { this.href = pageHref(a.page); } }, ...kids)
+        : el("button", { className: "open", type: "button", ariaLabel: `${a.title}, no page yet`, onclick: () => openApp(key) }, ...kids);
       open.dataset.key = key;
       const more = el("button", { className: "more", type: "button", ariaLabel: `More for ${a.title}` }, dots());
       more.onclick = () => actions({ workspace, app: a }, more);
       return el("li", { className: "tile" }, open, more);
+    };
+    const sections = all.map(({ workspace, apps }, i) => {
+      const h = el("h2", { id: `ws-${i}`, textContent: named(workspace) });
+      h.dataset.ws = workspace;
+      const s = el("section", { className: "ws" }, h, el("ul", { className: "grid" }, ...apps.map((a) => tile(workspace, a))));
+      s.setAttribute("aria-labelledby", h.id);
+      return s;
     });
-    const list = el("ul", { className: "grid" }, ...tiles);
-    list.setAttribute("aria-label", `${shown === "all" ? "All artifacts" : `${named(shown)} artifacts`}, newest first`);
-    $("apps").replaceChildren(tiles.length ? list : el("div", { className: "card" }, el("p", { className: "empty", textContent: "No artifacts yet. Ask the agent in a chat to make one." })));
+    $("apps").replaceChildren(...(sections.length ? sections : [el("div", { className: "card blank" }, el("p", { className: "sum", textContent: "No artifacts yet. Ask the agent to make one, and its page shows here." }))]));
+    fit();
   }
-
-  function pick(key) {
-    ws = key;
-    history.replaceState(history.state, "", key === "all" ? location.pathname + location.search : `#ws=${encodeURIComponent(key)}`);
-    draw();
-    [...$("chips").children].find((b) => b.dataset.ws === key)?.focus();
-  }
+  window.addEventListener("hashchange", () => { ws = wsOf(); draw(); });
+  // A client that switches the theme while the page is open: the pictures follow it.
+  new MutationObserver(() => busy() || draw()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   function drawTrash() {
     $("bin").replaceChildren(icon(BIN, 16), `Trash · ${now.trash.length}`);
@@ -1110,10 +1179,10 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   function actions(one, from) {
     const { workspace, app } = one, c = app.changes[0];
     const head = el("h2", { textContent: app.title });
-    const shut = el("button", { className: "rb back", type: "button", ariaLabel: "Close" }, icon(CLOSE));
+    const shut = el("button", { className: "rb", type: "button", ariaLabel: "Close" }, icon(CLOSE));
     const later = (fn) => () => { me.close(); fn(); };
     const me = sheet("acts", head, [
-      el("div", { className: "hd" }, el("span", { className: "chip big", ariaHidden: "true", textContent: initial(app.title) }),
+      el("div", { className: "hd" }, el("span", { className: "chip", ariaHidden: "true", textContent: initial(app.title) }),
         el("div", { className: "name" }, head, el("small", { textContent: `${named(workspace)} · ${app.name}` })), shut),
       app.page ? openPage(app, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" },
@@ -1181,26 +1250,31 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     e.preventDefault();
     asking ? asking.close() : back();
   });
+  $("close").replaceChildren(icon(CLOSE));
   $("close").onclick = () => (deep(view) ? back() : history.length - (forward ? 1 : 0) > 1 ? history.back() : window.close());
   $("bin").onclick = () => go({ trash: true });
 
-  // ---- A new link, asked first.
-  const rotate = el("button", { className: "btn", type: "button", textContent: "New link" });
-  rotate.onclick = () => ask({ title: "Make a new link?", line: "This one stops working, everywhere it was shared.", yes: "Make it" }, () => post("rotate"), rotate);
-  $("foot").querySelector("div").append(rotate);
+  // ---- Replace link, at the end of the apps, asked first.
+  $("rotate").onclick = () => ask({ title: "Replace this page’s link?", line: "Anyone with the link can see this page and act on it. The old link stops working.", yes: "Replace link" }, () => post("rotate"), $("rotate"));
 
   // ---- The state, every few seconds; not drawn again under a question or a field being typed in.
   // What the skill did with the last event shows once, as a toast.
   let last = null, drawnAt = null, toldAt = null;
   const busy = () => !!asking || document.activeElement?.tagName === "INPUT";
   async function load() {
+    if (replaced) return;
     try {
       const res = await fetch(`${cfg.token}.json`, { cache: "no-cache" });
       // Gone: AnythingLLM answers a path it doesn't serve with its own page, 200.
       if (res.status === 404 || (res.ok && !/json/i.test(res.headers.get("content-type") || ""))) {
         clearInterval(poll); // the link is gone for good: said once
+        replaced = true;
+        asking?.close();
         view = {};
-        for (const id of ["bin", "chips", "foot", "trash", "one"]) $(id).hidden = true;
+        $("close").replaceChildren(icon(CLOSE));
+        $("close").setAttribute("aria-label", "Close");
+        $("title").textContent = "Artifacts";
+        for (const id of ["sub", "bin", "rotate", "trash", "one"]) $(id).hidden = true;
         $("apps").hidden = false;
         const gone = el("div", { className: "card solo gone", role: "status" }, el("b", { style: "font-weight:600", textContent: "This link was replaced" }),
           el("p", { className: "sum" }, "Open the page again from where you got it: the agent, AnywhereLLM Lite, or ", el("span", { className: "mono", textContent: "anywherellm-suite pages" }), "."));

@@ -168,3 +168,15 @@ test("every event the page posts is one the skill applies, and every field it re
   const script = html.slice(html.lastIndexOf("<script"));
   for (const [, name, field] of script.matchAll(/\b(now|w|a|app|x|c|v)\.(\w+)/g)) assert.ok(Object.hasOwn(shapes[name], field), `${name}.${field}`);
 });
+
+test("each app's page is drawn as a picture, its HTML in a frame sandboxed with scripts only, where it reads and posts nothing", () => {
+  const html = fs.readFileSync(path.join(skillDir, "static", "pages", "manager.html"), "utf8");
+  const script = html.slice(html.lastIndexOf("<script"));
+  assert.match(script, /\["sandbox", "allow-scripts"\]/);
+  assert.doesNotMatch(html, /allow-same-origin|allow-top-navigation|allow-popups|allow-forms/, "nothing more than scripts: the page has an origin of its own");
+  assert.match(script, /frame\.srcdoc = /, "AnythingLLM forbids framing what it serves, so the page is the frame's document");
+  assert.match(script, /pic\.inert = true/, "it takes no tap or focus");
+  assert.match(script, /e\.data !== "apps-lean:drawn"/);
+  const runtime = fs.readFileSync(path.join(skillDir, "static", "runtime-lean.js"), "utf8");
+  assert.match(runtime, /postMessage\("apps-lean:drawn", "\*"\)/, "the page says what the manager waits for");
+});
