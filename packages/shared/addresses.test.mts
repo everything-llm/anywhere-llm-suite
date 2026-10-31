@@ -39,27 +39,27 @@ test("an origin on this machine's network is let through, a public one isn't", a
   for (const ok of ["http://muse-vm:8463", "http://192.168.1.5", "https://nas.example:5001", "http://[fd00::5]:8080", "http://192.168.1.20:8463"]) assert.equal(await why(ok), null, ok);
   assert.match((await why("http://93.184.216.34"))!, /on the public web/);
   assert.match((await why("https://public.example"))!, /on the public web/, "by what the name resolves to");
-  assert.match((await why("http://nowhere.lan:80"))!, /nowhere\.lan can't be looked up from AnythingLLM/, "what can't be told is refused");
+  assert.match((await why("http://nowhere.lan:80"))!, /can’t be looked up from AnythingLLM/, "what can't be told is refused");
 });
 
 test("no loopback address, on any port: AnythingLLM's own machine or container", async () => {
-  for (const origin of ["http://localhost:8888", "http://127.0.0.2:80", "http://[::1]:5000", "http://[::ffff:127.0.0.1]:8080", "http://127.0.0.1:3001", "http://loop.example:9000"]) assert.match((await addresses.refusalOf(origin, null, async (h) => (h === "loop.example" ? ["10.0.0.9", "127.0.0.1"] : lookup(h))))!, /that's a loopback address, AnythingLLM's own machine or container/, origin);
+  for (const origin of ["http://localhost:8888", "http://127.0.0.2:80", "http://[::1]:5000", "http://[::ffff:127.0.0.1]:8080", "http://127.0.0.1:3001", "http://loop.example:9000"]) assert.match((await addresses.refusalOf(origin, null, async (h) => (h === "loop.example" ? ["10.0.0.9", "127.0.0.1"] : lookup(h))))!, /is a loopback address: AnythingLLM’s own machine or container\. Use a name or address on your network\./, origin);
 });
 
 test("none of the suite's own services: this machine's addresses on 3001, 443 and 8467, and AnythingLLM's own address", async () => {
   for (const origin of ["http://192.168.1.10:3001", "https://gir", "http://100.90.1.2:8467", "http://[::ffff:100.90.1.2]:8467"]) assert.match((await why(origin))!, /of this machine, where AnythingLLM, its bridge or a proxy/, origin);
   assert.equal(await why("http://192.168.1.10:9000"), null, "another port of this machine is the user's");
-  assert.match((await why("http://192.168.1.10:9000", "http://192.168.1.10:9000"))!, /that's AnythingLLM itself/);
+  assert.match((await why("http://192.168.1.10:9000", "http://192.168.1.10:9000"))!, /is AnythingLLM itself/);
   assert.match((await why("http://gir:8080", "https://llm.example:8080"))!, /of this machine/, "AnythingLLM's own port, at this machine's addresses");
   assert.equal(await why("http://192.168.7.8:8080", "http://192.168.7.7:8080"), null, "another machine on AnythingLLM's port");
 });
 
 test("without the installer's record, AnythingLLM's address and the interfaces decide; without either, nothing is let through", async () => {
   delete g[THISHOST_RECORD];
-  assert.match((await why("http://muse-vm:8463"))!, /this machine isn't recorded and AnythingLLM's address isn't set/);
+  assert.match((await why("http://muse-vm:8463"))!, /this machine isn’t recorded and AnythingLLM’s address isn’t set/);
   assert.equal(await why("http://muse-vm:8463", "http://192.168.1.10:3001"), null);
   assert.match((await why("http://192.168.1.10:443", "http://192.168.1.10:3001"))!, /of this machine/, "AnythingLLM's host");
-  assert.match((await why("http://muse-vm:8463", "https://unknown.example"))!, /can't be looked up and this machine isn't recorded/);
+  assert.match((await why("http://muse-vm:8463", "https://unknown.example"))!, /can’t be looked up and this machine isn’t recorded/);
 });
 
 test("allow and remove change allowed.json in its shape, once each, as the fence reads it", async () => {
@@ -70,8 +70,8 @@ test("allow and remove change allowed.json in its shape, once each, as the fence
   assert.ok(!Number.isNaN(Date.parse(held.origins[0].added)));
   assert.equal((fs.statSync(allowedFile(storage)).mode & 0o777).toString(8), "600");
   assert.deepEqual(alwaysAllowed(), ["http://muse-vm:8463"]);
-  await assert.rejects(addresses.allow("muse-vm:8463", lookup), /isn't an address: write its scheme, host and port/);
-  await assert.rejects(addresses.allow("http://93.184.216.34", lookup), /http:\/\/93\.184\.216\.34 isn't let through: it's on the public web/);
+  await assert.rejects(addresses.allow("muse-vm:8463", lookup), /“muse-vm:8463” isn’t an address\. Write its scheme, host and port/);
+  await assert.rejects(addresses.allow("http://93.184.216.34", lookup), /http:\/\/93\.184\.216\.34 is on the public web, which the skills reach already\./);
   await addresses.remove("http://muse-vm:8463/");
   assert.deepEqual(alwaysAllowed(), []);
   fs.writeFileSync(allowedFile(storage), "not json");
