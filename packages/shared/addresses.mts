@@ -42,7 +42,7 @@ export async function refusalOf(origin: string, base: string | null, lookup: Loo
   const addresses = await lookup(host);
   if (!addresses) return "can’t be looked up from AnythingLLM, so it can’t be told from its own services. Check the name, or give its address.";
   if (!privateName(host) && !addresses.some(privateAddress)) return "is on the public web, which the skills reach already. Only an address on your network is let through here.";
-  if (addresses.some(loopback)) return "is a loopback address: AnythingLLM’s own machine or container. Use a name or address on your network.";
+  if (addresses.some(loopback)) return "is AnythingLLM’s own machine. Use a name or address on your network."; // loopback: in a container, the container itself
   const anythingllm = originOf(base);
   const recorded = thisHostRecorded();
   if (!anythingllm && !recorded) return "can’t be told from AnythingLLM’s own services: this machine isn’t recorded and AnythingLLM’s address isn’t set. Run the installer on the host, or set the skill’s ANYTHINGLLM_URL.";
