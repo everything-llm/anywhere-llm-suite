@@ -13,12 +13,17 @@
 // A change sent but not recorded stays applied over newer data, in this browser's storage, until
 // the app lists its id (patched with App.apply, the page's one patch engine). App.log gives the
 // newest changes the page was written with.
+// In a frame, the page is a picture: the apps manager draws it small, its HTML the document of a
+// sandboxed frame (srcdoc: AnythingLLM forbids framing what it serves, so a page is framed no other
+// way). It shows the data it was written with, reads and posts nothing, has no Comment, and tells the
+// frame's parent once it's drawn ("apps-lean:drawn"), so the manager shows it in place of the icon.
 var AppsLean = (() => {
   const cfg = JSON.parse(document.getElementById("apps-lean").textContent);
+  const picture = window.parent !== window && location.protocol === "about:";
   const KEY = "apps-lean:" + cfg.workspace + "/" + cfg.app;
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ pending })); } catch (e) {} };
-  let pending = (load().pending || []).filter((e) => !cfg.seen.includes(e.id));
+  let pending = (picture ? [] : load().pending || []).filter((e) => !cfg.seen.includes(e.id));
   let line = cfg.line, served = cfg.line, posted = 0;
   const stateUrl = location.pathname.replace(/\.html$/, ".json");
   function over(data) {
@@ -39,6 +44,7 @@ var AppsLean = (() => {
    *  stores; relative, as the page is served by AnythingLLM itself at whatever address the user
    *  reached it. */
   async function append(body) {
+    if (picture) return answer(409, { error: "A picture of the page saves nothing." });
     const id = uuid();
     const event = { apps_lean_event: 1, workspace: cfg.workspace, app: cfg.app, secret: cfg.secret, id, t: new Date().toISOString(), ev: body.ev || "change", fields: body.fields, patch: body.patch };
     const r = await native("/api/browser-extension/upload-content", {
@@ -92,7 +98,7 @@ var AppsLean = (() => {
   async function sync(body) {
     // App.log asks without waiting: the newest changes, as the page was written with them.
     if (body.wait === false) return answer(200, { line, lines: cfg.log.filter((l) => l.n > (body.since || 0)) });
-    if (gone) return new Promise(() => {}); // nothing more will come
+    if (gone || picture) return new Promise(() => {}); // nothing more will come
     await pause();
     if (!/^https?:$/.test(location.protocol)) return answer(200, { line: body.since, lines: [] });
     try {
@@ -130,7 +136,7 @@ var AppsLean = (() => {
   // picking, taps pick instead of pressing: these listeners, on the window and added before any
   // part's, see each tap first and keep it from the page; scrolling still works.
   const PICKS = 5, WORDS = 1000;
-  const chat = window.AnywhereLLMApps && window.AnywhereLLMApps.postMessage ? window.AnywhereLLMApps : null;
+  const chat = !picture && window.AnywhereLLMApps && window.AnywhereLLMApps.postMessage ? window.AnywhereLLMApps : null;
   let picking = false, picks = [], text = "", sending = false, failed = "";
   const host = document.createElement("div");
   const ui = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
@@ -262,6 +268,9 @@ var AppsLean = (() => {
     if (typeof MutationObserver === "function")
       new MutationObserver(() => (host.isConnected && clear.isConnected) || !document.body || place()).observe(document.documentElement, { childList: true, subtree: true });
   }
+
+  // Drawn: app.js and the parts draw as the page loads, so a moment after it the picture is ready.
+  if (picture) window.addEventListener("load", () => setTimeout(() => window.parent.postMessage("apps-lean:drawn", "*"), 100));
 
   window.fetch = (url, opts) => {
     if (url === "lean:append") return append(JSON.parse(opts.body));
