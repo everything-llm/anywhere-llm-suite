@@ -837,7 +837,7 @@ input::placeholder{color:var(--muted);opacity:1}
 .add{min-height:calc(var(--row-h) + var(--space-1));display:flex;align-items:center;gap:var(--space-3);color:var(--accent);font-size:1rem;font-weight:600;width:100%}
 .add+form{padding-bottom:var(--space-5)}
 .empty{margin:0;padding:var(--space-5) 0;font-size:1rem;line-height:1.5;color:var(--muted)}
-.foot{display:flex;flex-direction:column;gap:var(--space-4);align-items:flex-start}
+#rotate{align-self:flex-start}
 .scrim{position:fixed;inset:0;z-index:3;background:var(--scrim);animation:fade var(--duration-panel) var(--ease-out)}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:0;background:var(--tile);border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:var(--shadow-sheet);animation:rise var(--duration-panel) var(--ease-out)}
 .grip{align-self:center;flex:none;width:40px;height:4px;margin-top:10px;border-radius:var(--radius-pill);background:var(--line)}
@@ -870,7 +870,6 @@ input::placeholder{color:var(--muted);opacity:1}
   <section id="keys" hidden><div class="grp" id="apikeys"></div><div class="grp" id="signing"></div></section>
   <section id="logins" hidden></section>
   <section id="addresses" hidden></section>
-  <div class="foot" id="foot"><p class="cap">Anyone with this page’s link can see what it shows and act on it.</p></div>
 </main>
 <div id="toast" role="status" hidden></div>
 <script>
@@ -1171,16 +1170,18 @@ input::placeholder{color:var(--muted);opacity:1}
       const tabs = [...document.querySelectorAll("nav button")];
       for (const b of tabs) b.hidden = !shown.has(b.dataset.tab);
       document.querySelector("nav").hidden = tabs.filter((b) => !b.hidden).length < 2; // one tab says nothing
-      $("rotatebox").hidden = !shown.size;
+      $("rotate").hidden = !shown.size;
       if (!tabs.some((b) => !b.hidden && b.getAttribute("aria-selected") === "true")) select(tabs.find((b) => !b.hidden));
     } catch (e) {
       toast("Can’t reach AnythingLLM");
     }
   }
 
-  // ---- A new link, asked first.
-  const rotate = remove(["Make a new link?", "This one stops working, everywhere it was shared."], "Make a new link", () => post([...shown][0], "rotate"), { text: "New link", className: "hu-button hu-button--secondary", yes: "Make it" });
-  $("foot").append(el("div", { id: "rotatebox", hidden: true }, rotate));
+  // ---- Replace link ends every tab, and asks first: the sheet says who the link lets in.
+  const rotate = remove(["Replace this page’s link?", "Anyone with the link can see this page and act on it. The old link stops working."], "Replace link", () => post([...shown][0], "rotate"), { text: "Replace link", className: "hu-button hu-button--ghost", yes: "Replace link" });
+  rotate.id = "rotate";
+  rotate.hidden = true;
+  document.querySelector("main").append(rotate);
   const poll = setInterval(load, 5000);
   load();
 })();
