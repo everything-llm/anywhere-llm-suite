@@ -43,7 +43,7 @@ test("an origin on this machine's network is let through, a public one isn't", a
 });
 
 test("no loopback address, on any port: AnythingLLM's own machine or container", async () => {
-  for (const origin of ["http://localhost:8888", "http://127.0.0.2:80", "http://[::1]:5000", "http://[::ffff:127.0.0.1]:8080", "http://127.0.0.1:3001", "http://loop.example:9000"]) assert.match((await addresses.refusalOf(origin, null, async (h) => (h === "loop.example" ? ["10.0.0.9", "127.0.0.1"] : lookup(h))))!, /is a loopback address: AnythingLLM’s own machine or container\. Use a name or address on your network\./, origin);
+  for (const origin of ["http://localhost:8888", "http://127.0.0.2:80", "http://[::1]:5000", "http://[::ffff:127.0.0.1]:8080", "http://127.0.0.1:3001", "http://loop.example:9000"]) assert.match((await addresses.refusalOf(origin, null, async (h) => (h === "loop.example" ? ["10.0.0.9", "127.0.0.1"] : lookup(h))))!, /^is AnythingLLM’s own machine\. Use a name or address on your network\.$/, origin);
 });
 
 test("none of the suite's own services: this machine's addresses on 3001, 443 and 8467, and AnythingLLM's own address", async () => {

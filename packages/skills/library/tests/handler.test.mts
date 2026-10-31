@@ -352,9 +352,9 @@ test("the Vault lets through no public address, no loopback one and none of Anyt
   await call({ action: "library" }, base);
   for (const [origin, why] of [
     ["http://93.184.216.34", /is on the public web/],
-    ["http://localhost:8888", /is a loopback address/],
-    ["http://127.0.0.2:80", /is a loopback address/],
-    ["http://[::1]:5000", /is a loopback address/],
+    ["http://localhost:8888", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
+    ["http://127.0.0.2:80", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
+    ["http://[::1]:5000", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
     ["https://192.168.50.2", /port 443 of this machine/],
     ["http://192.168.50.2:3001", /is AnythingLLM itself/],
     ["muse-vm:8463", /isn’t an address\. Write its scheme, host and port/],
