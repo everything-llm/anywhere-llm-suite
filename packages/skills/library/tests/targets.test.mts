@@ -774,16 +774,16 @@ async function registered(base: string | null = BASE) {
 test("a target that can fetch this AnythingLLM's pages is refused, and the token file it was asked for is gone", async () => {
   machine.serve = pageOf;
   const box = await registered();
-  assert.match(box.barred, /^it can fetch this AnythingLLM's pages \(at anythingllm\.test:3001\), which carry the page secret\. Change the machine's firewall .* so it can't reach anythingllm\.test:3001, then try it again$/);
+  assert.match(box.barred, /^it can reach this AnythingLLM's pages at anythingllm\.test:3001\. Block that address in its firewall, then try again$/);
   assert.equal(seen.fetched.length, 1);
   assert.match(seen.fetched[0], /^http:\/\/anythingllm\.test:3001\/library-lean\/reach-[0-9a-f]{16}\.txt$/);
   assert.deepEqual(reachLeft(), [], "the file is removed");
   await ops();
   const execs = seen.execs;
-  assert.match(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }), /the target "box" isn't used: it can fetch this AnythingLLM's pages/);
+  assert.match(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }), /the target "box" isn't used: it can reach this AnythingLLM's pages/);
   assert.equal(seen.execs, execs, "nothing was run on it");
-  assert.match(await call({ action: "library", service: "ops" }), /Targets: box \(sandbox@127\.0\.0\.1:\d+, signed in, not used: it can fetch this AnythingLLM's pages/);
-  assert.match(boxState().barred, /can fetch/, "the Targets card shows it");
+  assert.match(await call({ action: "library", service: "ops" }), /Targets: box \(sandbox@127\.0\.0\.1:\d+, signed in, not used: it can reach this AnythingLLM's pages/);
+  assert.match(boxState().barred, /can reach/, "the Targets card shows it");
   // Put right, then tried again: used.
   machine.serve = () => null;
   post({ secret: pageConfig().secret, ev: "target-check", label: "box" });
@@ -810,13 +810,13 @@ test("a target that can't fetch the pages is used; one that can't say (no curl o
 test("a target that sees AnythingLLM's storage, or is this machine's account, is refused", async () => {
   machine.sees = true;
   const sees = await registered();
-  assert.match(sees.barred, /^it can see AnythingLLM's storage \(.*vault-lean\), which holds the vault and the pages' secrets\. Use another machine or account$/);
+  assert.match(sees.barred, /^it can read AnythingLLM's storage, where the Vault keeps its secrets\. Use another machine or account$/);
   assert.deepEqual(fs.readdirSync(path.join(storage, "vault-lean")).filter((n) => n.startsWith(".reach-marker")), [], "the marker is removed");
   machine.sees = false;
   Object.assign(machine, { hostname: os.hostname(), uid: String(process.getuid!()) });
   post({ secret: pageConfig().secret, ev: "target-check", label: "box" });
   await called({ action: "library" }, { slug: "work", base: BASE });
-  await until(() => /this machine's own account/.test(boxState().barred ?? ""), LOOK_MS);
+  await until(() => /^it is the account AnythingLLM runs as \(hostname .*\), which can read the Vault's secrets\. Use another machine or account$/.test(boxState().barred ?? ""), LOOK_MS);
   // The same hostname alone, or the same user alone, proves nothing.
   for (const other of [{ hostname: os.hostname(), uid: String(process.getuid!() + 1) }, { hostname: `${os.hostname()}-x`, uid: String(process.getuid!()) }]) {
     Object.assign(machine, other);
@@ -833,9 +833,9 @@ test("a target is looked at on its first use when it wasn't at its check for wan
   assert.ok(box.notes.some((n: string) => /AnythingLLM's own address isn't known here/.test(n)));
   assert.equal(seen.fetched.length, 0);
   await ops();
-  assert.match(await called({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }, { slug: "work", base: BASE }), /the target "box" isn't used: it can fetch this AnythingLLM's pages/);
+  assert.match(await called({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }, { slug: "work", base: BASE }), /the target "box" isn't used: it can reach this AnythingLLM's pages/);
   assert.equal(seen.fetched.length, 1, "looked at once");
-  assert.match(boxState().barred, /can fetch/);
+  assert.match(boxState().barred, /can reach/);
   assert.deepEqual(reachLeft(), []);
 });
 
@@ -891,7 +891,7 @@ test("without a good record of this machine no target is saved or used", async (
     const execs = seen.execs;
     const auths = seen.auths;
     assert.match(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }), wanted, `${what}: a saved target isn't used`);
-    assert.match((await savedAs("other", {})) ?? "", /^No machine can be added yet: this AnythingLLM’s own machine isn’t recorded/, `${what}: nothing is saved`);
+    assert.match((await savedAs("other", {})) ?? "", /^The page can’t yet tell this machine from others\. Run the installer/, `${what}: nothing is saved`);
     assert.deepEqual(pageState().targets.map((t: { label: string }) => t.label), ["box"]);
     assert.equal(seen.execs, execs, `${what}: nothing was run`);
     assert.equal(seen.auths, auths, `${what}: nothing was signed in to`);
@@ -930,7 +930,7 @@ test("a target is asked to fetch the pages from AnythingLLM's address and from e
   post({ secret: pageConfig().secret, ev: "target-check", label: "box" });
   await called({ action: "library" }, { slug: "work", base: BASE });
   await until(() => boxState().barred !== null, LOOK_MS);
-  assert.match(boxState().barred, /^it can fetch this AnythingLLM's pages \(at 10\.1\.2\.3:8467\), which carry the page secret/);
+  assert.match(boxState().barred, /^it can reach this AnythingLLM's pages at 10\.1\.2\.3:8467\. Block/);
   assert.ok(seen.fetched.length > one);
   // Hits at two addresses are both named.
   machine.serve = (u) => (u.host === "10.1.2.3:8467" || u.host === "anythingllm.test:3001" ? page(u) : null);
@@ -953,7 +953,7 @@ test("every save looks at what the target reaches again, not only the first", as
   assert.equal(await savedAs("box", {}, BASE), null, "saved again as it was");
   await until(() => boxState().barred !== null, LOOK_MS);
   assert.ok(seen.fetched.length > before, "looked at again");
-  assert.match(boxState().barred, /can fetch/);
+  assert.match(boxState().barred, /can reach/);
 });
 
 test("any failure of a target save is told to the page, which would otherwise wait for it", async () => {
@@ -967,7 +967,7 @@ test("any failure of a target save is told to the page, which would otherwise wa
     return (lookup as (...a: unknown[]) => void)(host, options, cb);
   }) as typeof dns.lookup;
   try {
-    assert.equal(await savedAs("box", { host: "boom.example" }), "Couldn’t save the machine. The log says why.");
+    assert.equal(await savedAs("box", { host: "boom.example" }), "Couldn’t save the machine. Try again, or check AnythingLLM’s log.");
     assert.ok(logged.some((l) => /couldn't apply a page event \(target-save\): the resolver broke/.test(l)), "the real error is logged");
     assert.deepEqual(pageState().targets, []);
   } finally {

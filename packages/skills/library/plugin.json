@@ -26,7 +26,7 @@
         "type": "text",
         "default": "",
         "placeholder": "https://anythingllm.example.com",
-        "hint": "Optional: the address you open AnythingLLM at. With it, the Vault's and the Library page's links work anywhere."
+        "hint": "Optional. The address you open AnythingLLM at, so the pages’ links work from anywhere."
       }
     },
     "PAGE_KEY": {
