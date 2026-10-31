@@ -4,7 +4,7 @@ Agent skills that a stock AnythingLLM runs itself, and the command that installs
 
 | Part | Folder | Runs | Toolchain |
 | --- | --- | --- | --- |
-| Agent skills (library, browser, notebook, Artifacts, wake) | `packages/skills/<name>` (Artifacts is `apps`) | inside AnythingLLM's own process | Node 18+; nothing installed beside them (library bundles QuickJS and ssh2; browser bundles Puppeteer and runs the Chrome AnythingLLM's image ships, or the system's) |
+| Agent skills (library, browser, notebook, Artifacts) | `packages/skills/<name>` (Artifacts is `apps`) | inside AnythingLLM's own process | Node 18+; nothing installed beside them (library bundles QuickJS and ssh2; browser bundles Puppeteer and runs the Chrome AnythingLLM's image ships, or the system's) |
 | The installer | `packages/install` | the command you run | Node 18+, no dependencies shipped |
 
 `packages/` holds what runs inside AnythingLLM and what puts it there. `docs/browser-tab.md` and `docs/page-links.md` are what the parts agree on with the phone app and the bridge; `docs/fence-lean.md` is the fence's own files.

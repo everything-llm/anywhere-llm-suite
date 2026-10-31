@@ -138,6 +138,10 @@ Shane chose it on 2026-10-31, from the Library Design canvas (page "Library", se
 
 The background-run notice over ntfy was removed on 2026-10-31 at Shane's choice: too specific a mechanism; a run's end shows at the top of the next library answer and on the Runs tab. Gone: the library's `NTFY_URL` and `NTFY_TOKEN` settings, the notice in `handler.ts` (`notified`), and `shared/notify.mts` with its test, which only the library used. The chat's answer for a run that goes on in the background now tells the agent to say its result shows on the Library page and that it will give it to the user the next time it looks at the library. A stored `plugin.json` that still holds values in those fields is read no further: they are ignored, with no migration (`tests/runs.test.mts` keeps a stand-in topic named there and checks nothing reaches it). The wake skill's own ntfy client (`skills/wake/src/ntfy.ts`) and the ntfy channel function the signing tests save (`tests/channels/ntfy-channel.js`, a function a user writes, not the skill's) are untouched.
 
+## wake-lean removed, 2026-10-31
+
+wake-lean removed on 2026-10-31 at Shane's choice; a scheduled job that polls with a library function replaces it (board #58's polling trial). Gone: `packages/skills/wake/` (its own ntfy client, its AnythingLLM client and its tests), its row in the root README, the installer's bundle test for it and its check in `tools/e2e`. The build and the installer find the skills by their folders, so nothing else named it. An older install's `plugins/agent-skills/wake-lean` is removed by the next `install` and by `uninstall` (`RETIRED` in `install/src/addons.mts`), so an upgrade leaves no dead skill listening; its data (`wake-lean/state.json`) stays, as every skill's does. The entries above that describe it are kept as they were.
+
 ## House rules
 
 - **No migration shims.** Code that only carries an earlier edition's data or config over is not kept: the only installed instance is the author's and is migrated once, by hand or by an uncommitted script, and the code then knows the new format only. A later user with older data would be given a one-off script outside the packages.

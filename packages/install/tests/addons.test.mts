@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { checks, chosen, INNER_STORAGE, put, take, type Payload } from "../src/addons.mts";
+import { checks, chosen, INNER_STORAGE, put, retire, take, type Payload } from "../src/addons.mts";
 import { tempDir } from "./fakes/tmp.mts";
 
 const tmp = tempDir("addons");
@@ -67,6 +67,24 @@ test("take removes the skills it knows, and leaves a skill's data", () => {
   take(dir, PAYLOAD);
   assert.deepEqual(fs.readdirSync(path.join(dir, "plugins", "agent-skills")), []);
   assert.ok(fs.existsSync(path.join(dir, "library-lean", "data.json")));
+});
+
+test("a skill the suite no longer ships (wake-lean) is removed by install and by uninstall, and its data stays", () => {
+  const dir = storage();
+  const left = () => {
+    fs.mkdirSync(path.join(dir, "plugins", "agent-skills", "wake-lean"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "plugins", "agent-skills", "wake-lean", "handler.js"), "// an older install's\n");
+  };
+  fs.mkdirSync(path.join(dir, "wake-lean"));
+  fs.writeFileSync(path.join(dir, "wake-lean", "state.json"), "{}");
+  left();
+  assert.match(retire(dir).join("\n"), /^removed .*wake-lean, a skill the suite no longer ships$/);
+  assert.ok(!fs.existsSync(path.join(dir, "plugins", "agent-skills", "wake-lean")));
+  assert.deepEqual(retire(dir), [], "nothing left to remove");
+  left();
+  take(dir, PAYLOAD);
+  assert.ok(!fs.existsSync(path.join(dir, "plugins", "agent-skills", "wake-lean")), "uninstall takes it too");
+  assert.ok(fs.existsSync(path.join(dir, "wake-lean", "state.json")), "its data stays");
 });
 
 test("checks find what is missing or not this version's", () => {
