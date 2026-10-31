@@ -10,6 +10,7 @@
 import vm from "node:vm";
 import { staticFiles, type StaticFiles } from "#shared/static";
 import { overrides } from "./dirs.ts";
+import { ICONS } from "./icons.ts";
 import { undeclared } from "./names.ts";
 import type { Json } from "./patch.ts";
 
@@ -130,7 +131,7 @@ In this edition (apps-lean), the page has no server of its own: a change is save
 function starterTopic(name: string): string {
   const { line, template: from, parts: used, definition, data } = starter(name)!;
   return `${name} starter: ${line}
-create with {"action": "create", "name": "...", "title": "...", "starter": "${name}"}: the ${from} template with ${partsText(used)}, working as it is. data replaces the keys it names; text (app.json) replaces about, rules, card or schema.
+create with {"action": "create", "name": "...", "title": "...", "starter": "${name}"}: the ${from} template with ${partsText(used)}, working as it is. data replaces the keys it names; text (app.json) replaces about, rules, card, icon or schema.
 app.json: ${JSON.stringify(definition)}
 data: ${JSON.stringify(data)}
 `;
@@ -144,8 +145,9 @@ function topicText(topic: string): string | null {
   // What each class and element looks like: nothing shows the agent the page in a browser; the
   // stylesheet itself is the only way to know that .done strikes text through.
   if (topic === "styles") return file("app.css");
-  // The design rules name icons, but this edition has no icon set.
-  if (topic === "icons") return "This edition has no icon set: leave icon out of app.json.\n";
+  // The names only: AnywhereLLM Lite and the apps manager draw the glyphs.
+  if (topic === "icons")
+    return `icon in app.json is one of these names: ${ICONS.join(", ")}. AnywhereLLM Lite draws its glyph on the card, the apps manager too; pick the one closest to what the artifact is for, or leave it out for the grid.\n`;
   if (topic === "check")
     return "This edition has no browser check: nothing loads the page before the user sees it. Read page.html once against the design rules (guide design) and the finish topic (guide finish) instead, and test what you can by reasoning through the page's script.\n";
   if (topicNames().includes(topic)) return file(`topics/${topic}.md`);

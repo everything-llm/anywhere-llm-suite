@@ -54,3 +54,17 @@ While the links are given to the agent, the library's answers hand it the Vault'
 ```
 
 The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link, the title only as a tooltip (a phone never shows it), so the card needs no setting and no HTML. AnywhereLLM Lite (1.22.0) draws a card from a quote whose first paragraph is one link, bold or not, to the server it is connected to, titled with a glyph it knows (`vault`, `library`): the glyph, the link's text and the rest of the quote, in one tile that opens the page in its sheet. Anything else stays a quote. The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.
+
+An artifact's card (the Artifacts skill's answers, `card`, `packages/skills/apps/src/card.ts`) has the same shape: a quote whose first paragraph is the artifact's title as a bold link to its page, titled with its icon's name when app.json has one of the 24 (`packages/skills/apps/src/icons.ts`: `cart`, `check`, `timer`, `flame`, `book`, `calendar`, `bars`, `target`, `cards`, `note`, `heart`, `star`, `dumbbell`, `drop`, `moon`, `wallet`, `plane`, `home`, `mail`, `pin`, `bell`, `music`, `sun`, `bulb`), then the change line: what the call changed (`add: Oat milk`, `took back add: Oat milk`), if it changed something, and the card's summary. A list's items follow the quote, outside it, so they stay out of Lite's tile and AnythingLLM's own chat still shows them. Several artifacts are one quote each.
+
+```
+> **[Groceries](/apps-lean/<token>.html "cart")**
+>
+> add: Oat milk · 5 of 8 left
+
+- ☐ Oat milk
+- ☑ ~~Eggs~~
+- …and 2 more
+```
+
+With no icon the link has no title; where the page can't be published there is no link, only the bold title, and Lite leaves the quote as it is. Until 2026-10-31 the card was a table whose header was the link and the summary (`| | **[Groceries](…)** · 5 of 8 left |`), with a row per item.

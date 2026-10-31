@@ -13,6 +13,7 @@ import { listDir, locked, readJson, writeAtomic } from "#shared/atomic";
 import { newSecret } from "#shared/pages";
 import { firstLine, Told } from "#shared/errors";
 import { root } from "./dirs.ts";
+import { ICONS } from "./icons.ts";
 import { apply, PatchError, type Json } from "./patch.ts";
 import { DEFINITION, definitionOf, pageProblems } from "./parts.ts";
 import { problems, schemaProblems } from "./schema.ts";
@@ -128,7 +129,7 @@ async function definitionProblems(app: Json, page: boolean): Promise<string[]> {
     }
     if (app.card.items !== undefined && (typeof app.card.items !== "string" || !app.card.items.startsWith("/"))) out.push("card.items: a pointer to a list, such as /items");
   }
-  if (app.icon !== undefined && typeof app.icon !== "string") out.push("icon: a name");
+  if (app.icon !== undefined && !ICONS.includes(app.icon)) out.push(`icon: one of ${ICONS.join(", ")}`);
   if (app.jobs !== undefined && typeof app.jobs !== "boolean") out.push("jobs: true lets a scheduled job change the data with do");
   if (page && app.page !== undefined) out.push(...(await problemsOfPage(app.page)));
   if (schema && !schema.length) out.push(...problems(app.data, app.schema).map((p) => `data ${p}`));
