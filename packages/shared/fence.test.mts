@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { NetError, allowedFile, allowedFor, allowedHosts, alwaysAllowed, checkUrl, makeFence, onSite, originOf, pathRefused, privateAddress, privateName, secureFor, siteOf } from "./fence.mts";
+import { NetError, allowedFile, allowedFor, allowedHosts, alwaysAllowed, checkUrl, hostRefused, makeFence, onSite, originOf, pathRefused, privateAddress, privateByItself, privateName, secureFor, siteOf } from "./fence.mts";
 
 test("addresses outside the public internet are private", () => {
   for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.10", "169.254.169.254", "100.64.0.1", "100.101.102.103", "0.0.0.0", "224.0.0.1", "255.255.255.255", "::1", "::", "fd7a:115c:a1e0::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:192.168.0.1", "ff02::1"]) {
@@ -22,6 +22,16 @@ test("names of this machine or its network are private by name", () => {
   for (const name of ["example.com", "news.ycombinator.com", "localhost.example.com"]) {
     assert.ok(!privateName(name), name);
   }
+});
+
+test("a host is private by itself as an address outside the public internet or a name of this network, never by what it resolves to", () => {
+  for (const host of ["192.168.1.20", "fd00::1", "127.0.0.1", "nas", "box.internal", "pi.local", "nas.lan", "box.home.arpa", "me.tail1234.ts.net"]) assert.ok(privateByItself(host), host);
+  for (const host of ["1.1.1.1", "2606:4700:4700::1111", "box.example", "build.example.net"]) assert.ok(!privateByItself(host), host);
+  assert.equal(hostRefused("box.example", new Set()), "lookup", "a name that looks public is told by its addresses");
+  assert.equal(hostRefused("1.1.1.1", new Set()), null);
+  assert.match(hostRefused("nas", new Set()) ?? "", /is a name on this machine or its network/);
+  assert.match(hostRefused("10.0.0.1", new Set()) ?? "", /isn't a public address/);
+  assert.equal(hostRefused("10.0.0.1", new Set(["10.0.0.1"])), null, "let through");
 });
 
 test("an address is http(s), with https:// put before a bare host", () => {

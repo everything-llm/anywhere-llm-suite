@@ -169,7 +169,7 @@ const server = http.createServer((req, res) => {
     assert.equal((await result({ command })).stdout, setUp.stdout, "run again, it prints the same line");
     assert.equal((await result({ command: `grep -c ${spare.split(" ")[1]} ~/.ssh/authorized_keys; stat -c %a ~/.ssh ~/.ssh/authorized_keys` })).stdout, "1\n700\n600\n", "the key is in once, and the permissions are sshd's");
     assert.ok(setUp.stdout.includes(process.env.E2E_SSH_FINGERPRINT), `it printed the host key's fingerprint: ${setUp.stdout}`);
-    pagePost({ label: "box2", host: `127.0.0.1:${process.env.E2E_SSH_PORT}`, login: "sandbox", fingerprint: setUp.stdout.trim(), public: spare.split(" ").slice(0, 2).join(" "), sealed: "" });
+    pagePost({ label: "box2", host: `127.0.0.1:${process.env.E2E_SSH_PORT}`, login: "sandbox", fingerprint: setUp.stdout.trim(), public: spare, sealed: "" });
     await call({ action: "library" });
     for (let i = 0; i < 200 && [undefined, "not tried yet"].includes(status("box2")); i++) await new Promise((r) => setTimeout(r, 100));
     assert.equal(status("box2"), "signed in", "the machine added with the page's command signs in with the page's key");

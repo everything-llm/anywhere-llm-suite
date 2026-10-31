@@ -17,7 +17,7 @@ import test from "node:test";
 import ssh2 from "ssh2";
 import { listen } from "#shared/test-helpers";
 import { sshFingerprint } from "#shared/thishost";
-import { call as called, library, LIBRARY_CARD, pageConfig, pageState, post, publicDir, reset, seal as sealWith, storage, THIS_HOST_FINGERPRINT, until } from "./harness.mts";
+import { call as called, keyPair, library, LIBRARY_CARD, pageConfig, pageState, post, publicDir, reset, seal as sealWith, storage, THIS_HOST_FINGERPRINT, until } from "./harness.mts";
 
 const { Server, utils } = ssh2;
 
@@ -47,8 +47,8 @@ const LOOK_MS = 30_000;
 /** `text` sealed as the Library page seals it (harness seal), with the key the page has. */
 const seal = (text: string): string => sealWith(text, pageConfig().pub);
 
-const hostKey = utils.generateKeyPairSync("ed25519");
-const otherHostKey = utils.generateKeyPairSync("ed25519");
+const hostKey = keyPair();
+const otherHostKey = keyPair();
 const fingerprint = (pub: string) => sshFingerprint(Buffer.from(pub.split(" ")[1], "base64"));
 
 /** Misbehaviour of the stand-in's SFTP, by the path it concerns: removing it fails, and a rename to it
@@ -152,8 +152,9 @@ function runReach(command: string, urls: string[]): Promise<{ out: string; code:
 }
 
 /** What the stand-in saw, for the tests to check: sign-ins tried, naps going at once, channels
- *  refused, hung commands started, and their connections closed. */
-const seen = { auths: 0, open: 0, most: 0, refused: [] as string[], hung: 0, closed: 0, execs: 0, unanswered: 0, authDelay: 0, fetched: [] as string[] };
+ *  refused, hung commands started and their connections closed, and the connections that used SFTP
+ *  closed (a try's look at what the machine reaches is one). */
+const seen = { auths: 0, open: 0, most: 0, refused: [] as string[], hung: 0, closed: 0, sftpClosed: 0, execs: 0, unanswered: 0, authDelay: 0, fetched: [] as string[] };
 let allowed: ssh2.ParsedKey | null = null;
 
 const standIn = (key: string) =>
@@ -171,7 +172,7 @@ const standIn = (key: string) =>
         const session = accept();
         session.on("sftp", (acceptSftp) => {
           serveFiles(acceptSftp());
-          client.on("close", () => seen.closed++);
+          client.on("close", () => seen.sftpClosed++);
         });
         session.on("exec", (acceptExec, _reject, info) => {
           const command = info.command;
@@ -225,16 +226,16 @@ const printed = (pub: string) => `256 ${fingerprint(pub)} root@box (ED25519)`;
 /** Adds the machine "box" on the page as the user does: its address and account, the line the setup
  *  command printed, and the page's key the command carried (the spare), unless a key is pasted. The
  *  stand-in accepts that key, as running the command before the save does, unless `ran` is false.
- *  Waits for the sign-in the page tries after a save (what it then looks at may still be going).
+ *  Waits for the try the page makes after a save to end: the sign-in and the look at what it reaches.
  *  127.0.0.1 is a private address by itself, so nothing says it is one. */
 async function register(fields: Record<string, unknown> = {}, pasted?: { private: string; public: string }, base?: string, ran = true) {
   await call({ action: "secret", kind: "ssh", label: "box" });
   const spare = pageState().spare;
   if (pasted) allowed = utils.parseKey(pasted.public) as ssh2.ParsedKey;
   else if (ran) allowed = utils.parseKey(spare) as ssh2.ParsedKey;
-  post({ secret: pageConfig().secret, ev: "target-save", label: "box", host: "127.0.0.1", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), public: pasted ? "" : spare, sealed: pasted ? seal(pasted.private) : "", ...fields });
+  post({ secret: pageConfig().secret, ev: "target-save", label: "box", host: `127.0.0.1:${PORT}`, login: "sandbox", fingerprint: printed(hostKey.public), public: pasted ? "" : spare, sealed: pasted ? seal(pasted.private) : "", ...fields });
   await called({ action: "library" }, { slug: "work", base });
-  await until(() => (boxState()?.status ?? "not tried yet") !== "not tried yet", SIGN_IN_MS);
+  await until(() => boxState() && !boxState().trying, SIGN_IN_MS + LOOK_MS);
   const saved = boxState();
   if (saved.public) allowed = utils.parseKey(saved.public) as ssh2.ParsedKey;
   return saved;
@@ -251,7 +252,7 @@ const result = (said: string) => JSON.parse(said.match(/Result \(JSON\):\n([\s\S
 
 test.beforeEach(() => {
   reset();
-  Object.assign(seen, { auths: 0, open: 0, most: 0, refused: [], hung: 0, closed: 0, execs: 0, unanswered: 0, authDelay: 0, fetched: [] });
+  Object.assign(seen, { auths: 0, open: 0, most: 0, refused: [], hung: 0, closed: 0, sftpClosed: 0, execs: 0, unanswered: 0, authDelay: 0, fetched: [] });
   Object.assign(machine, { tools: true, serve: () => null, hostname: "vm-1", uid: "1001", sees: false });
   (globalThis as unknown as Record<symbol, unknown>)[THISHOST_RECORD] = { fingerprints: [THIS_HOST_FINGERPRINT], addresses: [] };
   failRemove.clear();
@@ -286,12 +287,12 @@ test("a target is asked for and registered on the page, with a key made there wh
 });
 
 test("a pasted key signs in; a key that isn't one, or a line without a fingerprint, isn't saved", async () => {
-  const mine = utils.generateKeyPairSync("ed25519");
+  const mine = keyPair();
   const box = await register({}, mine);
   assert.equal(box.public, null, "a pasted key's public half is the user's own");
   assert.equal(box.status, "signed in");
   assert.equal(box.problem, null);
-  for (const fields of [{ sealed: seal("not a key") }, { fingerprint: "256 SHA256:short root@box (ED25519)" }]) post({ secret: pageConfig().secret, ev: "target-save", label: "bad", host: "127.0.0.1", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), ...fields });
+  for (const fields of [{ sealed: seal("not a key") }, { fingerprint: "256 SHA256:short root@box (ED25519)" }]) post({ secret: pageConfig().secret, ev: "target-save", label: "bad", host: `127.0.0.1:${PORT}`, login: "sandbox", fingerprint: printed(hostKey.public), ...fields });
   await call({ action: "library" });
   assert.deepEqual(pageState().targets.map((t: { label: string }) => t.label), ["box"], "none of them was saved");
 });
@@ -310,21 +311,24 @@ test("the page's key is made before the machine is saved: the setup command carr
   await until(() => boxState().status === "signed in", SIGN_IN_MS);
   // A command copied before that save carries the key box took: another machine can't take it.
   const n = pageState().result.n;
-  post({ secret: pageConfig().secret, ev: "target-save", label: "two", host: "127.0.0.2", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), public: spare, sealed: "" });
+  post({ secret: pageConfig().secret, ev: "target-save", label: "two", host: `127.0.0.2:${PORT}`, login: "sandbox", fingerprint: printed(hostKey.public), public: spare, sealed: "" });
   await call({ action: "library" });
   await until(() => pageState().result.n > n);
   assert.deepEqual({ ...pageState().result, n: 0 }, { n: 0, ev: "target-save", label: "two", error: "This command’s key was used for another machine. Copy the command again and run it on the machine.", field: "command" });
   assert.deepEqual(pageState().targets.map((t: { label: string }) => t.label), ["box"]);
 });
 
+/** Switches "Scheduled jobs may use it" on (or off) for the machine "box", as the page does. */
+async function letJobs(on = true) {
+  post({ secret: pageConfig().secret, ev: "target-unattended", label: "box", on });
+  await call({ action: "library" });
+  await until(() => boxState().unattended === on);
+}
+
 test("Scheduled jobs may use it: the page's switch, on and off", async () => {
   await register();
   assert.equal(boxState().unattended, false);
-  for (const on of [true, false]) {
-    post({ secret: pageConfig().secret, ev: "target-unattended", label: "box", on });
-    await call({ action: "library" });
-    await until(() => boxState().unattended === on);
-  }
+  for (const on of [true, false]) await letJobs(on);
 });
 
 test("a function runs a command on its toolkit's target: its exit, output and error, and its stdin", async () => {
@@ -356,7 +360,7 @@ test("a function names a target and nothing else of it: a host, a key or a targe
 });
 
 test("a host key other than the one pinned is refused before signing in, and nothing is sent", async () => {
-  await register({ port: IMPOSTER_PORT });
+  await register({ host: `127.0.0.1:${IMPOSTER_PORT}` });
   await ops();
   seen.auths = 0;
   const said = await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } });
@@ -382,9 +386,8 @@ test("a stopped run stops the command it's waiting on", async () => {
   const started = await call({ action: "run", name: "ops.run", inputs: { req: { command: "hang", timeout_s: 60 } } });
   const id = started.match(/\((r-[\w-]+)\)/)![1];
   await until(() => seen.hung > 0);
-  const closed = seen.closed; // a look at what it reaches, on the same connection, may close an SFTP session too
   assert.match(await call({ action: "run", run_id: id, stop: true }), /ops\.run.*stopped/);
-  await until(() => seen.closed > closed);
+  await until(() => seen.closed === 1);
 });
 
 test("channels the machine opens toward the library (a remote forward, X11) are refused", async () => {
@@ -398,7 +401,7 @@ test("scheduled jobs use a target only when the user lets them, and a target tak
   await register();
   await ops();
   assert.match(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }, null), /scheduled jobs don't use the target "box": the user switches on "Scheduled jobs may use it" for it on the Library page, under Machines/);
-  await register({ unattended: true });
+  await letJobs();
   assert.match(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } }, null), /"stdout": "hi\\n"/);
   const naps = await Promise.all(Array.from({ length: 6 }, () => call({ action: "run", name: "ops.run", inputs: { req: { command: "nap" } } })));
   for (const n of naps) assert.match(n, /"exit": 0/);
@@ -509,9 +512,9 @@ test("a stopped run ends the transfer it's waiting on, and leaves no part file b
   const started = await call({ action: "run", name: "ops.file", inputs: { call: "put", req: { path: "stall.bin", content: "z" } } });
   const id = started.match(/\((r-[\w-]+)\)/)![1];
   await until(() => [...files.keys()].some((k) => k.startsWith("stall.bin.part-")));
-  seen.closed = 0;
+  seen.sftpClosed = 0;
   assert.match(await call({ action: "run", run_id: id, stop: true }), /ops\.file.*stopped/);
-  await until(() => seen.closed === 1);
+  await until(() => seen.sftpClosed === 1);
   assert.ok(!files.has("stall.bin"), "nothing was moved into place");
   await until(() => ![...files.keys()].some((k) => k.startsWith("stall.bin.part-")), 10_000); // removed over a connection of its own
 });
@@ -612,7 +615,7 @@ test("a name that looks public and resolves to a private address is refused when
     assert.equal(refused.problem, "fenced", "the page says to give the address itself");
     assert.equal(refused.private, false, "a name that looks public is public");
     assert.equal(seen.auths, 0, "no sign-in was tried");
-    const itself = await register({ host: "127.0.0.1" });
+    const itself = await register({ host: `127.0.0.1:${PORT}` });
     assert.equal(itself.status, "signed in", "a private address is let through, at its own host and port");
   } finally {
     dns.lookup = lookup;
@@ -675,7 +678,7 @@ test("a transfer that runs past its time is ended and its part file removed", as
 });
 
 test("a pasted private key is in no run record, log, page or vault file", async () => {
-  const mine = utils.generateKeyPairSync("ed25519");
+  const mine = keyPair();
   const body = mine.private.split("\n").filter((l) => l && !l.startsWith("-----"))[0];
   await register({}, mine);
   await ops();
@@ -701,21 +704,22 @@ test("moving a target to another host, port or account drops its key; an edit th
   const first = await register();
   const edit = async (fields: Record<string, unknown>) => {
     const n = pageState().result?.n ?? 0;
-    post({ secret: pageConfig().secret, ev: "target-save", label: "box", host: "127.0.0.1", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "", ...fields });
+    post({ secret: pageConfig().secret, ev: "target-save", label: "box", host: `127.0.0.1:${PORT}`, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "", ...fields });
     await call({ action: "library" });
     await until(() => (pageState().result?.n ?? 0) > n);
     await until(() => boxState().status !== "not tried yet", SIGN_IN_MS);
     return boxState();
   };
-  const same = await edit({ unattended: true, fingerprint: printed(otherHostKey.public), public: first.public });
-  assert.equal(same.public, first.public, "the switch and the fingerprint change (set up again), the key stays");
+  await letJobs();
+  const same = await edit({ fingerprint: printed(otherHostKey.public), public: first.public });
+  assert.equal(same.public, first.public, "the fingerprint changes (set up again), the key stays");
   assert.equal((await edit({ fingerprint: printed(hostKey.public), public: first.public })).unattended, true, "set up again in the same place, it keeps the switch");
-  for (const moved of [{ host: "127.0.0.2" }, { port: PORT + 1 }, { login: "other" }]) {
+  for (const moved of [{ host: `127.0.0.2:${PORT}` }, { host: `127.0.0.1:${PORT + 1}` }, { login: "other" }]) {
     const was = boxState().public;
     const now = await edit(moved);
     assert.match(now.public, /^ssh-ed25519 AAAA\S+ library-lean box$/);
     assert.notEqual(now.public, was, `${JSON.stringify(moved)}: a new key is made, whose line goes in the new account's authorized_keys`);
-    await edit({ host: "127.0.0.1", port: PORT, login: "sandbox" });
+    await edit({ host: `127.0.0.1:${PORT}`, login: "sandbox" });
   }
 });
 
@@ -725,7 +729,7 @@ test("a target can't be this machine: a literal address, a name, or a name that 
     const saved = () => pageState().targets.map((t: { label: string }) => t.label);
     const refusal = async (label: string, host: string) => {
       const n = pageState().result?.n ?? 0;
-      post({ secret: pageConfig().secret, ev: "target-save", label, host, port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "" });
+      post({ secret: pageConfig().secret, ev: "target-save", label, host, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "" });
       await call({ action: "library" });
       await until(() => (pageState().result?.n ?? 0) > n);
       return pageState().result.error as string | null;
@@ -762,7 +766,7 @@ const BASE = "http://anythingllm.test:3001";
 const reachLeft = () => (fs.existsSync(path.join(publicDir, "library-lean")) ? fs.readdirSync(path.join(publicDir, "library-lean")).filter((n) => n.startsWith("reach-")) : []);
 /** Registers "box" with a pasted key, so the first sign-in works, and waits for what it reaches to be kept. */
 async function registered(base: string | null = BASE) {
-  const box = await register({}, utils.generateKeyPairSync("ed25519"), base ?? undefined);
+  const box = await register({}, keyPair(), base ?? undefined);
   await until(() => boxState().notes.length > 0 || boxState().barred !== null, LOOK_MS);
   return { ...box, ...boxState() };
 }
@@ -857,13 +861,16 @@ test("it warns, without refusing, of an AnythingLLM with no password, and the va
 // This machine, by what is recorded of it (shared/thishost.mts, written by the installer on the host).
 const record = (value: unknown) => ((globalThis as unknown as Record<symbol, unknown>)[THISHOST_RECORD] = value);
 const recordFile = () => path.join(storage, "anywherellm-suite", "this-host.json");
-/** Saves a target the page way and answers the refusal the page shows, or null when it was saved. */
+/** Saves a target the page way and answers the refusal the page shows, or null when it was saved,
+ *  once the try the page makes after it has ended. */
 async function savedAs(label: string, fields: Record<string, unknown>, base?: string) {
   const n = pageState().result?.n ?? 0;
-  post({ secret: pageConfig().secret, ev: "target-save", label, host: "127.0.0.1", port: PORT, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "", ...fields });
+  post({ secret: pageConfig().secret, ev: "target-save", label, host: `127.0.0.1:${PORT}`, login: "sandbox", fingerprint: printed(hostKey.public), sealed: "", ...fields });
   await called({ action: "library" }, { slug: "work", base });
   await until(() => (pageState().result?.n ?? 0) > n);
-  return pageState().result.error as string | null;
+  const error = pageState().result.error as string | null;
+  if (!error) await until(() => !pageState().targets.find((t: { label: string }) => t.label === label)?.trying, SIGN_IN_MS + LOOK_MS);
+  return error;
 }
 
 test("without a good record of this machine no target is saved or used", async () => {
@@ -900,7 +907,7 @@ test("a machine that shows this host's SSH host key is refused, whatever its add
   assert.deepEqual(pageState().targets, []);
   // Saved with a fingerprint that isn't this host's, at a machine that shows this host's key: the
   // key it shows is what is refused, before anything is sent.
-  assert.equal(await savedAs("twin", { port: IMPOSTER_PORT }), null);
+  assert.equal(await savedAs("twin", { host: `127.0.0.1:${IMPOSTER_PORT}` }), null);
   await until(() => pageState().targets.find((t: { label: string }) => t.label === "twin")?.status !== "not tried yet", SIGN_IN_MS);
   const twin = pageState().targets.find((t: { label: string }) => t.label === "twin");
   assert.match(twin.status, /is this machine: SHA256:\S+ is this machine's own SSH host key.*Nothing was sent/);
@@ -943,7 +950,7 @@ test("every save looks at what the target reaches again, not only the first", as
   assert.equal(first.barred, null);
   const before = seen.fetched.length;
   machine.serve = pageOf;
-  assert.equal(await savedAs("box", { unattended: true }, BASE), null, "saved again, only its switch changed");
+  assert.equal(await savedAs("box", {}, BASE), null, "saved again as it was");
   await until(() => boxState().barred !== null, LOOK_MS);
   assert.ok(seen.fetched.length > before, "looked at again");
   assert.match(boxState().barred, /can fetch/);

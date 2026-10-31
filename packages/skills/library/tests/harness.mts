@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
+import ssh2 from "ssh2";
 import { pageKeyFile } from "#shared/anythingllm";
 import { writeAtomic } from "#shared/atomic";
 import { hiddenFile, linksFile } from "#shared/page-links";
@@ -62,6 +63,16 @@ const handler = (): ((this: unknown, args: Record<string, unknown>) => Promise<s
   delete require.cache[bundle];
   return require(bundle).runtime.handler;
 };
+
+/** A new ed25519 key pair ssh2 parses back, as src/targets.ts `made` makes the page's: its generator
+ *  makes one its own parser calls malformed about once in 200, which fails whatever signs in with it. */
+export function keyPair(): { private: string; public: string } {
+  for (;;) {
+    const pair = ssh2.utils.generateKeyPairSync("ed25519");
+    const parsed = ssh2.utils.parseKey(pair.private);
+    if (!(parsed instanceof Error) && !Array.isArray(parsed) && parsed.isPrivateKey()) return pair;
+  }
+}
 
 /** Waits until `ok` holds, as what runs in the background gets there, for at most `ms`. */
 export async function until(ok: () => boolean, ms = 4000): Promise<void> {

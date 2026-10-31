@@ -200,7 +200,8 @@ test("the address tells a private one, in place of a tick: a name of this networ
     ["lan", { host: "Box.Internal:2222" }, { host: "box.internal", port: 2222, private: true }],
     ["single", { host: "nas" }, { host: "nas", port: 22, private: true }],
     ["public", { host: "box.invalid", private: true }, { host: "box.invalid", port: 22, private: false }],
-    ["apart", { host: "box.internal", port: "2200" }, { host: "box.internal", port: 2200, private: true }],
+    ["v6", { host: "[FD00::1]:2200" }, { host: "fd00::1", port: 2200, private: true }],
+    ["bare-v6", { host: "fd00::2" }, { host: "fd00::2", port: 22, private: true }],
   ];
   for (const [label, fields, want] of saved) {
     const n = pageState().result?.n ?? 0;

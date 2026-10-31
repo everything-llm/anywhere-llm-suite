@@ -258,13 +258,12 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
       return { relist: true };
     case "target-save": {
       const sealed = text(e.sealed, 20000);
-      const name = await targets.save({ label, host: e.host, port: e.port, login: e.login, fingerprint: e.fingerprint, unattended: e.unattended, public: e.public, key: sealed ? vault.openSealed(sealed) : "" });
+      const name = await targets.save({ label, host: e.host, login: e.login, fingerprint: e.fingerprint, public: e.public, key: sealed ? vault.openSealed(sealed) : "" });
       return { met: needId("target", name), check: name };
     }
     case "target-check": {
       const name = targets.nameOf(label);
-      await targets.trying(name);
-      return { check: name };
+      return (await targets.trying(name)) ? { check: name } : null; // tried already: a second tap
     }
     case "target-unattended":
       await targets.setUnattended(targets.nameOf(label), e.on === true);
