@@ -175,8 +175,10 @@ test("each app's page is drawn as a picture, its HTML in a frame sandboxed with 
   assert.match(script, /\["sandbox", "allow-scripts"\]/);
   assert.doesNotMatch(html, /allow-same-origin|allow-top-navigation|allow-popups|allow-forms/, "nothing more than scripts: the page has an origin of its own");
   assert.match(script, /frame\.srcdoc = /, "AnythingLLM forbids framing what it serves, so the page is the frame's document");
+  assert.match(script, /<html data-picture/, "and it says it's a picture");
   assert.match(script, /pic\.inert = true/, "it takes no tap or focus");
   assert.match(script, /e\.data !== "apps-lean:drawn"/);
   const runtime = fs.readFileSync(path.join(skillDir, "static", "runtime-lean.js"), "utf8");
+  assert.match(runtime, /hasAttribute\("data-picture"\)/, "a page is a picture only when the manager says so");
   assert.match(runtime, /postMessage\("apps-lean:drawn", "\*"\)/, "the page says what the manager waits for");
 });

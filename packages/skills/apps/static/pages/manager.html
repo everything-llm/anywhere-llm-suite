@@ -1057,8 +1057,9 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   // nothing (runtime-lean.js) and says once it's drawn; until then, and for good where it can't be read
   // or doesn't say so in time, the tile shows the app's icon.
   const PAGE_WIDTH = 390, DRAWN_MS = 6000;
-  // The page in the theme this page has now, as ?theme would give it.
-  const themed = (html) => { const t = shownTheme(); return t ? html.replace(/<html\b/i, `<html data-theme="${t}"`) : html; };
+  // The page as a picture (data-picture: its runtime draws it and reads and posts nothing), in the
+  // theme this page has now, as ?theme would give it.
+  const pictured = (html) => { const t = shownTheme(); return html.replace(/<html\b/i, `<html data-picture${t ? ` data-theme="${t}"` : ""}`); };
   async function frameIn(pic, page) {
     let html;
     try {
@@ -1071,7 +1072,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     if (!pic.isConnected) return;
     const frame = document.createElement("iframe");
     for (const [k, v] of [["sandbox", "allow-scripts"], ["referrerpolicy", "no-referrer"], ["tabindex", "-1"], ["title", ""]]) frame.setAttribute(k, v);
-    frame.srcdoc = themed(html);
+    frame.srcdoc = pictured(html);
     // A page that doesn't say it's drawn soon after it loads (it broke, or an older page that keeps
     // up and would go on reading) is taken out: the icon stays.
     frame.addEventListener("load", () => setTimeout(() => pic.classList.contains("drawn") || frame.remove(), DRAWN_MS), { once: true });

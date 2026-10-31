@@ -86,9 +86,9 @@ const browsers: (() => void)[] = [];
 afterEach(() => browsers.splice(0).forEach((close) => close()));
 
 /** Runs a rendered page's scripts (the stand-in, the patch library and app.js) against a small stand-in for a browser,
- *  with `served` as what reading the page's state file gives; with `picture`, as the document of a frame (srcdoc),
- *  whose parent's messages are kept. */
-function browser(html: string, { stored = null, served = () => "{}", typing = false, picture = false }: { stored?: unknown; served?: () => string; typing?: boolean; picture?: boolean } = {}) {
+ *  with `served` as what reading the page's state file gives; `framed`, as the document of a frame (srcdoc), whose
+ *  parent's messages are kept. */
+function browser(html: string, { stored = null, served = () => "{}", typing = false, framed = false }: { stored?: unknown; served?: () => string; typing?: boolean; framed?: boolean } = {}) {
   const lean = html.match(/<script id="apps-lean" type="application\/json">(.*?)<\/script>/)![1];
   const scripts = parts.scriptsOf(html);
   const posted: any[] = [];
@@ -109,15 +109,16 @@ function browser(html: string, { stored = null, served = () => "{}", typing = fa
     // Fast, and none once closed, so the runtime's sync loop stops with the test.
     setTimeout: (fn: () => void, ms: number) => (open ? setTimeout(fn, Math.min(ms, 20)) : 0), clearTimeout,
     localStorage: storage,
-    location: picture ? { protocol: "about:", href: "about:srcdoc", pathname: "srcdoc", search: "", reload() {} } : { protocol: "https:", href: "https://x/apps-lean/p.html", pathname: "/apps-lean/p.html", search: "", reload: () => void seen.reloads++ },
+    location: framed ? { protocol: "about:", href: "about:srcdoc", pathname: "srcdoc", search: "", reload() {} } : { protocol: "https:", href: "https://x/apps-lean/p.html", pathname: "/apps-lean/p.html", search: "", reload: () => void seen.reloads++ },
     document: {
+      documentElement: { hasAttribute: (name: string) => new RegExp(`<html\\b[^>]*\\s${name}[\\s=>]`, "i").test(html) },
       getElementById: (id: string) => (id === "apps-lean" ? { textContent: lean } : null), addEventListener() {}, removeEventListener() {}, visibilityState: "visible", hidden: false,
       activeElement: typing ? { tagName: "INPUT" } : null, createElement: element, readyState: "complete", body: { append: (el: any) => void (el.textContent && seen.bars.push(el.textContent)) },
     },
     fetch, addEventListener: (type: string, fn: () => void) => void (type === "load" && loads.push(fn)),
   };
   ctx.window = ctx;
-  ctx.parent = picture ? { postMessage: (message: unknown, to: string) => void messages.push([message, to]) } : ctx;
+  ctx.parent = framed ? { postMessage: (message: unknown, to: string) => void messages.push([message, to]) } : ctx;
   ctx.self = ctx;
   vm.createContext(ctx);
   // The stand-in, then app.js; the app is started as the template does, with what changed seen.
@@ -182,9 +183,11 @@ test("a page whose parts changed reloads, unless the user is typing; a deleted a
   deleted.close();
 });
 
-test("a page framed as a picture shows what it was written with, reads and saves nothing, and says when it's drawn", async () => {
+test("a page the manager frames as a picture shows what it was written with, reads and saves nothing, and says when it's drawn", async () => {
   const html = render({ ...groceries([{ text: "Eggs", done: false }]), secret: "s1" }, "home", "brx-k")!;
-  const page = browser(html, { picture: true, served: () => JSON.stringify(stateOf({ ...groceries([]), line: 9 })), stored: { pending: [{ id: "x", patch: [{ op: "replace", path: "/items/0/done", value: true }] }] } });
+  const options = { framed: true, served: () => JSON.stringify(stateOf({ ...groceries([]), line: 9 })), stored: { pending: [{ id: "x", patch: [{ op: "replace", path: "/items/0/done", value: true }] }] } };
+  // As the manager gives it to its frame.
+  const page = browser(html.replace(/<html\b/i, "<html data-picture"), options);
   assert.deepEqual(value(page.ctx, "App.data.items"), [{ text: "Eggs", done: false }], "its own data, not this browser's unsaved changes");
   const saved = await vm.runInContext(`App.patch([{op: "replace", path: "/items/0/done", value: true}], {ev: "tick"})`, page.ctx);
   await settle(300);
@@ -194,6 +197,14 @@ test("a page framed as a picture shows what it was written with, reads and saves
   page.loads.forEach((fn) => fn());
   await settle(200);
   assert.deepEqual(page.messages, [["apps-lean:drawn", "*"]]);
+  // Framed any other way, it's a page: this browser's unsaved changes over its data, and a change posted.
+  const framed = browser(html, options);
+  assert.deepEqual(value(framed.ctx, "App.data.items"), [{ text: "Eggs", done: true }]);
+  await vm.runInContext(`App.patch([{op: "replace", path: "/items/0/text", value: "Milk"}], {ev: "rename"})`, framed.ctx);
+  framed.loads.forEach((fn) => fn());
+  await settle(300);
+  assert.equal(framed.posted.length, 1);
+  assert.deepEqual(framed.messages, []);
   // The same page opened on its own keeps up, as before.
   const open = browser(html, { served: () => JSON.stringify(stateOf({ ...groceries([]), line: 9 })) });
   await settle(300);
