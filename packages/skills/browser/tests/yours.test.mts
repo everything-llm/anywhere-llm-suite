@@ -95,6 +95,7 @@ test("a search or an address on a tab's page opens a tab of the user's own, list
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(publicDir, "browser-lean", `${yours.token}.json`), "utf8")), { closed: true });
   assert.deepEqual(tabState("own").tabs.map((t: { made: string | null }) => t.made), [null, null], "the two chats' tabs left");
   assert.equal(browserState().browsers.get("own")!.yours.size, 0);
+  assert.equal((pageAt("https://mine.example/home").context as { closed: boolean }).closed, true, "its browser context closed with the last of the user's tabs");
 });
 
 test("a search uses SEARCH_URL, else DuckDuckGo; an address the fence refuses opens nothing and is said where it was asked", async () => {

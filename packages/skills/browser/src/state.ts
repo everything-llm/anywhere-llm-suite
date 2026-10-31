@@ -94,7 +94,7 @@ export interface Entry {
   /** The tabs the user opened themselves (YOURS), which the agent never reaches: each one's page, and
    *  the id the page that asked for it gave (`made`), for that page to find it. */
   yours: Map<string, { page: Page; made: string }>;
-  /** Their browser context, made with the first (browser.ts). */
+  /** Their browser context, made with the first and closed with the last (browser.ts). */
   context: Promise<Context> | null;
   /** How many the user opened, for the next one's name. */
   opened: number;

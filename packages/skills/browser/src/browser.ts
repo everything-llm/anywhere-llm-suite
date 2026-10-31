@@ -92,10 +92,15 @@ function saveSoon(workspace: string, entry: Entry): void {
 /** At most this many tabs the user opened themselves, in each workspace's browser. */
 export const MAX_YOURS = 8;
 
-/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed. */
+/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed.
+ *  With the user's last tab of their own goes their browser context, and its cookies. */
 function dropTab(workspace: string, entry: Entry, key: string): void {
   entry.tabs.delete(key);
   entry.yours.delete(key);
+  if (!entry.yours.size && entry.context) {
+    void entry.context.then((context) => context.close()).catch(() => {});
+    entry.context = null;
+  }
   entry.notes.delete(key);
   entry.needs.delete(key);
   entry.offers.delete(key);
