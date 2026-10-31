@@ -789,7 +789,8 @@ a{color:inherit;text-decoration:none}
 main{flex:1 0 auto;box-sizing:border-box;width:100%;max-width:640px;margin:0 auto;padding:4px max(16px,env(safe-area-inset-right,0px)) calc(32px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
 .lead,.cap{margin:0;padding:0 8px;font-size:0.8125rem;line-height:1.4;color:var(--ink)}
 section{display:flex;flex-direction:column;gap:var(--space-4)}
-#apps{gap:var(--space-7)}
+/* --pic-scale: the pictures' scale, from the page's width to the tiles', set by the script. */
+#apps{gap:var(--space-7);--pic-scale:1}
 /* The apps: a group for each workspace, each app a picture of its page with its title under it. */
 .ws{gap:var(--space-3)}
 .ws h2{margin:0;padding:0 4px;font-size:1rem;font-weight:600;line-height:1.4;overflow-wrap:break-word}
@@ -800,8 +801,8 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .pic{display:block;position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;border-radius:var(--radius-lg);border:1px solid var(--line-strong);background:var(--ground);box-shadow:var(--shadow-tile)}
 .pic .none{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-2);background:var(--sunken);color:var(--ink);text-align:center}
 .pic .none small{font-size:0.8125rem;line-height:1.4}
-/* The page at a phone's width (390 px), scaled to the tile by the script; shown once it says it's drawn. */
-.pic iframe{position:absolute;left:0;top:0;width:390px;height:487.5px;border:0;transform-origin:0 0;pointer-events:none;opacity:0}
+/* The page at a phone's width (390 px), scaled to the tile; shown once it says it's drawn. */
+.pic iframe{position:absolute;left:0;top:0;width:390px;height:487.5px;border:0;transform:scale(var(--pic-scale));transform-origin:0 0;pointer-events:none;opacity:0}
 .pic.drawn iframe{opacity:1}
 .pic.drawn .none{visibility:hidden}
 /* ⋯ sits level with the title's last line, at any text size. */
@@ -1056,84 +1057,125 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   // or submit, and it is inert, so it takes no tap or focus. Framed so, the page reads and posts
   // nothing (runtime-lean.js) and says once it's drawn; until then, and for good where it can't be read
   // or doesn't say so in time, the tile shows the app's icon.
-  const PAGE_WIDTH = 390, DRAWN_MS = 6000;
+  const PAGE_WIDTH = 390, DRAWN_MS = 6000, LIVE_MAX = 12;
   // The page as a picture (data-picture: its runtime draws it and reads and posts nothing), in the
   // theme this page has now, as ?theme would give it.
   const pictured = (html) => { const t = shownTheme(); return html.replace(/<html\b/i, `<html data-picture${t ? ` data-theme="${t}"` : ""}`); };
-  async function frameIn(pic, page) {
-    let html;
-    try {
-      const res = await fetch(page, { cache: "no-cache" });
-      if (!res.ok || !/html/i.test(res.headers.get("content-type") || "")) return;
-      html = await res.text();
-    } catch {
-      return;
-    }
-    if (!pic.isConnected) return;
+  // Each page's HTML as read, by its address and last change, or null where it can't be read or
+  // isn't drawn in time: a frame dropped off screen comes back with no fetch, and a broken one doesn't.
+  const htmls = new Map();
+  const htmlKey = (pic) => `${pic.dataset.page} ${pic.dataset.changed}`;
+  function read(pic) {
+    const key = htmlKey(pic);
+    if (!htmls.has(key))
+      htmls.set(key, fetch(pic.dataset.page, { cache: "no-cache" }).then((res) => (res.ok && /html/i.test(res.headers.get("content-type") || "") ? res.text() : null)).catch(() => null));
+    return htmls.get(key);
+  }
+  // The frames there are, least recently near the screen first, and the pictures near it (400 px).
+  // Past LIVE_MAX the least recent one not near goes, and one about two screens away goes too.
+  const live = new Map(), close = new Set();
+  function drop(pic) {
+    live.get(pic)?.remove();
+    live.delete(pic);
+    pic.classList.remove("drawn");
+  }
+  async function frameIn(pic) {
+    const html = await read(pic);
+    if (html === null || !close.has(pic) || live.has(pic)) return;
     const frame = document.createElement("iframe");
     for (const [k, v] of [["sandbox", "allow-scripts"], ["referrerpolicy", "no-referrer"], ["tabindex", "-1"], ["title", ""]]) frame.setAttribute(k, v);
     frame.srcdoc = pictured(html);
     // A page that doesn't say it's drawn soon after it loads (it broke, or an older page that keeps
     // up and would go on reading) is taken out: the icon stays.
-    frame.addEventListener("load", () => setTimeout(() => pic.classList.contains("drawn") || frame.remove(), DRAWN_MS), { once: true });
+    frame.addEventListener("load", () => setTimeout(() => {
+      if (live.get(pic) === frame && !pic.classList.contains("drawn")) htmls.set(htmlKey(pic), Promise.resolve(null)), drop(pic);
+    }, DRAWN_MS), { once: true });
     pic.append(frame);
-    fit();
+    live.set(pic, frame);
+    for (const old of live.keys()) if (live.size > LIVE_MAX && !close.has(old)) drop(old);
   }
-  const near = typeof IntersectionObserver === "function"
-    ? new IntersectionObserver((seen) => { for (const e of seen) if (e.isIntersecting) near.unobserve(e.target), frameIn(e.target, e.target.dataset.page); }, { rootMargin: "400px 0px" })
-    : { observe: (pic) => frameIn(pic, pic.dataset.page) };
+  const watcher = (fn, rootMargin) => (typeof IntersectionObserver === "function" ? new IntersectionObserver(fn, { rootMargin })
+    : { observe: (target) => fn([{ target, isIntersecting: true }]), unobserve() {}, disconnect() {} });
+  const near = watcher((seen) => {
+    for (const { target: pic, isIntersecting } of seen) {
+      if (!isIntersecting) { close.delete(pic); continue; }
+      close.add(pic);
+      const frame = live.get(pic);
+      if (frame) live.delete(pic), live.set(pic, frame); // the most recent now
+      else frameIn(pic);
+    }
+  }, "400px 0px");
+  const far = watcher((seen) => { for (const e of seen) if (!e.isIntersecting) drop(e.target); }, "200% 0px");
   function picture(app) {
     const pic = el("span", { className: "pic" }, el("span", { className: "none" }, icon(GRID, 32), app.page ? null : el("small", { textContent: "No page yet" })));
     pic.inert = true;
     pic.setAttribute("aria-hidden", "true");
-    if (app.page) (pic.dataset.page = app.page), near.observe(pic);
+    if (app.page) Object.assign(pic.dataset, { page: app.page, changed: app.changed }), near.observe(pic), far.observe(pic);
     return pic;
   }
+  const forget = (pic) => { near.unobserve(pic), far.unobserve(pic), close.delete(pic), drop(pic); };
   window.addEventListener("message", (e) => {
     if (e.data !== "apps-lean:drawn") return;
-    const frame = [...document.querySelectorAll(".pic iframe")].find((f) => f.contentWindow === e.source);
-    frame?.parentNode.classList.add("drawn");
+    for (const [pic, frame] of live) if (frame.contentWindow === e.source) pic.classList.add("drawn");
   });
-  // Each picture scaled from the page's width to its tile's.
+  // The pictures scaled from the page's width to the tiles', which the grid gives them all.
   function fit() {
-    for (const frame of document.querySelectorAll(".pic iframe")) frame.style.transform = `scale(${frame.parentNode.clientWidth / PAGE_WIDTH})`;
+    const pic = $("apps").querySelector(".pic");
+    if (pic) $("apps").style.setProperty("--pic-scale", pic.clientWidth / PAGE_WIDTH);
   }
   if (typeof ResizeObserver === "function") new ResizeObserver(fit).observe($("apps"));
+  // A client that switches the theme while the page is open: the frames there are follow it, from the
+  // HTML already read.
+  new MutationObserver(() => { for (const [pic, frame] of live) read(pic).then((html) => html && (frame.srcdoc = pictured(html))); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-  // The apps are drawn again only when what they show changed: a picture drawn again loads its page again.
-  let shown = null;
+  // `parent`'s children made `kids`, moving only those out of place: a frame moved loads its page again.
+  function place(parent, kids) {
+    for (const old of [...parent.children]) if (!kids.includes(old)) old.remove();
+    kids.forEach((kid, i) => parent.children[i] === kid || parent.insertBefore(kid, parent.children[i] ?? null));
+  }
+  // The tiles by app (workspace/name), each made again only when its title, page or last change did,
+  // and the groups by workspace.
+  const tiles = new Map(), groupsShown = new Map();
+  let groupsMade = 0;
+  function tile(workspace, a) {
+    const key = `${workspace}/${a.name}`, says = JSON.stringify([a.title, a.page, a.changed]), had = tiles.get(key);
+    if (had?.says === says) return had.li;
+    if (had) forget(had.pic);
+    const pic = picture(a), kids = [pic, el("span", { className: "label", textContent: a.title })];
+    const open = a.page
+      ? openPage(a, { className: "open", ariaLabel: `Open ${a.title}` }, ...kids)
+      : el("button", { className: "open", type: "button", ariaLabel: `${a.title}, no page yet`, onclick: () => openApp(key) }, ...kids);
+    open.dataset.key = key;
+    // Its actions as the state has them now, which may be newer than the tile.
+    const more = el("button", { className: "more", type: "button", ariaLabel: `More for ${a.title}`, onclick() { const one = find(key); if (one) actions(one, this); } }, dots());
+    const li = el("li", { className: "tile" }, open, more);
+    tiles.set(key, { says, li, pic });
+    return li;
+  }
+  const blank = el("div", { className: "card blank" }, el("p", { className: "sum", textContent: "No artifacts yet. Ask the agent to make one, and its page shows here." }));
   function drawApps() {
-    const all = groups();
-    const says = JSON.stringify([shownTheme(), all.map((g) => [g.workspace, g.apps.map((a) => [a.name, a.title, a.page, a.changed])])]);
-    if (says === shown) {
-      for (const h of $("apps").querySelectorAll("h2[data-ws]")) h.textContent = named(h.dataset.ws); // its name in AnythingLLM, read since
-      return;
-    }
-    shown = says;
-    const tile = (workspace, a) => {
-      const key = `${workspace}/${a.name}`;
-      const kids = [picture(a), el("span", { className: "label", textContent: a.title })];
-      const open = a.page
-        ? el("a", { className: "open", href: pageHref(a.page), ariaLabel: `Open ${a.title}`, onclick() { this.href = pageHref(a.page); } }, ...kids)
-        : el("button", { className: "open", type: "button", ariaLabel: `${a.title}, no page yet`, onclick: () => openApp(key) }, ...kids);
-      open.dataset.key = key;
-      const more = el("button", { className: "more", type: "button", ariaLabel: `More for ${a.title}` }, dots());
-      more.onclick = () => actions({ workspace, app: a }, more);
-      return el("li", { className: "tile" }, open, more);
-    };
-    const sections = all.map(({ workspace, apps }, i) => {
-      const h = el("h2", { id: `ws-${i}`, textContent: named(workspace) });
-      h.dataset.ws = workspace;
-      const s = el("section", { className: "ws" }, h, el("ul", { className: "grid" }, ...apps.map((a) => tile(workspace, a))));
-      s.setAttribute("aria-labelledby", h.id);
-      return s;
+    const all = groups(), keys = new Set(), pages = new Set();
+    const sections = all.map(({ workspace, apps }) => {
+      let g = groupsShown.get(workspace);
+      if (!g) {
+        const h = el("h2", { id: `ws-${groupsMade++}` }), list = el("ul", { className: "grid" });
+        g = { h, list, section: el("section", { className: "ws" }, h, list) };
+        g.section.setAttribute("aria-labelledby", h.id);
+        groupsShown.set(workspace, g);
+      }
+      g.h.textContent = named(workspace); // its name in AnythingLLM, once read
+      for (const a of apps) keys.add(`${workspace}/${a.name}`), pages.add(`${a.page} ${a.changed}`);
+      place(g.list, apps.map((a) => tile(workspace, a)));
+      return g.section;
     });
-    $("apps").replaceChildren(...(sections.length ? sections : [el("div", { className: "card blank" }, el("p", { className: "sum", textContent: "No artifacts yet. Ask the agent to make one, and its page shows here." }))]));
+    for (const [key, { pic }] of tiles) if (!keys.has(key)) forget(pic), tiles.delete(key);
+    for (const workspace of groupsShown.keys()) if (!all.some((g) => g.workspace === workspace)) groupsShown.delete(workspace);
+    for (const key of htmls.keys()) if (!pages.has(key)) htmls.delete(key);
+    place($("apps"), sections.length ? sections : [blank]);
     fit();
   }
   window.addEventListener("hashchange", () => { ws = wsOf(); draw(); });
-  // A client that switches the theme while the page is open: the pictures follow it.
-  new MutationObserver(() => busy() || draw()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   function drawTrash() {
     $("bin").replaceChildren(icon(BIN, 16), `Trash · ${now.trash.length}`);
@@ -1160,7 +1202,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   }
 
   const baseOf = ({ workspace, app }) => ({ workspace, app: app.name, title: app.title });
-  const openPage = (app, ...label) => el("a", { className: "btn pri", href: pageHref(app.page), onclick() { this.href = pageHref(app.page); } }, ...label);
+  const openPage = (app, props, ...label) => el("a", { className: "btn pri", ...props, href: pageHref(app.page), onclick() { this.href = pageHref(app.page); } }, ...label);
 
   function rename(one, from) {
     const { app } = one;
@@ -1185,7 +1227,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const me = sheet("acts", head, [
       el("div", { className: "hd" }, el("span", { className: "chip", ariaHidden: "true", textContent: initial(app.title) }),
         el("div", { className: "name" }, head, el("small", { textContent: `${named(workspace)} · ${app.name}` })), shut),
-      app.page ? openPage(app, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
+      app.page ? openPage(app, {}, icon(OPEN, 16), "Open the page") : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" },
         el("button", { className: "btn", type: "button", onclick: () => rename(one, from) }, icon(PEN, 16), "Rename"),
         el("button", { className: "btn", type: "button", ariaLabel: "History: changes and earlier versions", onclick: later(() => openApp(`${workspace}/${app.name}`)) }, icon(CLOCK, 16), "History")),
@@ -1204,7 +1246,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const base = baseOf(one);
     const renameButton = el("button", { className: "btn", type: "button", textContent: "Rename" });
     renameButton.onclick = () => rename(one, renameButton);
-    const open = app.page ? openPage(app, "Open the page") : null;
+    const open = app.page ? openPage(app, {}, "Open the page") : null;
     const top = el("div", { className: "card solo" }, app.summary ? el("p", { className: "sum", textContent: app.summary }) : null,
       app.page ? null : el("p", { className: "cap", style: "padding:0", textContent: "It has no page yet: the agent makes one when it builds the artifact." }),
       el("div", { className: "pair" }, open, renameButton));
@@ -1279,6 +1321,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
         $("apps").hidden = false;
         const gone = el("div", { className: "card solo gone", role: "status" }, el("b", { style: "font-weight:600", textContent: "This link was replaced" }),
           el("p", { className: "sum" }, "Open the page again from where you got it: the agent, AnywhereLLM Lite, or ", el("span", { className: "mono", textContent: "anywherellm-suite pages" }), "."));
+        tiles.forEach(({ pic }) => forget(pic));
         return $("apps").replaceChildren(gone);
       }
       if (!res.ok) throw new Error(res.status);

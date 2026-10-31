@@ -131,8 +131,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.deepEqual(shown, [["home", ["Reading", "Groceries"]]], "grouped by workspace, newest first");
     const frames = await manager.evaluate(() => [...document.querySelectorAll(".pic iframe")].map((f) => [f.getAttribute("sandbox"), f.contentDocument === null, f.srcdoc.includes('id="apps-lean"')]));
     assert.deepEqual(frames, [["allow-scripts", true, true], ["allow-scripts", true, true]], "sandboxed, in an origin of their own, each its page");
+    const read = [];
+    manager.on("request", (r) => r.frame() === manager.mainFrame() && /\.html\b/.test(r.url()) && read.push(r.url()));
+    await manager.evaluate(() => (window.kept = [...document.querySelectorAll(".pic iframe")]));
     await sleep(5000);
     assert.deepEqual(framed, [], "a picture asks AnythingLLM for nothing");
+    // A theme switched while it's open: the same frames, given the HTML read already in that theme.
+    await manager.evaluate(() => (document.documentElement.dataset.theme = "dark"));
+    await manager.waitForFunction(() => [...document.querySelectorAll(".pic iframe")].every((f) => f.srcdoc.includes('data-picture data-theme="dark"')), { timeout: 5_000 });
+    assert.ok(await manager.evaluate(() => [...document.querySelectorAll(".pic iframe")].every((f, i) => f === window.kept[i])), "the frames kept");
+    assert.deepEqual(read, [], "no page read again");
   } finally {
     await chrome.close();
   }
