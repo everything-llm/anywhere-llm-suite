@@ -187,10 +187,16 @@ const spareKept = (): Spare | null => {
   return kept && typeof kept.private === "string" && typeof kept.public === "string" ? kept : null;
 };
 
-/** A new ed25519 key pair for signing in to a machine. */
+/** A new ed25519 key pair for signing in to a machine. ssh2 1.17's generator makes one its own parser
+ *  calls malformed about once in 200 (measured: 49 in 10,000), which would fail every sign-in with
+ *  it, so a key is made until one parses. */
 const made = (): Spare => {
-  const pair = utils.generateKeyPairSync("ed25519", { comment: "library-lean" });
-  return { private: pair.private, public: pair.public.trim() };
+  for (let tries = 0; ; tries++) {
+    const pair = utils.generateKeyPairSync("ed25519", { comment: "library-lean" });
+    const parsed = utils.parseKey(pair.private);
+    if (!(parsed instanceof Error) && !Array.isArray(parsed) && parsed.isPrivateKey()) return { private: pair.private, public: pair.public.trim() };
+    if (tries >= 20) throw new LibraryError("couldn't make a key ssh can sign in with");
+  }
 };
 
 /** The public half of the page's key for the next machine ("ssh-ed25519 AAAA… library-lean"), made
