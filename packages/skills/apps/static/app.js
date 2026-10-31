@@ -7,6 +7,8 @@
 //   App.start(app)          takes {title, card, data, line, append, sync}; returns
 //                           App.data, the one object for good: every change is made in it
 //   App.data, App.title, App.card, App.line   the artifact as this page has it now
+//   App.summary             the card's summary line as the data says it now ("2 of 3 left"),
+//                           what the page header's line under the title shows
 //   App.patch(ops, event)   change the data: a JSON patch (RFC 6902) on the data, applied
 //                           here at once and saved shortly after; a promise of whether it
 //                           was saved. `event` is optional: {ev, ...fields}, logged with the
@@ -40,8 +42,8 @@
 // A value that follows from the time (a timer's seconds left) is never stored: store when
 // something started and work the rest out from Date.now().
 //
-// A page opened with ?theme=light or ?theme=dark keeps to that theme whatever the device's;
-// <html data-theme> set or removed later switches it again.
+// A page opened with ?theme=light, dark, light-hc or dark-hc (House UI's themes) keeps to that
+// theme whatever the device's; <html data-theme> set or removed later switches it again.
 // Forms don't submit on the pages server (its sandbox has no allow-forms), so Enter in a
 // field and a click on a submit button become a submit event the form's handler sees.
 "use strict";
@@ -74,6 +76,25 @@ const App = (() => {
     } catch {}
     if (value === undefined) throw new Error(`${path}: there's nothing there`);
     return value;
+  }
+  // The card's summary line, as the skill's card.ts says it beside the title: card.summary (a JSON
+  // pointer, or text with {/pointer}s in it), else of card.items "2 of 3 left" or "3 items".
+  function summaryOf(card, data) {
+    const find = (p) => {
+      try {
+        if (p.endsWith("/length")) { const list = at(data, p.slice(0, -7)); return Array.isArray(list) ? list.length : undefined; }
+        return at(data, p);
+      } catch { return undefined; }
+    };
+    const plain = (v) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+    const text = (t) => typeof t !== "string" ? "" : t.startsWith("/") ? (Array.isArray(find(t)) ? `${find(t).length} ${t.split("/").pop()}` : plain(find(t))) : t.replace(/\{(\/[^{}]*)\}/g, (_, p) => plain(find(p)));
+    if (typeof card.summary === "string") return text(card.summary);
+    const list = typeof card.items === "string" ? find(card.items) : undefined;
+    if (!Array.isArray(list)) return "";
+    const where = card.where && typeof card.where === "object" ? Object.entries(card.where) : [];
+    const items = list.filter((i) => where.every(([k, v]) => i && typeof i === "object" && i[k] === v)), done = card.done || "done";
+    if (items.some((i) => i && typeof i === "object" && typeof i[done] === "boolean")) return `${items.filter((i) => !(i && i[done] === true)).length} of ${items.length} left`;
+    return `${items.length} item${items.length === 1 ? "" : "s"}`;
   }
   // `data` with `ops` applied, as a new value. The ops are cloned: the library puts their values into the result
   function apply(data, ops) {
@@ -272,8 +293,8 @@ const App = (() => {
   const SCHEME = /\(\s*prefers-color-scheme\s*:\s*(light|dark)\s*\)/gi;
   const written = new WeakMap(); // a media list: its text as the page wrote it
   function keepTheme() {
-    const set = document.documentElement.dataset.theme;
-    const theme = set === "light" || set === "dark" ? set : null;
+    // House UI's four themes: light and dark, each with its increased-contrast one (light-hc).
+    const theme = /^(light|dark)(-hc)?$/.exec(document.documentElement.dataset.theme || "")?.[1] || null;
     const fix = (media) => {
       const text = written.get(media) ?? media.mediaText;
       if (text.search(SCHEME) < 0) return;
@@ -298,7 +319,7 @@ const App = (() => {
   }
   if (typeof location !== "undefined" && typeof document !== "undefined" && document.styleSheets) {
     const theme = new URLSearchParams(location.search).get("theme");
-    if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    if (/^(light|dark)(-hc)?$/.test(theme || "")) document.documentElement.dataset.theme = theme;
     keepTheme();
     new MutationObserver(keepTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   }
@@ -383,6 +404,9 @@ const App = (() => {
     },
     get card() {
       return app.card;
+    },
+    get summary() {
+      return summaryOf(app.card || {}, app.data);
     },
     get line() {
       return app.line;

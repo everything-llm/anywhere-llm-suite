@@ -24,8 +24,8 @@ test("app.json and page.html are read, written and edited", async () => {
   assert.match(json, /^groceries's app\.json[^\n]*\n\{\n  "title": "Groceries"/);
   const page = await call("home", { action: "read", name: "groceries", file: "page.html" });
   assert.match(page, /<!--slot-->/);
-  assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", find: "--accent-h:272", text: "--accent-h:140" }), /^Changed groceries's page\.html\./);
-  assert.match(await call("home", { action: "read", name: "groceries", file: "page.html" }), /--accent-h:140/);
+  assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", find: 'data-scheme="indigo"', text: 'data-scheme="teal"' }), /^Changed groceries's page\.html\./);
+  assert.match(await call("home", { action: "read", name: "groceries", file: "page.html" }), /data-scheme="teal"/);
   assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", text: "<p>bare</p>" }), /^Artifacts: the artifact can't be saved:\n- page\.html must load the runtime/, "edit with no find writes the whole file");
   assert.match(await call("home", { action: "read", name: "groceries", file: "icon.svg" }), /^Artifacts: file is app\.json or page\.html/);
 });
@@ -112,11 +112,11 @@ test("guide gives several topics in one answer, with the runtime after a compone
 test("undo takes back the newest change, to a file or the data, and read lists the earlier files", async () => {
   await make("home", "pages", "Pages");
   await call("home", { action: "do", name: "pages", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }] });
-  await call("home", { action: "edit", name: "pages", file: "page.html", find: "--accent-h:272", text: "--accent-h:140" });
+  await call("home", { action: "edit", name: "pages", file: "page.html", find: 'data-scheme="indigo"', text: 'data-scheme="teal"' });
   assert.match(await call("home", { action: "read", name: "pages" }), /\nEarlier files \(undo with file takes back the newest change to one\):\n- \S+ page\.html\n/);
   assert.doesNotMatch(await call("home", { action: "read", name: "pages" }), /<!doctype/, "read without file leaves the page out");
   assert.match(await call("home", { action: "undo", name: "pages" }), /^Put back pages's page\.html as it was before its change at \S+\./);
-  assert.match(await call("home", { action: "read", name: "pages", file: "page.html" }), /--accent-h:272/);
+  assert.match(await call("home", { action: "read", name: "pages", file: "page.html" }), /data-scheme="indigo"/);
   assert.match(await call("home", { action: "undo", name: "pages" }), /^Took back add/, "then the data's change");
   assert.match(await call("home", { action: "undo", name: "pages", file: "app.json" }), /^Artifacts: [^\n]*no change to app\.json left to take back/);
 });
@@ -186,7 +186,7 @@ test("a page that looks up an element by id through q, or calls a function no sc
 
 test("a page with colours of its own is kept, with advice, unless a rule keeps the user's choice", async () => {
   await call("home", { action: "create", name: "board", starter: "checklist" });
-  const white = await call("home", { action: "edit", name: "board", file: "page.html", find: "</style>", text: ".card{background:#fff;border-color:var(--line, #ddd)}</style>" });
+  const white = await call("home", { action: "edit", name: "board", file: "page.html", find: '<link rel="stylesheet" href="motion.css">', text: '<link rel="stylesheet" href="motion.css">\n<style>.card{background:#fff;border-color:var(--line, #ddd)}</style>' });
   assert.match(white, /^Changed board's page\.html\.\npage\.html sets colours of its own \(#fff\), which one of the light and dark themes won't read/);
   await call("home", { action: "edit", name: "board", file: "app.json", find: '"rules": [', text: '"rules": ["[accent] The cards are white: the user asked.", ' });
   assert.doesNotMatch(await call("home", { action: "read", name: "board", file: "page.html" }), /^$/);

@@ -93,10 +93,22 @@ const stubs = (patterns) => ({
 export const vendoredVersions = (name) =>
   (VENDORED[name] || []).map((prefix) => `${prefix.slice("node_modules/".length, -1)}@${JSON.parse(fs.readFileSync(path.join(here, prefix, "package.json"), "utf8")).version}`).join(" ");
 
-/** Files from node_modules that a skill's pages carry (the browser can't import them), by the name
- *  they have in STATIC_FILES, for the skill's folder name.
- *  @type {Record<string, Record<string, string>>} */
-const PAGE_LIBRARIES = { apps: { "fast-json-patch.js": "node_modules/fast-json-patch/dist/fast-json-patch.min.js" } };
+/** The House UI block every suite page carries, as shared/vault.html has it between its markers
+ *  (shared/themes.test.mts keeps the pages' copies the same); "" when there's none.
+ *  @param {string} html */
+export const houseBlock = (html) => /\/\* house ui:[\s\S]*?\/\* end of house ui \*\//.exec(html)?.[0] ?? "";
+
+/** Files from outside its static/ folder that a skill's pages carry, by the name they have in
+ *  STATIC_FILES, for the skill's folder name: a library from node_modules (the browser can't import
+ *  it), and for the apps' pages the Vault's House UI block, so they carry the same one as every page.
+ *  @type {Record<string, Record<string, () => string>>} */
+const PAGE_LIBRARIES = {
+  apps: {
+    "fast-json-patch.js": () => read("node_modules/fast-json-patch/dist/fast-json-patch.min.js"),
+    "house.css": () => houseBlock(read("shared/vault.html")),
+  },
+};
+const read = (/** @type {string} */ from) => fs.readFileSync(path.join(here, from), "utf8");
 
 /** The text of every file under `dir` (a skill's static/), by its path there with forward slashes,
  *  and the skill's PAGE_LIBRARIES; {} with no `dir`.
@@ -110,10 +122,9 @@ export function staticFiles(dir, skill = "") {
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"))
     .sort();
-  const read = (/** @type {string} */ file) => fs.readFileSync(file, "utf8");
   return Object.fromEntries([
-    ...names.map((name) => [name, read(path.join(dir, name))]),
-    ...Object.entries(PAGE_LIBRARIES[skill] || {}).map(([name, from]) => [name, read(path.join(here, from))]),
+    ...names.map((name) => [name, fs.readFileSync(path.join(dir, name), "utf8")]),
+    ...Object.entries(PAGE_LIBRARIES[skill] || {}).map(([name, made]) => [name, made()]),
   ]);
 }
 

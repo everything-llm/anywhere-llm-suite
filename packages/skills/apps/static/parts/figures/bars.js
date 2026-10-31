@@ -11,7 +11,7 @@ Parts.kinds.bars = (f, { W, svg, fit, rect, mid }) => {
   const chars = Math.max(3, Math.floor(w / 5.5));
   const bars = items.map((it, i) => {
     const x = 12 + i * (w + gap), h = Math.max(1, (it.value / max) * (base - top));
-    return rect(x, base - h, w, h, i === f.mark ? "fi" : "fs", 3) + mid("tx", x + w / 2, base - h - 6, fit(shown(it.value), chars)) + mid("tx", x + w / 2, base + 16, fit(it.label, chars));
+    return rect(x, base - h, w, h, i === f.mark ? "fi" : "fc", 3) + mid("tx", x + w / 2, base - h - 6, fit(shown(it.value), chars)) + mid("tx", x + w / 2, base + 16, fit(it.label, chars));
   });
   return svg(`<path class="lq" d="M8 ${base}H${W - 8}"/>` + bars.join(""), (f.title ? f.title + ": " : "") + items.map((i) => `${i.label} ${shown(i.value)}`).join(", "));
 };
