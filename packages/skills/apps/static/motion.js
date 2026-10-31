@@ -10,13 +10,12 @@
 //
 // <html data-motion="calm"> keeps only success and miss; "off" none. Only the user's own taps move
 // (a change from the agent or another tab never does), one motion per part at a time (the strongest),
-// nothing on load, nothing for anyone who asks for reduced motion. A part draws again after a change
-// and replaces what was tapped, so a cue goes to the element now in its place.
+// nothing on load; for anyone who asks for reduced motion, motion.css makes each a short fade. A part
+// draws again after a change and replaces what was tapped, so a cue goes to the element now in its place.
 (() => {
   const MOTION = { done: "pop", added: "rise", reveal: "flip", success: "cheer", miss: "shake" };
   const CALM = ["success", "miss"];
   const STRONG = ["success", "miss"];
-  const still = matchMedia("(prefers-reduced-motion: reduce)");
   let touched = 0, part = null, queued = null;
   const touch = (e) => ((touched = Date.now()), (part = e.target?.closest?.("[data-part]") || document.body));
   addEventListener("pointerdown", touch, true);
@@ -46,7 +45,7 @@
   }
   App.oncue((el, cue) => {
     const mode = document.documentElement.dataset.motion || "lively";
-    if (!el || !MOTION[cue] || mode === "off" || (mode === "calm" && !CALM.includes(cue)) || still.matches || Date.now() - touched > 1500) return;
+    if (!el || !MOTION[cue] || mode === "off" || (mode === "calm" && !CALM.includes(cue)) || Date.now() - touched > 1500) return;
     // the strongest cue of this frame wins
     if (queued && STRONG.includes(queued.cue) && !STRONG.includes(cue)) return;
     const first = !queued;

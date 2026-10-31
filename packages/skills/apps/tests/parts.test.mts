@@ -119,10 +119,10 @@ function drawn(spec: Record<string, unknown>): string {
   return vm.runInContext(`Parts.figure(${JSON.stringify(spec)}).innerHTML`, ctx);
 }
 
-test("bars draw one bar per item, scaled to the largest, the marked one filled, said in words", () => {
+test("bars draw one bar per item, scaled to the largest, the marked one in the accent and the others in the chart's context grey, said in words", () => {
   const svg = drawn({ kind: "bars", items: [{ label: "May", value: 310 }, { label: "Jun", value: 155 }], mark: 0, unit: "£" });
-  const bars = [...svg.matchAll(/<rect class="(f[is])" x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/g)].map((m) => [m[1], Math.round(Number(m[3]))]);
-  assert.deepEqual(bars, [["fi", 120], ["fs", 60]]);
+  const bars = [...svg.matchAll(/<rect class="(f[ic])" x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/g)].map((m) => [m[1], Math.round(Number(m[3]))]);
+  assert.deepEqual(bars, [["fi", 120], ["fc", 60]]);
   assert.match(svg, /aria-label="May £310, Jun £155"/);
   assert.match(drawn({ kind: "bars", items: [] }), /aria-label="No values yet"/);
 });

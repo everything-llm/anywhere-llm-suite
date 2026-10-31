@@ -63,11 +63,13 @@ export function file(name: string): string {
 
 /** A template's page: its own <main> in the shell every template shares (templates/shell.html,
  *  which has no header, so it is no part). A header's `cover` asks the viewport to reach under a
- *  phone's notch, and `untitled` leaves out the h1 the page's title goes into. */
+ *  phone's notch, and `untitled` leaves out the h1 the page's title goes into, and the line under it
+ *  that says the card's summary. */
 const inShell = (header: Json, main: string): string =>
   file("parts/templates/shell.html")
     .replace("@VIEWPORT@", () => (header.cover ? ",viewport-fit=cover" : ""))
     .replace("@TITLE@", () => (header.untitled ? "" : '$("title").textContent = '))
+    .replace("@SUB@", () => (header.untitled ? "" : 'App.onchange(() => ($("sub").textContent = App.summary));\n$("sub").textContent = App.summary;\n'))
     .replace("@MAIN@\n", () => main);
 
 let byName: Record<string, Part> | null = null;
@@ -323,7 +325,7 @@ let libs: Record<string, string> | null = null;
 export function libraries(): Record<string, string> {
   const figures = (): string[] => Object.values(parts()).filter((p) => p.kind === "figure").map((p) => p.body);
   return (libs ??= {
-    "app.js": file("app.js"), "app.css": file("app.css"), "parts.js": [file("parts.js"), ...figures()].join("\n"),
+    "app.js": file("app.js"), "house.css": file("house.css"), "schemes.css": file("schemes.css"), "app.css": file("app.css"), "parts.js": [file("parts.js"), ...figures()].join("\n"),
     "motion.js": file("motion.js"), "motion.css": file("motion.css"),
   });
 }
@@ -346,7 +348,7 @@ export function colourNote(page: unknown, rules: Json = []): string {
   const css = [...page.matchAll(/<style>([\s\S]*?)<\/style>|style="([^"]*)"/g)].map((m) => m[1] ?? m[2]).join("\n").replace(/var\([^()]*(\([^()]*\))?[^()]*\)/g, "");
   const found = [...new Set(css.match(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch)\([^)]*\)|:\s*(white|black)\b/gi) || [])].map((c) => c.replace(/^:\s*/, ""));
   return found.length
-    ? `page.html sets colours of its own (${found.slice(0, 4).join(", ")}), which one of the light and dark themes won't read: use var(--bg), var(--panel), var(--well), var(--line), var(--ink), var(--muted) and var(--accent). If the user asked for a colour, keep it and add a rule tagged [accent] saying so.`
+    ? `page.html sets colours of its own (${found.slice(0, 4).join(", ")}), which one of the light and dark themes won't read: use House UI's roles: var(--ground), var(--tile), var(--sunken), var(--line), var(--ink), var(--muted), var(--accent) and var(--accent-soft), and a scheme on <html data-scheme>. If the user asked for a colour, keep it and add a rule tagged [accent] saying so.`
     : "";
 }
 
