@@ -41,16 +41,16 @@ The file is mode `0600`, written to a temporary file and renamed over the old on
 
 ## The card in an answer
 
-While the links are given to the agent, the library's answers hand it the Vault's and the Library page's links as a card to put in its reply as written: a quote whose first line is the page's name as a bold link, then a line on what the page is for.
+While the links are given to the agent, the library's answers hand it the Vault's and the Library page's links as a card to put in its reply as written: a quote whose first line is the page's name as a bold link, titled with its glyph's name, then a line on what the page is for.
 
 ```
-> **[The Vault](/vault-lean/<token>.html)**
+> **[The Vault](/vault-lean/<token>.html "vault")**
 >
 > Every key and browser login, by name.
 
-> **[The Library](/library-lean/<token>.html)**
+> **[The Library](/library-lean/<token>.html "library")**
 >
 > The toolkits, their runs and the machines.
 ```
 
-The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link; a client that draws app cards can draw these the same way, by the link's page (`/vault-lean/` or `/library-lean/`). The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.
+The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link, the title only as a tooltip (a phone never shows it), so the card needs no setting and no HTML. AnywhereLLM Lite (1.22.0) draws a card from a quote whose first paragraph is one link, bold or not, to the server it is connected to, titled with a glyph it knows (`vault`, `library`): the glyph, the link's text and the rest of the quote, in one tile that opens the page in its sheet. Anything else stays a quote. The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.

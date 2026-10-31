@@ -104,11 +104,12 @@ async function library(args: Args, self: HandlerContext): Promise<string> {
 }
 
 /** A page as a card the agent gives the user as it is: a quote whose first line is the page's name as
- *  a bold link, then a line on what it is for. Any client shows a quote with a link; AnywhereLLM Lite
- *  draws a tile from it (docs/page-links.md, the card in an answer). */
-const pageCard = (name: string, about: string, url: string): string => `> **[${name}](${url})**\n>\n> ${about}`;
-const vaultCard = (url: string): string => pageCard("The Vault", "Every key and browser login, by name.", url);
-const libraryCard = (url: string): string => pageCard("The Library", "The toolkits, their runs and the machines.", url);
+ *  a bold link titled with its glyph's name, then a line on what it is for. Any client shows a quote with
+ *  a link, the title only as a tooltip; AnywhereLLM Lite draws a card from it with that glyph
+ *  (docs/page-links.md, the card in an answer). */
+const pageCard = (name: string, glyph: string, about: string, url: string): string => `> **[${name}](${url} "${glyph}")**\n>\n> ${about}`;
+const vaultCard = (url: string): string => pageCard("The Vault", "vault", "Every key and browser login, by name.", url);
+const libraryCard = (url: string): string => pageCard("The Library", "library", "The toolkits, their runs and the machines.", url);
 const giveCard = (card: string): string => `Give them this card as it is, in its own quote:\n\n${card}`;
 
 /** The pages' links to give the user, or why there are none where AnythingLLM runs. With the links

@@ -18,8 +18,8 @@ test("library gives the Vault's card and the Library page's, each as a quote wit
   assert.match(await call({ action: "library" }), new RegExp(`The Vault and the Library page are the user's own pages\\. Give the user each card as it is, in its own quote, so they open it from your answer:\\n\\n${VAULT_CARD}\\n\\n${LIBRARY_CARD}$`));
   const said = await call({ action: "library" }, { base: "https://llm.example.com/" });
   const { token, key, secret } = pageConfig();
-  assert.ok(said.includes(`**[The Library](https://llm.example.com/library-lean/${token}.html)**`));
-  assert.ok(said.includes(`**[The Vault](https://llm.example.com/vault-lean/${vaultConfig().token}.html)**`));
+  assert.ok(said.includes(`**[The Library](https://llm.example.com/library-lean/${token}.html "library")**`));
+  assert.ok(said.includes(`**[The Vault](https://llm.example.com/vault-lean/${vaultConfig().token}.html "vault")**`));
   assert.equal(key, "brx-test", "the page posts with the browser-extension key install keeps");
   assert.equal(vaultConfig().key, "brx-test");
   assert.ok(secret.length >= 20);
