@@ -86,20 +86,24 @@ export const cardsShown: unknown[] = [];
 export interface Call {
   slug?: string | null;
   base?: string;
+  /** The chat's thread (null: none, as the developer API's agent has); 3 unless given. */
+  thread?: number | null;
+  /** The workspace's name, as AnythingLLM's invocation carries its row; none unless given. */
+  name?: string;
 }
 
-/** An agent run in workspace `slug` (null: none), in a chat of AnythingLLM's web UI. */
-function agentRun(slug: string | null): object {
+/** An agent run in workspace `slug` (null: none), in a chat of AnythingLLM's web UI (thread `thread`). */
+function agentRun(slug: string | null, thread: number | null = 3, name?: string): object {
   const card = { requestUserClarification: async (q: unknown) => (cardsShown.push(q), { skipped: true }), addClarifyingQuestionSurvey: () => {} };
-  return { handlerProps: { invocation: slug ? { workspace: { slug }, thread_id: 3 } : {} }, ...card };
+  return { handlerProps: { invocation: slug ? { workspace: { slug, ...(name ? { name } : {}) }, thread_id: thread } : {} }, ...card };
 }
 
 /** Calls the skill as AnythingLLM's agent would: from workspace `slug` (null: none, as a job; given
  *  alone, or in a Call), in a chat that could show a question card, and with ANYTHINGLLM_URL set to
  *  `base`. */
 export function call(args: Record<string, unknown>, at: Call | string | null = {}): Promise<string> {
-  const { slug = "work", base } = at === null || typeof at === "string" ? { slug: at } : at;
-  const self = { super: agentRun(slug), runtimeArgs: base ? { ANYTHINGLLM_URL: base } : {}, logger: () => {} };
+  const { slug = "work", base, thread, name } = at === null || typeof at === "string" ? { slug: at } : at;
+  const self = { super: agentRun(slug, thread, name), runtimeArgs: base ? { ANYTHINGLLM_URL: base } : {}, logger: () => {} };
   return handler().call(self, args);
 }
 

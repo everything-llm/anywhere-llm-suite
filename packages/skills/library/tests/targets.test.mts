@@ -267,7 +267,7 @@ test.beforeEach(() => {
 test("a target is asked for and registered on the page, with a key made there whose private half nobody is shown", async () => {
   const asked = await call({ action: "secret", kind: "ssh", label: "box" });
   assert.match(asked, new RegExp(`^The user adds the machine "box" on the Library page, under Machines\\. Give them this card as it is, in its own quote:\\n\\n${LIBRARY_CARD}\\n\\nTell them to open it`));
-  assert.deepEqual(pageState().needs, [{ label: "box", site: "" }]);
+  assert.deepEqual(pageState().needs.map(({ label, site }: { label: string; site: string }) => ({ label, site })), [{ label: "box", site: "" }]);
   const box = await register({}, undefined, undefined, false);
   assert.match(box.public, /^ssh-ed25519 AAAA\S+ library-lean box$/);
   assert.equal(box.status, "the target \"box\" refused its key: the user runs the setup command the Library page shows under Machines on the machine, as sandbox, then tries again", "tried at once, before its line was added");

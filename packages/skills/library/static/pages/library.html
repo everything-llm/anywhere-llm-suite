@@ -893,6 +893,11 @@ dialog.sheet::backdrop{background:var(--scrim)}
 .menu button.plain{color:var(--ink)}
 .head .ends{display:flex;align-items:center;gap:var(--space-2)}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
+#toast:not([hidden]){display:flex;align-items:center;gap:var(--space-2)}
+#toast>span{flex:1;min-width:0}
+#toast>button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--ground);font:700 1rem/1 var(--font-sans);cursor:pointer}
+#toast>button[hidden]{display:none}
+#toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 </style>
 </head>
 <body class="hu-root" data-density="touch">
@@ -915,7 +920,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
-<div id="toast" role="status" hidden></div>
+<div id="toast" role="status" hidden><span></span><button type="button" class="undo" hidden>Undo</button><button type="button" class="shut" aria-label="Close" hidden></button></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -945,10 +950,30 @@ dialog.sheet::backdrop{background:var(--scrim)}
     stop: '<circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
     alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
     warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   };
   const icon = (name, size = 16, cls = "") => Object.assign(document.createElement("template"), { innerHTML: `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>` }).content.firstChild;
-  let toastTimer = 0;
-  const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
+  // ---- The toast: what was sent or done, or a refusal, for 4 s. One with `undo` ({ undo, send })
+  // holds what it undoes, unsent, and stays with Undo and Close until one is pressed, another toast
+  // takes its place, or the page is left: then what it holds is sent. Undo has no timer to beat.
+  let toastTimer = 0, held = null;
+  const toastBox = $("toast"), [toastText, undoButton, shutButton] = toastBox.children;
+  shutButton.append(icon("close", 20));
+  const hideToast = () => { toastBox.hidden = true; clearTimeout(toastTimer); };
+  const sendHeld = () => { const was = held; held = null; was?.send(); };
+  function toast(text, undo = null) {
+    sendHeld();
+    toastText.textContent = text;
+    undoButton.hidden = shutButton.hidden = !undo;
+    toastBox.hidden = false;
+    clearTimeout(toastTimer);
+    if (undo) held = undo;
+    else toastTimer = setTimeout(hideToast, 4000);
+  }
+  undoButton.onclick = () => { const was = held; held = null; hideToast(); was?.undo(); };
+  shutButton.onclick = () => { hideToast(); sendHeld(); };
+  addEventListener("pagehide", () => { hideToast(); sendHeld(); });
+  document.addEventListener("visibilitychange", () => document.hidden && held && (hideToast(), sendHeld()));
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -1003,16 +1028,18 @@ dialog.sheet::backdrop{background:var(--scrim)}
   /* end of page drafts */
 
   // ---- Posting: each thing done here is an event, posted through AnythingLLM's upload.
-  async function post(ev, fields = {}) {
+  // `quiet`: no "Sent" (what a toast held, sent as it closes), and kept alive as the page is left.
+  async function post(ev, fields = {}, { quiet = false } = {}) {
     const event = { library_lean_event: 1, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
     try {
       const res = await fetch("/api/browser-extension/upload-content", {
         method: "POST",
+        keepalive: quiet,
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "library-lean page" } }),
       });
       if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
-      toast("Sent");
+      if (!quiet) toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
@@ -1141,6 +1168,15 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   const took = (ms) => (ms < 1000 ? "under 1 s" : ms < 60000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60000)} min`);
   const startedAt = (r) => new Date(r.started);
+  // A request the agent made: where and how long ago. A day old, it's gone (the skill drops it too).
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (at) => {
+    const m = Math.floor((Date.now() - at) / 60000), h = Math.floor(m / 60);
+    return m < 1 ? "just now" : m < 60 ? `${m} minute${m === 1 ? "" : "s"} ago` : `${h} hour${h === 1 ? "" : "s"} ago`;
+  };
+  const askedLine = (need) => el("p", { className: "cap" }, need.where ? `Asked in ${need.where} · ` : "Asked by a scheduled job · ", el("span", { textContent: ago(need.at), attrs: { "data-at": need.at } }));
+  // Kept up as the page stays open; a request that reaches its day is hidden.
+  const ageAll = () => { for (const when of document.querySelectorAll("[data-at]")) { const at = Number(when.dataset.at); when.textContent = ago(at); if (Date.now() - at >= DAY) when.closest(".need")?.setAttribute("hidden", ""); } };
   const lastLine = (r) => (r.status === "running" ? `since ${hm(startedAt(r))}` : `${/^(Today|Yesterday)$/.test(dayOf(startedAt(r))) ? dayOf(startedAt(r)).toLowerCase() : dayOf(startedAt(r))} ${hm(startedAt(r))} · took ${took(r.ms)}`);
 
   // ---- Where the page is: a tab (#toolkits, #machines, #runs), a function (#fn/<service>/<name>),
@@ -1271,15 +1307,40 @@ dialog.sheet::backdrop{background:var(--scrim)}
       body,
       m.held ? cap(`Kept for locked toolkits (${S.toolkits.find((t) => t.service === m.held)?.title ?? m.held}). Unlocked toolkits can’t use it.`) : null);
   }
+  // The requests the user said aren't needed: hidden at once, and sent once the toast with Undo closes.
+  const dropped = new Set();
+  const asked = (state) => state.needs.filter((need) => !dropped.has(need.id) && Date.now() - need.at < DAY && !state.targets.some((m) => m.label === need.label));
+  function notNeeded(need, node) {
+    dropped.add(need.id);
+    node.hidden = true;
+    toast(`Dropped the request for ${need.label}`, {
+      undo: () => {
+        dropped.delete(need.id);
+        if (node.isConnected) node.hidden = false;
+        else (shown = null), draw();
+        document.querySelector(`[data-need="${need.id}"]`)?.focus();
+      },
+      // Not sent: the request stands, and shows again.
+      send: () => post("need-drop", { id: need.id, label: need.label }, { quiet: true }).then((sent) => sent || (dropped.delete(need.id), (shown = null), draw())),
+    });
+    undoButton.focus();
+  }
   function machinesTab(state) {
-    const asking = state.needs.filter((need) => !state.targets.some((m) => m.label === need.label));
+    const asking = asked(state);
     const add = (href, text) => el("a", { className: "add", href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
-    // A machine the agent waits for is its own card, named as the agent's toolkits will use it: adding
-    // it there meets the request, and the agent carries on.
-    const waiting = (need) => card(
-      el("div", { className: "head" }, el("h2", { textContent: `The agent is waiting for ${need.label}` })),
-      say(`A toolkit runs commands on a machine named ${need.label}. Add it, and the agent carries on.`),
-      acts(el("a", { className: "hu-button hu-button--primary", href: `#add/${encodeURIComponent(need.label)}`, textContent: `Add ${need.label}` })));
+    // A machine the agent waits for is its own card, named as the agent's toolkits will use it, with
+    // the chat that asked and when: adding it there meets the request, and the agent carries on; Not
+    // needed drops it, and the chat is told the user said so.
+    const waiting = (need) => {
+      const no = btn("Not needed", "secondary", `Not needed: ${need.label}`, () => notNeeded(need, node));
+      no.dataset.need = need.id;
+      const node = card(
+        el("div", { className: "head" }, el("h2", { textContent: `The agent is waiting for ${need.label}` })),
+        say(`A toolkit runs commands on a machine named ${need.label}. Add it, and the agent carries on.`),
+        askedLine(need),
+        acts(el("a", { className: "hu-button hu-button--primary", href: `#add/${encodeURIComponent(need.label)}`, textContent: `Add ${need.label}` }), no));
+      return node;
+    };
     return [
       ...(state.targets.length || asking.length ? [] : [card(say("No machines. When a function needs one, the agent asks you to add it."))]),
       ...asking.map((need) => Object.assign(waiting(need), { className: "card need" })),
@@ -1448,7 +1509,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       S = JSON.parse(text);
       for (const m of S.targets) draft(`add/${m.label}`, cfg.token).clear(); // the agent's request is met
       // Opened while the agent asks for a machine: Machines, where it's added.
-      if (first && !location.hash && S.needs.length) history.replaceState(null, "", "#machines");
+      if (first && !location.hash && asked(S).length) history.replaceState(null, "", "#machines");
       draw();
       answered(S);
     } catch (e) {
@@ -1461,7 +1522,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   for (const b of document.querySelectorAll("nav button")) b.onclick = () => (location.hash = `#${b.dataset.tab}`);
   $("rotate").onclick = replaceLink;
-  const poll = setInterval(load, 5000);
+  const poll = setInterval(() => (load(), ageAll()), 5000);
   load();
 })();
 </script>

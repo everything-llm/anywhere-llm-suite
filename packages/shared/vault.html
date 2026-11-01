@@ -867,6 +867,11 @@ input::placeholder{color:var(--muted);opacity:1}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
 @media (hover:hover){.hu-button:not(.hu-button--primary):hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:5;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
+#toast:not([hidden]){display:flex;align-items:center;gap:var(--space-2)}
+#toast>span{flex:1;min-width:0}
+#toast>button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--ground);font:700 1rem/1 var(--font-sans);cursor:pointer}
+#toast>button[hidden]{display:none}
+#toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 </style>
 </head>
 <body class="hu-root">
@@ -881,7 +886,7 @@ input::placeholder{color:var(--muted);opacity:1}
   <section id="logins" hidden></section>
   <section id="addresses" hidden></section>
 </main>
-<div id="toast" role="status" hidden></div>
+<div id="toast" role="status" hidden><span></span><button type="button" class="undo" hidden>Undo</button><button type="button" class="shut" aria-label="Close" hidden></button></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -890,8 +895,27 @@ input::placeholder{color:var(--muted);opacity:1}
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...kids) => { const node = Object.assign(document.createElement(tag), props); node.append(...kids.filter((kid) => kid !== null && kid !== undefined && kid !== false)); return node; };
   const icon = (d, size = 18) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("width", size); s.setAttribute("height", size); s.setAttribute("viewBox", "0 0 16 16"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.6"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.innerHTML = `<path d="${d}"/>`; return s; };
-  let toastTimer = 0;
-  const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
+  // ---- The toast: what was sent or done, or a refusal, for 4 s. One with `undo` ({ undo, send })
+  // holds what it undoes, unsent, and stays with Undo and Close until one is pressed, another toast
+  // takes its place, or the page is left: then what it holds is sent. Undo has no timer to beat.
+  let toastTimer = 0, held = null;
+  const toastBox = $("toast"), [toastText, undoButton, shutButton] = toastBox.children;
+  shutButton.append(icon("M4 4l8 8M12 4l-8 8", 20));
+  const hideToast = () => { toastBox.hidden = true; clearTimeout(toastTimer); };
+  const sendHeld = () => { const was = held; held = null; was?.send(); };
+  function toast(text, undo = null) {
+    sendHeld();
+    toastText.textContent = text;
+    undoButton.hidden = shutButton.hidden = !undo;
+    toastBox.hidden = false;
+    clearTimeout(toastTimer);
+    if (undo) held = undo;
+    else toastTimer = setTimeout(hideToast, 4000);
+  }
+  undoButton.onclick = () => { const was = held; held = null; hideToast(); was?.undo(); };
+  shutButton.onclick = () => { hideToast(); sendHeld(); };
+  addEventListener("pagehide", () => { hideToast(); sendHeld(); });
+  document.addEventListener("visibilitychange", () => document.hidden && held && (hideToast(), sendHeld()));
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -947,17 +971,19 @@ input::placeholder{color:var(--muted);opacity:1}
 
   // ---- Posting: each thing done here is an event of its section, posted through AnythingLLM's
   // upload under the section's title, so the skill that owns the section applies it.
-  async function post(section, ev, fields = {}) {
+  // `quiet`: no "Sent" (what a toast held, sent as it closes), and kept alive as the page is left.
+  async function post(section, ev, fields = {}, { quiet = false } = {}) {
     const event = { vault_lean_event: 1, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
     try {
       const res = await fetch("/api/browser-extension/upload-content", {
         method: "POST",
+        keepalive: quiet,
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: "vault-lean-" + section, docSource: "vault-lean page" } }),
       });
       // Not the canvas's install --page-key: the pages' key is the user's, pasted into a skill's PAGE_KEY.
       if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
-      toast("Sent");
+      if (!quiet) toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
@@ -1108,17 +1134,55 @@ input::placeholder{color:var(--muted);opacity:1}
   /** The library's secret named `name` (any case) in `ks`, if any: a name is one secret. */
   const named = (ks, name) => [...ks.secrets, ...(ks.signing ?? []).map((g) => ({ ...g, kind: "signing" }))].find((x) => x.label.toLowerCase() === name.trim().toLowerCase());
 
+  // ---- A request the agent made: where and how long ago. A day old, it's gone (the skill drops it too).
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (at) => {
+    const m = Math.floor((Date.now() - at) / 60000), h = Math.floor(m / 60);
+    return m < 1 ? "just now" : m < 60 ? `${m} minute${m === 1 ? "" : "s"} ago` : `${h} hour${h === 1 ? "" : "s"} ago`;
+  };
+  const askedLine = (n) => {
+    const when = el("span", { textContent: ago(n.at) });
+    when.dataset.at = n.at;
+    return el("span", { className: "cap", style: "padding:0;line-height:1.4" }, n.where ? `Asked in ${n.where} · ` : "Asked by a scheduled job · ", when);
+  };
+  // Kept up as the page stays open; a request that reaches its day is hidden.
+  const ageAll = () => { for (const when of document.querySelectorAll("[data-at]")) { const at = Number(when.dataset.at); when.textContent = ago(at); if (Date.now() - at >= DAY) when.closest(".need")?.setAttribute("hidden", ""); } };
+  // The requests the user said aren't needed: hidden at once, and sent once the toast with Undo closes.
+  const dropped = new Set();
+  function notNeeded(n, node) {
+    dropped.add(n.id);
+    node.hidden = true;
+    const again = () => { if (last.keys && !busy("keys")) drawKeys(JSON.parse(last.keys)); };
+    toast(`Dropped the request for ${n.site}`, {
+      undo: () => {
+        dropped.delete(n.id);
+        if (node.isConnected) node.hidden = false;
+        else again();
+        document.querySelector(`[data-need="${n.id}"]`)?.focus();
+      },
+      // Not sent: the request stands, and shows again.
+      send: () => post("keys", "need-drop", { id: n.id, label: n.label }, { quiet: true }).then((sent) => sent || (dropped.delete(n.id), again())),
+    });
+    undoButton.focus();
+  }
+
   function drawKeys(ks) {
     const keys = $("apikeys");
     if (!reopened) (reopened = true), (renaming ??= [...ks.secrets, ...(ks.signing ?? [])].find((k) => renameDraft(k).has())?.label ?? null);
-    const needs = ks.needs.map((n) => {
+    const needs = ks.needs.filter((n) => !dropped.has(n.id) && Date.now() - n.at < DAY).map((n) => {
       const f = form([["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
         if (!v.value) return toast("Paste the key first"), false;
         return post("keys", "key-save", { label: n.label, site: n.site, sealed: await seal(v.value) });
       });
-      // The headline names the site, so the request needs no Name or Site row.
-      f.prepend(el("div", { style: "display:flex;flex-direction:column;gap:4px" }, el("b", { style: "font-size:1rem;font-weight:600;overflow-wrap:anywhere", textContent: `The agent asks for a key for ${n.site}` }), el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: "Only that site gets it. The agent never sees it." })));
-      return el("div", { className: "card need" }, f);
+      // The headline names the site, so the request needs no Name or Site row; under it, the chat
+      // that asked and when. Not needed drops it, and the chat is told the user said so.
+      f.prepend(el("div", { style: "display:flex;flex-direction:column;gap:4px" }, el("b", { style: "font-size:1rem;font-weight:600;overflow-wrap:anywhere", textContent: `The agent asks for a key for ${n.site}` }), el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: "Only that site gets it. The agent never sees it." }), askedLine(n)));
+      const no = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Not needed", onclick: () => notNeeded(n, node) });
+      no.setAttribute("aria-label", `Not needed: the key for ${n.site}`);
+      no.dataset.need = n.id;
+      f.append(no);
+      const node = el("div", { className: "card need" }, f);
+      return node;
     });
     const saved = ks.secrets.map((k) => {
       if (renaming === k.label) return renameForm(k, ks);
@@ -1275,7 +1339,7 @@ input::placeholder{color:var(--muted);opacity:1}
   rotate.id = "rotate";
   rotate.hidden = true;
   document.querySelector("main").append(rotate);
-  const poll = setInterval(load, 5000);
+  const poll = setInterval(() => (load(), ageAll()), 5000);
   load();
 })();
 </script>
