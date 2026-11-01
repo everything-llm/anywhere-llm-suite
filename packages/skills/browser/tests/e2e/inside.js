@@ -5,7 +5,8 @@
 // the password given on the tab's page (sealed with the vault's key, posted as AnythingLLM's
 // collector writes it), take the tab over and sign in by tapping and typing, make a passkey while
 // holding the tab and sign in with it from another tab (the site checking its signature and count),
-// open tabs of the user's own from a tab's page (their own cookies), search and look at a stand-in
+// open tabs of the user's own from a tab's page (their own cookies), and from a closed tab's page, in
+// the image's Chrome (its frame kept, posted through AnythingLLM's upload), search and look at a stand-in
 // search page, and stay signed in (the site's cookie, kept in the
 // vault) after the browser closes and starts again.
 // Prints "ok" or throws.
@@ -168,7 +169,7 @@ const server = http.createServer((req, res) => {
       }
       return call({ action: "read" }, thread);
     };
-    return { state, seal, post };
+    return { token, state, seal, post };
   };
   // The Vault the tab pages link to, and its logins section: what it shows, and what it posts.
   const vaultPage = () => {
@@ -358,6 +359,60 @@ const server = http.createServer((req, res) => {
   assert.ok(!seven.state().tabs.some((t) => t.made === "e2e-fenced"), "nothing opened");
   await ownTab.post({ ev: "close" });
   assert.ok(!seven.state().tabs.some((t) => t.made === "e2e-own"), "closed, and gone from the top of the chat's tab");
+
+  // ---- The closed tab's page, in a real Chrome at a phone's width, keeps its frame: the open tabs
+  // along the top, the search bar and Back, Forward, Logins and More, with a new tab's home in the
+  // tab's place; Back and Forward are off, and More has New tab and no Close. A search there is posted
+  // through AnythingLLM's own upload, opens a tab of the user's own, and the page goes to it.
+  const shut = ownTab.state();
+  assert.equal(shut.closed, true);
+  assert.ok(shut.tabs.length > 1 && shut.tabs.some((t) => t.made === "e2e-search"), "the open tabs, in its state");
+  const phone = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+  try {
+    const shown = await phone.newPage();
+    await shown.setViewport({ width: 390, height: 844 });
+    const errors = [];
+    shown.on("pageerror", (e) => errors.push(e.message));
+    await shown.goto(`http://127.0.0.1:${process.env.INNER_PORT || 3001}/browser-lean/${ownTab.token}.html`, { waitUntil: "load" });
+    await shown.waitForFunction(() => !document.getElementById("home").hidden, { timeout: 10_000 });
+    const frame = await shown.evaluate(() => {
+      const seen = (id) => { const n = document.getElementById(id); return !n.hidden && n.getBoundingClientRect().height > 0; };
+      return {
+        strip: [...document.querySelectorAll("#strip > *")].map((n) => n.getAttribute("aria-label")),
+        bars: ["strip", "searchbar", "home", "navbar"].map(seen),
+        tab: ["addrbar", "stage"].map(seen),
+        navbar: [...document.querySelectorAll("#navbar > *")].filter((n) => !n.hidden).map((n) => `${n.textContent.trim()}${n.disabled ? " (off)" : ""}`),
+        hero: document.querySelector("#hero h1").textContent,
+        title: document.title,
+      };
+    });
+    assert.equal(frame.strip.length, shut.tabs.length + 2, `the open tabs, the new tab's and + along the top: ${frame.strip}`);
+    assert.deepEqual(frame.strip.slice(-2), ["New tab", "New tab"]);
+    assert.deepEqual(frame.bars, [true, true, true, true], "the tabs, the search bar, the home and the bottom bar");
+    assert.deepEqual(frame.tab, [false, false], "no address bar or picture: the tab is gone");
+    assert.deepEqual(frame.navbar, ["Back (off)", "Forward (off)", "Logins", "More"]);
+    assert.deepEqual([frame.hero, frame.title], ["Where to?", "New tab"]);
+    await shown.click("#morebtn");
+    const more = await shown.evaluate(() => [...document.querySelectorAll("#more button")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
+    assert.deepEqual(more, ["New tab"], "More: New tab, and no Close this tab");
+    await shown.click("#morenew");
+    assert.equal(await shown.evaluate(() => [document.getElementById("more").hidden, document.activeElement.id].join()), "true,q", "New tab: the home's field, ready to type in");
+    await shown.type("#q", `${SITE}/docs`);
+    await shown.keyboard.press("Enter");
+    // AnythingLLM's collector writes what the page posted; the watch here, or the next call, applies it.
+    for (let i = 0; i < 40 && shown.url().includes(ownTab.token); i++) {
+      await call({ action: "guide" });
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const opened = ownTab.state().tabs.find((t) => t.made && !shut.tabs.some((was) => was.made === t.made));
+    assert.ok(opened, `the new tab, along the top of the closed page: ${JSON.stringify(ownTab.state().tabs.map((t) => t.made))}`);
+    assert.ok(shown.url().endsWith(`/browser-lean/${opened.path}`), `the page went to it: ${shown.url()}`);
+    await shown.waitForFunction(() => !document.getElementById("stage").hidden && document.getElementById("addr").textContent.includes("127.0.0.1"), { timeout: 10_000 });
+    assert.equal(JSON.parse(fs.readFileSync(`${APP}/public/browser-lean/${opened.path.replace(".html", ".json")}`, "utf8")).title, "Docs", "the user's own tab, at the address typed");
+    assert.deepEqual(errors, [], "no error on the page");
+  } finally {
+    await phone.close();
+  }
 
   const found = await call({ action: "search", query: "export" });
   assert.match(found, /1\. Docs for export\n {3}http:\/\/localhost:\d+\/docs/, found);

@@ -92,7 +92,8 @@ function saveSoon(workspace: string, entry: Entry): void {
 /** At most this many tabs the user opened themselves, in each workspace's browser. */
 export const MAX_YOURS = 8;
 
-/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed.
+/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed,
+ *  keeping its frame, and may open a tab of the user's own for a while (page.ts forgetTab).
  *  With the user's last tab of their own goes their browser context, and its cookies. */
 function dropTab(workspace: string, entry: Entry, key: string): void {
   entry.tabs.delete(key);
@@ -158,8 +159,9 @@ async function launch(workspace: string): Promise<Browser> {
 }
 
 /** The workspace's browser entry, its browser launched (and the least recently used one closed,
- *  past MAX_BROWSERS) if it isn't running. */
-async function entryFor(workspace: string): Promise<Entry> {
+ *  past MAX_BROWSERS) if it isn't running: for a chat's tab, or a tab of the user's own asked for on
+ *  a closed tab's page (page.ts). */
+export async function entryFor(workspace: string): Promise<Entry> {
   const { browsers } = state();
   let entry = browsers.get(workspace);
   if (!entry) {
