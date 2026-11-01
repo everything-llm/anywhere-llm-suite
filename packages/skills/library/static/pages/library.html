@@ -1213,12 +1213,18 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   function machinesTab(state) {
     const asking = state.needs.filter((need) => !state.targets.some((m) => m.label === need.label));
-    const add = (href, text, need = false) => el("a", { className: `add${need ? " need" : ""}`, href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
+    const add = (href, text) => el("a", { className: "add", href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
+    // A machine the agent waits for is its own card, named as the agent's toolkits will use it: adding
+    // it there meets the request, and the agent carries on.
+    const waiting = (need) => card(
+      el("div", { className: "head" }, el("h2", { textContent: `The agent is waiting for ${need.label}` })),
+      say(`A toolkit runs commands on a machine named ${need.label}. Add it, and the agent carries on.`),
+      acts(el("a", { className: "hu-button hu-button--primary", href: `#add/${encodeURIComponent(need.label)}`, textContent: `Add ${need.label}` })));
     return [
       ...(state.targets.length || asking.length ? [] : [card(say("No machines. When a function needs one, the agent asks you to add it."))]),
-      ...asking.map((need) => add(`#add/${encodeURIComponent(need.label)}`, `Add ${need.label}, which the agent asks for`, true)),
+      ...asking.map((need) => Object.assign(waiting(need), { className: "card need" })),
       ...state.targets.map(machineCard),
-      add("#add", "Add a machine"),
+      add("#add", asking.length ? "Add another machine" : "Add a machine"),
     ];
   }
 
@@ -1311,7 +1317,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     return [
       el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
         el("div", { className: "ttl" }, el("h1", { tabIndex: -1, textContent: again ? `Set up ${again.label} again` : "Add a machine" })), el("span")),
-      el("p", { className: "say", textContent: at.need ? `The agent asks for a machine named ${at.need}, to run commands on.` : again ? `Run the command on ${again.label} again, then paste what it printed.` : "A machine the agent’s functions can run commands on." }),
+      el("p", { className: "say", textContent: at.need ? `The agent is waiting for a machine named ${at.need}, to run a toolkit’s commands on.` : again ? `Run the command on ${again.label} again, then paste what it printed.` : "A machine the agent’s functions can run commands on." }),
       node,
     ];
   }
