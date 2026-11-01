@@ -72,3 +72,25 @@ test("the usage lists pages, and pages with no links yet exits 1 while the switc
   assert.equal(both.status, 1);
   assert.match(both.stderr, /choose one/);
 });
+
+test("the usage lists this-host, and this-host allows, lists and disallows an account in the record", async () => {
+  assert.match(cli("serve").stderr, /this-host \[--storage DIR\][\s\S]*--allow LOGIN@PORT[\s\S]*--disallow LOGIN@PORT/);
+  const storage = path.join(tmp, "this-host-storage");
+  fs.mkdirSync(path.join(storage, "plugins"), { recursive: true });
+  const none = cli("this-host", "--storage", storage, "--allow", "anythingllm@2222");
+  assert.equal(none.status, 1, "no record yet");
+  assert.match(none.stderr, /run install on this machine first/);
+  assert.equal(cli("install", "--storage", storage, "--skills", "library").status, 0);
+  const file = path.join(storage, "anywherellm-suite", "this-host.json");
+  const recorded = JSON.parse(fs.readFileSync(file, "utf8"));
+  const allowed = cli("this-host", "--storage", storage, "--allow", "anythingllm@2222", "--allow", "build@2223");
+  assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { ...recorded, allow: [{ login: "anythingllm", port: 2222 }, { login: "build", port: 2223 }] });
+  const listed = cli("this-host", "--storage", storage);
+  assert.match(listed.stdout, /may sign in to.*: anythingllm@2222, build@2223/);
+  assert.equal(cli("this-host", "--storage", storage, "--disallow", "build@2223").status, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")).allow, [{ login: "anythingllm", port: 2222 }]);
+  const bad = cli("this-host", "--storage", storage, "--allow", "anythingllm");
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /login@port/);
+});

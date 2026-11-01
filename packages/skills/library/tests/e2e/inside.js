@@ -174,6 +174,22 @@ const server = http.createServer((req, res) => {
     for (let i = 0; i < 200 && [undefined, "not tried yet"].includes(status("box2")); i++) await new Promise((r) => setTimeout(r, 100));
     assert.equal(status("box2"), "signed in", "the machine added with the page's command signs in with the page's key");
     assert.notEqual(pageState().spare, spare, "the next machine gets a key of its own");
+
+    // The owner's exception (this-host --allow), against the real sshd and without the seam: at
+    // 127.0.0.1 it is this machine, used only while the record allows that login at that port.
+    const EXCEPT = Symbol.for("anywherellm-suite.thishost.except");
+    const record = globalThis[Symbol.for("anywherellm-suite.thishost.record")];
+    const sshPort = Number(process.env.E2E_SSH_PORT);
+    const standIn = globalThis[EXCEPT];
+    globalThis[EXCEPT] = new Set();
+    const runText = () => call({ action: "run", name: "ops.run", inputs: { req: { command: "id -un" } } });
+    assert.match(await runText(), /an address of this machine itself/, "this machine, not allowed");
+    record.allow = [{ login: "sandbox", port: sshPort }];
+    assert.equal((await result({ command: "id -un" })).stdout, "sandbox\n", "allowed at that login and port");
+    record.allow = [{ login: "sandbox", port: sshPort + 1 }, { login: "root", port: sshPort }];
+    assert.match(await runText(), /an address of this machine itself/, "another port or login allows nothing");
+    delete record.allow;
+    globalThis[EXCEPT] = standIn;
   }
 
   server.close();

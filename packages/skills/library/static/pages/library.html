@@ -881,6 +881,7 @@ details.own .inside{padding:var(--space-1) 0 var(--space-3);gap:6px}
 .err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
 .err svg{margin-top:1px}
 .err:empty{display:none}
+.err .also{display:block;margin-top:2px;color:var(--ink)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 dialog.sheet{position:fixed;inset:auto 0 0;margin:0 auto;width:100%;max-width:640px;max-height:90vh;padding:0;border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--tile);color:var(--ink);box-shadow:var(--shadow-sheet)}
 dialog.sheet::backdrop{background:var(--scrim)}
@@ -1168,12 +1169,15 @@ dialog.sheet::backdrop{background:var(--scrim)}
   // ---- Machines.
   const tryAgain = (m, kind = "primary") => btn("Try again", kind, `Try signing in to ${m.label} again`, () => post("target-check", { label: m.label }));
   const setUp = (m) => el("a", { className: "hu-button hu-button--secondary", href: `#again/${encodeURIComponent(m.label)}`, textContent: "Set it up again" });
+  // What the owner can do about a machine refused as AnythingLLM's own: allow a separate account on
+  // it, on the host (the installer's this-host --allow), for this login and port alone.
+  const allowHint = (m) => `The owner can allow a separate account on it: on the host, anywherellm-suite this-host --allow ${m.login}@${m.port}.`;
   // A machine that isn't signed in, by why (the skill's barred, else its problem): the tag, what the
-  // card says, and its one next step.
+  // card says, its one next step, and a hint when there is one.
   const NOT_IN = {
     barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => (/try again\.?$/i.test(m.barred) ? tryAgain(m) : null)],
     "host-key": ["Host key changed", "bad", () => "Its host key changed, so nothing was sent. If you rebuilt the machine, set it up again.", setUp],
-    "this-machine": ["Not used", "bad", () => "This is the machine AnythingLLM runs on, so nothing was sent. Use another machine.", setUp],
+    "this-machine": ["Not used", "bad", () => "This is the machine AnythingLLM runs on, so nothing was sent. Use another machine.", setUp, allowHint],
     fenced: ["Not signed in", "warn", () => "Its name leads to an address that isn’t public, so it wasn’t reached. Set it up again with the address itself, like 192.168.1.20.", setUp],
     unreachable: ["Not signed in", "warn", (m) => `${m.label} didn’t answer at ${addressOf(m)}. Check that it’s on and its address is right, then try again.`, tryAgain],
     failed: ["Not signed in", "warn", (m) => (m.status === "not tried yet" ? "It hasn’t been tried yet." : sentence(m.status)), tryAgain],
@@ -1199,10 +1203,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
       } else body = [say(`${m.label} didn’t accept your key. Add its public half to ~/.ssh/authorized_keys for ${m.login} on ${m.label}, then try again.`)];
       body.push(acts(tryAgain(m)));
     } else {
-      const [text, kind, says, next] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
+      const [text, kind, says, next, hint] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
       state = tag(text, kind, "warn");
       const step = next(m);
-      body = [say(says(m)), step ? acts(step) : null];
+      body = [say(says(m)), hint ? cap(hint(m)) : null, step ? acts(step) : null];
     }
     return card(
       el("div", { className: "head" }, el("h2", { textContent: m.label }), el("span", { className: "end" }, state,
@@ -1273,9 +1277,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
     }
     for (const input of [inputs.label, inputs.host, inputs.login, key]) input?.addEventListener("input", () => refresh());
     own.addEventListener("toggle", () => refresh());
-    const fail = (name, text) => {
+    const fail = (name, text, hint) => {
       const at = errors[name] ?? errors.form;
-      at.replaceChildren(icon("warn"), el("span", { textContent: text }));
+      at.replaceChildren(icon("warn"), el("span", {}, text, hint ? el("span", { className: "also", textContent: hint }) : null));
       const input = inputs[name];
       if (name === "key") own.open = true;
       input?.setAttribute("aria-invalid", "true");
@@ -1310,7 +1314,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       if (!waiting) return;
       done();
       if (!said.error) return void (location.hash = "#machines");
-      fail(said.field ?? "form", said.error).focus();
+      fail(said.field ?? "form", said.error, said.hint).focus();
     };
     refresh();
     form = { hash: location.hash, node, refresh, answer };

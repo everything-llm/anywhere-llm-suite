@@ -139,7 +139,7 @@ test("with no skill that has pages, no key is checked", async () => {
 // The record of this machine, which the library reads to refuse a target that is this machine.
 import crypto from "node:crypto";
 import { thisHostFile } from "#shared/thishost";
-import { fingerprintOf, recordOf } from "../src/thishost.mts";
+import { fingerprintOf, recordOf, thisHost } from "../src/thishost.mts";
 
 const KEY_BLOB = Buffer.from("test host key").toString("base64");
 const KEY_PRINT = `SHA256:${crypto.createHash("sha256").update(Buffer.from(KEY_BLOB, "base64")).digest("base64").replace(/=+$/, "")}`;
@@ -238,4 +238,52 @@ test("a link at the record's path is refused, not written through, and install c
   await install(ctx, opts());
   assert.deepEqual(fs.readdirSync(real), []);
   assert.match(printed.join("\n"), /didn't record this machine.*link/);
+});
+
+// The owner's exception: accounts on this host the library may sign in to (this-host --allow).
+const held = () => JSON.parse(fs.readFileSync(thisHostFile(storage), "utf8"));
+const said = (change: Parameters<typeof thisHost>[1]) => {
+  printed.length = 0;
+  thisHost(storage, change, (l) => printed.push(l));
+  return printed.join("\n");
+};
+
+test("this-host allows, lists and disallows accounts, keeping the record's keys and addresses", async () => {
+  ctx.host = host();
+  await install(ctx, opts());
+  const before = held();
+  assert.match(said({}), /No account on this machine is allowed: the library refuses every SSH target that is this machine/);
+  assert.match(said({ allow: ["anythingllm@2222"] }), /allowed anythingllm@2222 on this machine[\s\S]*may sign in to.*: anythingllm@2222[\s\S]*separate unprivileged account that can't read AnythingLLM's storage/);
+  assert.deepEqual(held(), { ...before, allow: [{ login: "anythingllm", port: 2222 }] }, "the keys and addresses as install recorded them");
+  assert.equal(fs.statSync(thisHostFile(storage)).mode & 0o777, 0o644);
+  assert.match(said({ allow: ["anythingllm@2222", "build@2223"] }), /unchanged: anythingllm@2222 is allowed already[\s\S]*allowed build@2223/);
+  assert.match(said({}), /may sign in to.*: anythingllm@2222, build@2223$/m, "listed");
+  // The host's addresses changed: they stay as recorded (health says so) until install, which keeps the list.
+  ctx.host = host(undefined, ["127.0.0.1", "100.64.0.9"]);
+  said({ disallow: ["build@2223"] });
+  assert.deepEqual(held(), { ...before, allow: [{ login: "anythingllm", port: 2222 }] });
+  printed.length = 0;
+  assert.equal(await health(ctx, opts()), false, "the addresses are out of date");
+  await install(ctx, opts());
+  assert.match(printed.join("\n"), /recorded this machine \(1 SSH host key, 2 addresses, allowing anythingllm@2222\)/);
+  assert.deepEqual(held(), { fingerprints: [KEY_PRINT], addresses: ["100.64.0.9", "127.0.0.1"], allow: [{ login: "anythingllm", port: 2222 }] }, "install keeps the accounts allowed");
+  printed.length = 0;
+  assert.equal(await health(ctx, opts()), true, printed.join("\n"));
+  assert.match(printed.join("\n"), /ok +the record of this machine \(for SSH targets\): allows anythingllm@2222/);
+  assert.match(said({ disallow: ["anythingllm@2222", "nobody@22"] }), /disallowed anythingllm@2222: the library refuses it again[\s\S]*unchanged: nobody@22 isn't allowed[\s\S]*No account on this machine is allowed/);
+  assert.deepEqual(held(), { fingerprints: [KEY_PRINT], addresses: ["100.64.0.9", "127.0.0.1"] }, "no allow left: the record as install writes it");
+});
+
+test("this-host refuses what isn't an account, one both allowed and disallowed, and a host not recorded", async () => {
+  ctx.host = host();
+  assert.throws(() => said({ allow: ["anythingllm@2222"] }), /this machine isn't recorded \(.*is missing\): run install on this machine first/);
+  assert.ok(!fs.existsSync(thisHostFile(storage)), "nothing written");
+  await install(ctx, opts());
+  const before = fs.readFileSync(thisHostFile(storage), "utf8");
+  for (const bad of ["anythingllm", "anythingllm@0", "@2222", "any thing@22", "anythingllm@99999"]) assert.throws(() => said({ allow: [bad] }), /login@port, like anythingllm@2222/, bad);
+  assert.throws(() => said({ disallow: ["nope"] }), /--disallow nope: an account is login@port/);
+  assert.throws(() => said({ allow: ["a@22"], disallow: ["a@22"] }), /a@22 is both allowed and disallowed: choose one/);
+  assert.equal(fs.readFileSync(thisHostFile(storage), "utf8"), before, "nothing written on a refusal");
+  fs.writeFileSync(thisHostFile(storage), "not json");
+  assert.throws(() => said({ allow: ["anythingllm@2222"] }), /isn't JSON\): run install/);
 });

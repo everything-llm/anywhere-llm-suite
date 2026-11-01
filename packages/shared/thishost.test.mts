@@ -5,9 +5,11 @@ import path from "node:path";
 import test, { afterEach, beforeEach } from "node:test";
 import { SUITE_DIR } from "./anythingllm.mts";
 import {
+  accountOf,
   canonicalHost,
   THISHOST_EXCEPT,
   THISHOST_RECORD,
+  thisHostAllows,
   thisHostFile,
   thisHostFingerprints,
   thisHostKeyRefusal,
@@ -114,6 +116,37 @@ test("with no storage folder known nothing is usable, and nothing throws", () =>
   delete process.env.STORAGE_DIR;
   assert.equal(thisHostUsable().ok, false);
   assert.equal(thisHostRecorded(), false);
+});
+
+test("an account the owner allowed on this host is that login at that port, nothing else", () => {
+  assert.equal(thisHostAllows("anythingllm", 2222), false, "no record: nothing is allowed");
+  write(JSON.stringify(record()));
+  assert.equal(thisHostAllows("anythingllm", 2222), false, "a record without allow allows nothing");
+  write(JSON.stringify(record({ allow: [{ login: "anythingllm", port: 2222 }] })));
+  assert.equal(thisHostAllows("anythingllm", 2222), true);
+  assert.equal(thisHostAllows("anythingllm", 22), false, "another port");
+  assert.equal(thisHostAllows("muse", 2222), false, "another login");
+  assert.equal(thisHostAllows("AnythingLLM", 2222), false, "a login is compared exactly, as sshd does");
+  // The allowance doesn't loosen the refusals themselves: the library asks thisHostAllows first.
+  assert.ok(thisHostKeyRefusal("SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  assert.ok(thisHostRefusal("100.90.1.2"));
+  // Entries that aren't accounts allow nothing; the rest of the record still reads.
+  write(JSON.stringify({ ...record(), allow: [{ login: "anythingllm", port: "2222" }, { login: "bad login", port: 2222 }, { login: "x", port: 70000 }, "anythingllm@2222", { login: "ok", port: 2223, more: 1 }] }));
+  assert.equal(thisHostAllows("anythingllm", 2222), false);
+  assert.equal(thisHostAllows("ok", 2223), true);
+  assert.deepEqual(thisHostUsable(), { ok: true });
+  write(JSON.stringify({ ...record(), allow: "anythingllm@2222" }));
+  assert.equal(thisHostAllows("anythingllm", 2222), false, "allow that isn't a list allows nothing");
+  assert.deepEqual(thisHostUsable(), { ok: true });
+  // A record that isn't one allows nothing, whatever its allow says.
+  write(JSON.stringify({ fingerprints: "x", addresses: [], allow: [{ login: "anythingllm", port: 2222 }] }));
+  assert.equal(thisHostAllows("anythingllm", 2222), false);
+});
+
+test("an account is written login@port", () => {
+  assert.deepEqual(accountOf("anythingllm@2222"), { login: "anythingllm", port: 2222 });
+  assert.deepEqual(accountOf(" pi@22 "), { login: "pi", port: 22 });
+  for (const bad of ["anythingllm", "anythingllm@", "@2222", "anythingllm@0", "anythingllm@65536", "anythingllm@22x", "any thing@22", "a@b@22", "-x@22", ""]) assert.equal(accountOf(bad), null, bad);
 });
 
 test("the test seam can stand in for the record", () => {

@@ -883,6 +883,8 @@ test("without a good record of this machine no target is saved or used", async (
     ["a file that isn't JSON", () => writeRecord("not json"), /this machine isn't recorded.*isn't JSON/],
     ["a file that isn't a record", () => writeRecord('{"fingerprints":"x"}'), /this machine isn't recorded.*isn't a record of this machine/],
     ["no host key in it", () => writeRecord(JSON.stringify({ fingerprints: [], addresses: [] })), /holds no SSH host key.*run the installer on the host/],
+    // An account allowed on this host doesn't make a record without a key usable.
+    ["no host key, and this very account allowed", () => writeRecord(JSON.stringify({ fingerprints: [], addresses: [], allow: [{ login: "sandbox", port: PORT }] })), /holds no SSH host key/],
   ];
   for (const [what, make] of cases.map(([w, m]) => [w, m] as const)) {
     record(undefined); // the file, as shipped code reads it
@@ -913,6 +915,66 @@ test("a machine that shows this host's SSH host key is refused, whatever its add
   assert.match(twin.status, /is this machine: SHA256:\S+ is this machine's own SSH host key.*Nothing was sent/);
   assert.equal(twin.problem, "this-machine");
   assert.equal(seen.execs, 0);
+});
+
+// The owner's exception (this-host --allow): one login at one port on this host is let through.
+const HINT = (account: string) => `The owner can allow a separate account on it: on the host, anywherellm-suite this-host --allow ${account}.`;
+
+test("an account the owner allowed on this host is saved and used, at that login and port alone", async () => {
+  // The stand-in is this machine by its address (no stand-in exception) and by its host key.
+  const thisHost = { fingerprints: [fingerprint(hostKey.public)], addresses: [] };
+  record({ ...thisHost, allow: [{ login: "sandbox", port: PORT }] });
+  await asThisMachine(async () => {
+    const box = await register();
+    assert.equal(box.status, "signed in", "the allowed account at its port");
+    assert.equal(box.problem, null);
+    await ops();
+    assert.equal(result(await call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } })).stdout, "hi\n");
+    // Another login, or another port, on this host is refused as before, with the hint.
+    assert.equal(await savedAs("other", { login: "other" }), "That’s the machine AnythingLLM runs on. Add a different machine.");
+    assert.equal(pageState().result.hint, HINT(`other@${PORT}`));
+    assert.equal(await savedAs("other", { host: `127.0.0.1:${IMPOSTER_PORT}` }), "That’s the machine AnythingLLM runs on. Add a different machine.", "another port");
+    assert.equal(pageState().result.hint, HINT(`sandbox@${IMPOSTER_PORT}`));
+    // By its address alone (its key isn't recorded): refused under the address.
+    record({ fingerprints: [THIS_HOST_FINGERPRINT], addresses: [], allow: [{ login: "sandbox", port: PORT }] });
+    assert.equal(await savedAs("other", { login: "other" }), "That’s an address of the machine AnythingLLM runs on. Add a different machine.");
+    assert.equal(pageState().result.field, "host");
+    assert.equal(pageState().result.hint, HINT(`other@${PORT}`));
+    assert.equal(await savedAs("other", { login: "Sandbox" }), "That’s an address of the machine AnythingLLM runs on. Add a different machine.", "a login is compared exactly");
+    assert.deepEqual(pageState().targets.map((t: { label: string }) => t.label), ["box"]);
+  });
+  // A refusal that isn't this machine's has no hint.
+  assert.equal(await savedAs("other", { fingerprint: "no fingerprint" }), "That line has no SHA256 fingerprint. Paste the whole line the command printed, like 256 SHA256:… root@pi (ED25519).");
+  assert.equal(pageState().result.hint, undefined);
+});
+
+test("a target saved while its account was allowed isn't used once the owner takes it out", async () => {
+  record({ fingerprints: [fingerprint(hostKey.public)], addresses: [], allow: [{ login: "sandbox", port: PORT }] });
+  await register();
+  await ops();
+  const run = () => call({ action: "run", name: "ops.run", inputs: { req: { command: "echo hi" } } });
+  assert.equal(result(await run()).stdout, "hi\n");
+  // Taken out (this-host --disallow writes the record without it): the host key says this machine.
+  record({ fingerprints: [fingerprint(hostKey.public)], addresses: [] });
+  const execs = seen.execs;
+  assert.match(await run(), /the target "box" \(127\.0\.0\.1:\d+\) is this machine: SHA256:\S+ is this machine's own SSH host key.*Nothing was sent/);
+  assert.equal(seen.execs, execs, "nothing was run");
+  // Allowed at another port only: the same.
+  record({ fingerprints: [fingerprint(hostKey.public)], addresses: [], allow: [{ login: "sandbox", port: PORT + 1 }, { login: "other", port: PORT }] });
+  assert.match(await run(), /is this machine: .*Nothing was sent/);
+  // By its address: refused before connecting, and the card says this machine.
+  await asThisMachine(async () => {
+    record({ fingerprints: [THIS_HOST_FINGERPRINT], addresses: [], allow: [{ login: "sandbox", port: PORT }] });
+    assert.equal(result(await run()).stdout, "hi\n", "allowed, at its address");
+    record({ fingerprints: [THIS_HOST_FINGERPRINT], addresses: [] });
+    const open = seen.open;
+    assert.match(await run(), /isn't reached: .*an address of this machine itself/);
+    assert.equal(seen.open, open, "nothing connected");
+    post({ secret: pageConfig().secret, ev: "target-check", label: "box" });
+    await call({ action: "library" });
+    await until(() => boxState().problem === "this-machine", SIGN_IN_MS);
+  });
+  assert.equal(seen.execs, execs + 1, "only the run while it was allowed");
 });
 
 test("a target is asked to fetch the pages from AnythingLLM's address and from each of this host's, on each port, at once", async () => {
