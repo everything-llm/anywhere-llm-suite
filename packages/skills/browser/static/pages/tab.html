@@ -893,6 +893,11 @@ svg{flex:none}
 .ff label{padding:0 var(--space-2);font-size:0.8125rem;color:var(--ink)}
 .fld{min-height:var(--size-primary);width:100%;box-sizing:border-box;padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem}
 .fld:focus-visible{outline-offset:-3px}
+.fld[aria-invalid="true"]{border-color:var(--danger)}
+.ff .err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
+.ff .err svg{flex:none;margin-top:1px}
+.ff .err:empty{display:none}
+.app>#banners{flex:none;padding:0 var(--space-3) var(--space-2)}
 .pw{position:relative}.pw .fld{padding-right:72px}
 .pwshow{position:absolute;right:4px;top:2px;min-height:var(--size-control-touch);min-width:56px;padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.8125rem;font-weight:600}
 .tgl{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--size-control-touch);font-size:1rem}
@@ -911,12 +916,30 @@ svg{flex:none}
 .sheet button{width:100%;min-height:var(--size-row-touch);display:flex;align-items:center;gap:14px;font-size:1rem;text-align:left;color:var(--ink)}
 .sheet button+button{border-top:1px solid var(--line)}
 .sheet button:focus-visible{outline-offset:-3px}
-/* Lines from the skill and the page: a toast near the bottom, ink on ground. */
+/* Updating the page: a pill under the bar. */
 .upd{position:fixed;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:var(--space-2);min-height:36px;max-width:calc(100% - var(--space-8));padding:0 14px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);font-size:0.8125rem;font-weight:500;line-height:1.4;white-space:nowrap}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.live{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.live{animation:none}}
-.toast{position:fixed;left:var(--space-5);right:var(--space-5);max-width:28rem;margin:0 auto;z-index:6;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--ink);color:var(--ground);font-size:0.8125rem;line-height:1.4;text-align:center;overflow-wrap:anywhere}
 @media (hover:hover){.strip>a:not(.cur):hover,.strip>button:hover,.in:hover,.navbar>:not(:disabled):hover,.suggest button:hover,.sheet button:hover,.site:hover>b,.pwshow:hover,.hu-button--secondary:hover{background:var(--sunken)}}
+/* page messages: the toast and the banners, as the script's block of that name writes them; the same
+   in every suite page (shared/messages.test.mts). An empty toast draws nothing and stays in the page. */
+#toast{--focus:var(--ground);position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:var(--space-2);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
+#toast:empty{opacity:0;pointer-events:none}
+#toast>span{flex:1;min-width:0;overflow-wrap:anywhere}
+#toast>button,#banners .shut{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:inherit;font:700 1rem/1 var(--font-sans);cursor:pointer}
+#toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
+#banners{display:flex;flex-direction:column;gap:var(--space-2)}
+#banners:empty{display:none}
+#banners>div{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-1) var(--space-3) var(--space-4);border:1px solid var(--tile-edge);border-radius:var(--radius-md);background:var(--danger-soft);color:var(--ink);font:400 1rem/1.5 var(--font-sans);text-align:start}
+#banners>div>svg{flex:none;margin-top:2px;color:var(--danger)}
+#banners>.warning{background:var(--warning-soft)}
+#banners>.warning>svg{color:var(--warning)}
+#banners>.info{background:var(--info-soft)}
+#banners>.info>svg{color:var(--info)}
+#banners p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+#banners .shut{margin:calc(-1 * var(--space-2)) 0;padding:0}
+@media (forced-colors:active){#toast,#banners>div{border-color:CanvasText}}
+/* end of page messages */
 </style>
 </head>
 <body class="hu-root" data-density="touch">
@@ -928,6 +951,7 @@ svg{flex:none}
   <form class="bar" id="searchbar" role="search" hidden>
     <div class="field"><i data-icon="search" data-size="18"></i><input id="q" type="text" aria-label="Search or type an address" placeholder="Search or type an address" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="in" id="clear" type="button" aria-label="Clear" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
   </form>
+  <div id="banners"></div>
   <main id="stage" aria-label="The page"><img id="shot" alt=""><button id="take" type="button" aria-label="Take the tab over"></button></main>
   <section class="home" id="home" aria-label="New tab" hidden>
     <ul class="suggest" id="suggest" aria-label="Suggestions" hidden></ul>
@@ -952,7 +976,7 @@ svg{flex:none}
   <button type="button" id="morenew"><i data-icon="plus" data-size="20"></i>New tab</button>
   <button type="button" id="moreclose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Close this tab</button>
 </div></section>
-<div class="toast" id="toast" role="status" hidden></div>
+<div id="toast" role="status"></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -967,6 +991,7 @@ svg{flex:none}
     globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   };
   const svg = (name, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]}</svg>`;
   /** An icon in a box of a favicon's size. */
@@ -995,6 +1020,75 @@ svg{flex:none}
     pending = null;
     if (!awaiting?.made) $("upd").hidden = true;
   }
+
+  /* page messages: the toast and the banners. toast(text) says what was just done ("Sent", "Copied")
+     for 6 s, or 2 s and 0.7 s a word when that is longer. toast(text, { undo, send }) holds what it
+     undoes, unsent, and stays with Undo and Close, with no timer, until one is pressed, another toast
+     takes its place, or the page is left: then what it holds is sent. It answers its Undo, to focus.
+     The toast (#toast, role="status") is in the page from the start, empty, and is never hidden: a
+     toast is written into it and emptied out of it. banner(text, { kind, key }) is an error, or what to
+     do about one: it stays near the top (#banners), with its icon and a Close, until it is closed. One
+     of the same `key` takes the place of the one before (the same words are said once), and
+     unbanner(key) takes it away once it no longer holds. The same block in every suite page, as
+     shared/vault.html has it (shared/messages.test.mts keeps them the same). */
+  const { toast, banner, unbanner } = (() => {
+    const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+    const CLOSE = svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+    // House UI's status shapes: danger a square with a cross, warning a triangle, info a circle with an i.
+    const SIGN = {
+      danger: svg('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+      warning: svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+      info: svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    };
+    const button = (className, label, drawn = "") => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className });
+      if (drawn) (b.innerHTML = drawn), b.setAttribute("aria-label", label);
+      else b.textContent = label;
+      return b;
+    };
+    const box = document.getElementById("toast"), list = document.getElementById("banners");
+    let timer = 0, held = null;
+    const empty = () => { clearTimeout(timer); box.replaceChildren(); };
+    const send = () => { const was = held; held = null; was?.send(); };
+    const lasts = (text) => Math.max(6000, 2000 + 700 * String(text).trim().split(/\s+/).length);
+    function toast(text, undo = null) {
+      send();
+      empty();
+      const line = Object.assign(document.createElement("span"), { textContent: text });
+      if (!undo) return box.append(line), (timer = setTimeout(empty, lasts(text))), null;
+      held = undo;
+      const again = button("undo", "Undo"), shut = button("shut", "Close", CLOSE);
+      again.onclick = () => { const was = held; held = null; empty(); was?.undo(); };
+      shut.onclick = () => { empty(); send(); };
+      box.append(line, again, shut);
+      return again;
+    }
+    addEventListener("pagehide", () => { empty(); send(); });
+    document.addEventListener("visibilitychange", () => document.hidden && held && (empty(), send()));
+    const find = (key) => [...list.children].find((b) => b.dataset.key === key);
+    // Closed, the focus goes to the next banner's Close, else to the first control after the banners.
+    const after = () => [...document.querySelectorAll("button, a[href], input, textarea, [tabindex]")].find((control) => list.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING && !control.disabled && control.getClientRects().length);
+    function banner(text, { kind = "danger", key = text } = {}) {
+      const was = find(key);
+      if (was?.dataset.text === text) return was;
+      const node = Object.assign(document.createElement("div"), { className: kind, innerHTML: SIGN[kind] ?? SIGN.danger });
+      Object.assign(node.dataset, { key, text });
+      node.setAttribute("role", kind === "info" ? "status" : "alert");
+      const shut = button("shut", "Close", CLOSE);
+      shut.onclick = () => {
+        const next = [...list.children].find((b) => b !== node);
+        node.remove();
+        (next?.querySelector(".shut") ?? after())?.focus();
+      };
+      node.append(Object.assign(document.createElement("p"), { textContent: text }), shut);
+      if (was) was.replaceWith(node);
+      else list.prepend(node);
+      return node;
+    }
+    const unbanner = (key) => void find(key)?.remove();
+    return { toast, banner, unbanner };
+  })();
+  /* end of page messages */
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -1063,9 +1157,10 @@ svg{flex:none}
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
           body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "browser-lean page" } }),
         });
-        if (!r.ok) toast(r.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in its Settings › Browser Extension, then paste it into a suite skill’s PAGE_KEY." : "AnythingLLM answered " + r.status + ". Try again in a moment.");
+        if (!r.ok) banner(r.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in its Settings › Browser Extension, then paste it into a suite skill’s PAGE_KEY." : "AnythingLLM answered " + r.status + ". Try again in a moment.", { key: "post" });
+        else unbanner("post"), unbanner("reach");
       } catch (e) {
-        toast("Can’t reach AnythingLLM. Try again in a moment.");
+        banner("Can’t reach AnythingLLM. Try again in a moment.", { key: "reach" });
       }
       soon(); // the step's picture comes within a second: look for it now
     });
@@ -1092,15 +1187,8 @@ svg{flex:none}
     return ["h1", b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, aes)), b64(iv), b64(sealed)].join(".");
   }
 
-  let toastTimer = 0;
-  function toast(text) {
-    $("toast").textContent = text;
-    $("toast").hidden = false;
-    placeToast();
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => ($("toast").hidden = true), 4000);
-  }
-  // Above the card while one is up, else above the bottom bar.
+  // The toast sits above the card while one is up, else above the bottom bar: placed as it's written.
+  new MutationObserver(() => placeToast()).observe($("toast"), { childList: true });
   function placeToast() {
     const card = [$("need"), $("offer")].find((c) => !c.hidden);
     const above = card ? card.getBoundingClientRect().top : $("navbar").getBoundingClientRect().top;
@@ -1113,7 +1201,7 @@ svg{flex:none}
     $("upd").style.top = Math.round(bar.getBoundingClientRect().bottom) + 8 + "px";
     const room = Math.max(160, innerHeight - Math.round($("strip").getBoundingClientRect().bottom) - 24) + "px";
     $("need").style.maxHeight = $("offer").style.maxHeight = room; // a card taller than the room scrolls
-    if (!$("toast").hidden) placeToast();
+    placeToast();
   }
   function layout() {
     if (!st || homeView) return;
@@ -1124,6 +1212,8 @@ svg{flex:none}
     if (over) place(over.input, over.field);
   }
   addEventListener("resize", () => (reserve(), layout(), askSize()));
+  // A banner coming or going changes the picture's room: fitted again, the window's size unchanged.
+  new ResizeObserver(() => layout()).observe($("stage"));
 
   // ---- The tab's screen: the page's room, asked for once it settles; the skill keeps it within the
   // screens it draws. Not while a field or the request is being typed in: a keyboard took the room.
@@ -1187,7 +1277,7 @@ svg{flex:none}
     try {
       return post("type", { ref: f.ref, sealed: await seal(value), then });
     } catch (e) {
-      toast(e.message);
+      banner(e.message, { key: "seal" });
     }
   }
 
@@ -1377,7 +1467,7 @@ svg{flex:none}
   function go(q) {
     q = String(q || "").trim();
     if (!q || awaiting?.made) return;
-    if (gone === "closed" && !(st.until > Date.now() + skew)) return toast("This tab closed a while ago. Ask the agent in the chat to open a page.");
+    if (gone === "closed" && !(st.until > Date.now() + skew)) return void banner("This tab closed a while ago. Ask the agent in the chat to open a page.", { kind: "warning", key: "line" });
     searchDraft.clear();
     awaiting = { made: Math.random().toString(36).slice(2, 12), until: Date.now() + 20000, shown };
     $("q").blur();
@@ -1442,7 +1532,21 @@ svg{flex:none}
     needDraft = draft(`sign-in/${need.until}`, cfg.token);
     needDraft.keep(user, "user");
     const secret = input("n-secret", { type: login ? "password" : "text", autocomplete: login ? "new-password" : "one-time-code" });
-    const field = (label, inp, extra) => el("div", { className: "ff" }, el("label", { textContent: label, htmlFor: inp.id }), extra ? el("div", { className: "pw" }, inp, extra) : inp);
+    // Each field has its message slot under it: what's missing is said there, and the field focused.
+    const slot = (inp) => {
+      const said = el("span", { className: "err", id: inp.id + "-err" });
+      said.setAttribute("role", "alert");
+      inp.setAttribute("aria-describedby", said.id);
+      return said;
+    };
+    const field = (label, inp, extra) => el("div", { className: "ff" }, el("label", { textContent: label, htmlFor: inp.id }), extra ? el("div", { className: "pw" }, inp, extra) : inp, slot(inp));
+    const fail = (inp, text) => {
+      const mark = el("span", {});
+      mark.innerHTML = svg("warn", 16);
+      document.getElementById(inp.id + "-err")?.replaceChildren(mark.firstChild, el("span", { textContent: text }));
+      inp.setAttribute("aria-invalid", "true");
+      return inp;
+    };
     // A password can be shown while it's typed; the card is made again for each request, so it starts hidden.
     const show = login ? el("button", { className: "pwshow", type: "button", textContent: "Show", ariaPressed: "false", ariaLabel: "Show password" }) : null;
     if (show) show.onclick = () => {
@@ -1458,13 +1562,16 @@ svg{flex:none}
     const form = $("need");
     form.onsubmit = async (e) => {
       e.preventDefault();
-      if (user && !user.value.trim()) return toast("Give the username");
-      if (!secret.value.trim()) return toast(login ? "Give the password" : "Give the code");
+      for (const inp of [user, secret]) inp && (inp.removeAttribute("aria-invalid"), document.getElementById(inp.id + "-err")?.replaceChildren());
+      const bad = [];
+      if (user && !user.value.trim()) bad.push(fail(user, "Give the username or email."));
+      if (!secret.value.trim()) bad.push(fail(secret, login ? "Give the password." : "Give the code."));
+      if (bad.length) return bad[0].focus();
       let fields;
       try {
         fields = login ? { user: user ? user.value.trim() : "", sealed: await seal(secret.value), save: keep && !!user } : { text: secret.value.trim() };
       } catch (err) {
-        return toast(err.message);
+        return void banner(err.message, { key: "seal" });
       }
       answered();
       post("need-answer", fields);
@@ -1592,7 +1699,8 @@ svg{flex:none}
       }
       // A line stays a while: shown once (a gone tab's: why a tab didn't open).
       const news = gone ? !first : fresh;
-      if (st.msg && st.msg.id !== shown) (news && toast(st.msg.text)), (shown = st.msg.id);
+      // A line that says something was done is a toast; any other (a refusal, what to do next) is a banner, until closed or the next line.
+      if (st.msg && st.msg.id !== shown) (news && (st.msg.done ? toast(st.msg.text) : banner(st.msg.text, { kind: "warning", key: "line" }))), (shown = st.msg.id);
       if (first) askSize(); // the first state: ask for this window's room
     }
     // A tab asked for from here: gone to once it's listed. A line said meanwhile is the answer (why it
@@ -1601,7 +1709,7 @@ svg{flex:none}
     if (made) return goTo(made.path);
     if (awaiting && (shown !== awaiting.shown || Date.now() > awaiting.until)) {
       const opening = !!awaiting.made;
-      if (opening && shown === awaiting.shown) toast(gone ? "Nothing answered. Ask the agent in the chat to open a page, then try again." : "The tab didn’t open. Try again in a moment.");
+      if (opening && shown === awaiting.shown) banner(gone ? "Nothing answered. Ask the agent in the chat to open a page, then try again." : "The tab didn’t open. Try again in a moment.", { key: "line" });
       awaiting = null;
       if (opening) settled();
     }

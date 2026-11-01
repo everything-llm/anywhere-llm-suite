@@ -40,6 +40,7 @@ test("the user takes the tab over, types a login sealed, is offered to save it, 
   post({ ev: "type", ref: "e2", text: "in the clear" }, opts);
   await call({ action: "guide" });
   assert.equal(tabState("take").msg.text, "A password has to come sealed. Reload the page.");
+  assert.equal(tabState("take").msg.done, undefined, "a refusal: the page keeps it as a banner");
   assert.equal(lastPage().fields.e2.value, undefined);
   post({ ev: "type", ref: "e2", sealed: seal("pw-take-1", tabConfig("take").pub), then: "Enter" }, opts);
   await call({ action: "guide" });
@@ -50,6 +51,7 @@ test("the user takes the tab over, types a login sealed, is offered to save it, 
   post({ ev: "offer", save: true }, opts);
   await call({ action: "guide" });
   assert.equal(tabState("take").msg.text, "Saved for take.example");
+  assert.equal(tabState("take").msg.done, true, "what was done: the page shows it as a toast");
   assert.equal(tabState("take").offer, null);
   assert.ok(logins.list().some((l) => l.site === "take.example" && l.user === "ada"));
 

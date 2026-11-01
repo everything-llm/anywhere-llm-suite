@@ -97,7 +97,7 @@ export interface Entry {
   needs: Map<string, Need>;
   offers: Map<string, Offer>;
   /** The line each tab's page shows (say). */
-  msgs: Map<string, { text: string; id: number; until: number }>;
+  msgs: Map<string, { text: string; id: number; until: number; done?: true }>;
   /** The tabs the user holds. */
   holds: Map<string, Hold>;
   /** The screen each tab's page asked for, given to every page the tab has. */
@@ -219,11 +219,13 @@ export function live<V extends { until: number }>(map: Map<string, V>, key: stri
 export const SAY_MS = 60 * 1000;
 
 /** A line for a tab's page in place of `before`: an id after its, so the page shows it. */
-export function lineAfter(before: { id: number } | null | undefined, text: string): { text: string; id: number; until: number } {
+export function lineAfter(before: { id: number } | null | undefined, text: string, done = false): { text: string; id: number; until: number; done?: true } {
   const now = Date.now();
-  return { text, id: Math.max(now, (before?.id ?? 0) + 1), until: now + SAY_MS };
+  return { text, id: Math.max(now, (before?.id ?? 0) + 1), until: now + SAY_MS, ...(done ? { done: true as const } : {}) };
 }
 
-/** Puts `text` on the page of `key`'s tab, in place of the line before. */
-export const say = (entry: Entry, key: string, text: string): void => void entry.msgs.set(key, lineAfter(entry.msgs.get(key), text));
+/** Puts `text` on the page of `key`'s tab, in place of the line before. `done`: it says what was
+ *  done ("Saved for github.com"), which the page shows as a toast; any other line (a refusal, what to
+ *  do next) stays on the page as a banner until it's closed. */
+export const say = (entry: Entry, key: string, text: string, done = false): void => void entry.msgs.set(key, lineAfter(entry.msgs.get(key), text, done));
 

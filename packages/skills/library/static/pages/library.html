@@ -806,9 +806,13 @@ input,textarea{font:inherit;color:var(--ink)}
 .view{max-width:640px;margin:0 auto;padding:calc(var(--space-3) + env(safe-area-inset-top,0px)) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-6) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
 h1{margin:0;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
 h1:focus{outline:none}
-nav{display:flex;padding:3px;border-radius:var(--radius-md);background:var(--sunken)}
-nav button{flex:1;min-width:0;min-height:var(--size-control-touch);padding:0 var(--space-1);border-radius:var(--radius-sm);font-size:1rem;line-height:1.25;text-align:center;color:var(--ink);overflow-wrap:anywhere}
-nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1.5px var(--line-strong);font-weight:600}
+nav{display:flex;flex-wrap:wrap;gap:2px;padding:3px;border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--sunken)}
+nav button{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);min-width:44px;min-height:var(--control-h);padding:0 var(--space-2);border-radius:calc(var(--radius-md) - 3px);font:600 1rem/1.25 var(--font-sans);text-align:center;color:var(--ink);overflow-wrap:break-word}
+nav button svg{flex:none}
+nav button:not([aria-selected="true"]) svg{display:none}
+nav button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+@media (forced-colors:active){nav button[aria-selected="true"]:not(:focus-visible){outline:2px solid Highlight;outline-offset:-2px}}
+body>#banners{max-width:640px;margin:0 auto;padding:var(--space-3) max(var(--space-4),env(safe-area-inset-right,0px)) 0 max(var(--space-4),env(safe-area-inset-left,0px))}
 .bar{min-height:72px;margin:calc(-1 * var(--space-2)) calc(-1 * var(--space-1)) 0;display:grid;grid-template-columns:48px minmax(0,1fr) 48px;align-items:center;gap:var(--space-2)}
 .round{width:48px;height:48px;border-radius:50%;color:var(--ink);display:grid;place-items:center;text-decoration:none}
 .back{border:1px solid var(--tile-edge);background:var(--tile);box-shadow:var(--shadow-tile)}
@@ -892,20 +896,34 @@ dialog.sheet::backdrop{background:var(--scrim)}
 .menu button{display:flex;align-items:center;width:100%;min-height:48px;padding:0 var(--space-4);border-radius:var(--radius-sm);color:var(--danger);font-size:1rem}
 .menu button.plain{color:var(--ink)}
 .head .ends{display:flex;align-items:center;gap:var(--space-2)}
-#toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
-#toast:not([hidden]){display:flex;align-items:center;gap:var(--space-2)}
-#toast>span{flex:1;min-width:0}
-#toast>button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--ground);font:700 1rem/1 var(--font-sans);cursor:pointer}
-#toast>button[hidden]{display:none}
+/* page messages: the toast and the banners, as the script's block of that name writes them; the same
+   in every suite page (shared/messages.test.mts). An empty toast draws nothing and stays in the page. */
+#toast{--focus:var(--ground);position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:var(--space-2);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
+#toast:empty{opacity:0;pointer-events:none}
+#toast>span{flex:1;min-width:0;overflow-wrap:anywhere}
+#toast>button,#banners .shut{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:inherit;font:700 1rem/1 var(--font-sans);cursor:pointer}
 #toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
+#banners{display:flex;flex-direction:column;gap:var(--space-2)}
+#banners:empty{display:none}
+#banners>div{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-1) var(--space-3) var(--space-4);border:1px solid var(--tile-edge);border-radius:var(--radius-md);background:var(--danger-soft);color:var(--ink);font:400 1rem/1.5 var(--font-sans);text-align:start}
+#banners>div>svg{flex:none;margin-top:2px;color:var(--danger)}
+#banners>.warning{background:var(--warning-soft)}
+#banners>.warning>svg{color:var(--warning)}
+#banners>.info{background:var(--info-soft)}
+#banners>.info>svg{color:var(--info)}
+#banners p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+#banners .shut{margin:calc(-1 * var(--space-2)) 0;padding:0}
+@media (forced-colors:active){#toast,#banners>div{border-color:CanvasText}}
+/* end of page messages */
 </style>
 </head>
 <body class="hu-root" data-density="touch">
+<div id="banners"></div>
 <div class="view" id="home">
   <nav role="tablist" aria-label="Show">
-    <button role="tab" data-tab="toolkits" aria-selected="true">Toolkits</button>
-    <button role="tab" data-tab="machines" aria-selected="false">Machines</button>
-    <button role="tab" data-tab="runs" aria-selected="false">Runs</button>
+    <button role="tab" data-tab="toolkits" aria-selected="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Toolkits</button>
+    <button role="tab" data-tab="machines" aria-selected="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Machines</button>
+    <button role="tab" data-tab="runs" aria-selected="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Runs</button>
   </nav>
   <div id="tab" class="view" style="padding:0;width:100%" role="tabpanel"></div>
   <button class="hu-button hu-button--ghost" type="button" id="rotate">Replace link</button>
@@ -920,7 +938,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
-<div id="toast" role="status" hidden><span></span><button type="button" class="undo" hidden>Undo</button><button type="button" class="shut" aria-label="Close" hidden></button></div>
+<div id="toast" role="status"></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -953,27 +971,75 @@ dialog.sheet::backdrop{background:var(--scrim)}
     close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   };
   const icon = (name, size = 16, cls = "") => Object.assign(document.createElement("template"), { innerHTML: `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>` }).content.firstChild;
-  // ---- The toast: what was sent or done, or a refusal, for 4 s. One with `undo` ({ undo, send })
-  // holds what it undoes, unsent, and stays with Undo and Close until one is pressed, another toast
-  // takes its place, or the page is left: then what it holds is sent. Undo has no timer to beat.
-  let toastTimer = 0, held = null;
-  const toastBox = $("toast"), [toastText, undoButton, shutButton] = toastBox.children;
-  shutButton.append(icon("close", 20));
-  const hideToast = () => { toastBox.hidden = true; clearTimeout(toastTimer); };
-  const sendHeld = () => { const was = held; held = null; was?.send(); };
-  function toast(text, undo = null) {
-    sendHeld();
-    toastText.textContent = text;
-    undoButton.hidden = shutButton.hidden = !undo;
-    toastBox.hidden = false;
-    clearTimeout(toastTimer);
-    if (undo) held = undo;
-    else toastTimer = setTimeout(hideToast, 4000);
-  }
-  undoButton.onclick = () => { const was = held; held = null; hideToast(); was?.undo(); };
-  shutButton.onclick = () => { hideToast(); sendHeld(); };
-  addEventListener("pagehide", () => { hideToast(); sendHeld(); });
-  document.addEventListener("visibilitychange", () => document.hidden && held && (hideToast(), sendHeld()));
+
+  /* page messages: the toast and the banners. toast(text) says what was just done ("Sent", "Copied")
+     for 6 s, or 2 s and 0.7 s a word when that is longer. toast(text, { undo, send }) holds what it
+     undoes, unsent, and stays with Undo and Close, with no timer, until one is pressed, another toast
+     takes its place, or the page is left: then what it holds is sent. It answers its Undo, to focus.
+     The toast (#toast, role="status") is in the page from the start, empty, and is never hidden: a
+     toast is written into it and emptied out of it. banner(text, { kind, key }) is an error, or what to
+     do about one: it stays near the top (#banners), with its icon and a Close, until it is closed. One
+     of the same `key` takes the place of the one before (the same words are said once), and
+     unbanner(key) takes it away once it no longer holds. The same block in every suite page, as
+     shared/vault.html has it (shared/messages.test.mts keeps them the same). */
+  const { toast, banner, unbanner } = (() => {
+    const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+    const CLOSE = svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+    // House UI's status shapes: danger a square with a cross, warning a triangle, info a circle with an i.
+    const SIGN = {
+      danger: svg('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+      warning: svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+      info: svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    };
+    const button = (className, label, drawn = "") => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className });
+      if (drawn) (b.innerHTML = drawn), b.setAttribute("aria-label", label);
+      else b.textContent = label;
+      return b;
+    };
+    const box = document.getElementById("toast"), list = document.getElementById("banners");
+    let timer = 0, held = null;
+    const empty = () => { clearTimeout(timer); box.replaceChildren(); };
+    const send = () => { const was = held; held = null; was?.send(); };
+    const lasts = (text) => Math.max(6000, 2000 + 700 * String(text).trim().split(/\s+/).length);
+    function toast(text, undo = null) {
+      send();
+      empty();
+      const line = Object.assign(document.createElement("span"), { textContent: text });
+      if (!undo) return box.append(line), (timer = setTimeout(empty, lasts(text))), null;
+      held = undo;
+      const again = button("undo", "Undo"), shut = button("shut", "Close", CLOSE);
+      again.onclick = () => { const was = held; held = null; empty(); was?.undo(); };
+      shut.onclick = () => { empty(); send(); };
+      box.append(line, again, shut);
+      return again;
+    }
+    addEventListener("pagehide", () => { empty(); send(); });
+    document.addEventListener("visibilitychange", () => document.hidden && held && (empty(), send()));
+    const find = (key) => [...list.children].find((b) => b.dataset.key === key);
+    // Closed, the focus goes to the next banner's Close, else to the first control after the banners.
+    const after = () => [...document.querySelectorAll("button, a[href], input, textarea, [tabindex]")].find((control) => list.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING && !control.disabled && control.getClientRects().length);
+    function banner(text, { kind = "danger", key = text } = {}) {
+      const was = find(key);
+      if (was?.dataset.text === text) return was;
+      const node = Object.assign(document.createElement("div"), { className: kind, innerHTML: SIGN[kind] ?? SIGN.danger });
+      Object.assign(node.dataset, { key, text });
+      node.setAttribute("role", kind === "info" ? "status" : "alert");
+      const shut = button("shut", "Close", CLOSE);
+      shut.onclick = () => {
+        const next = [...list.children].find((b) => b !== node);
+        node.remove();
+        (next?.querySelector(".shut") ?? after())?.focus();
+      };
+      node.append(Object.assign(document.createElement("p"), { textContent: text }), shut);
+      if (was) was.replaceWith(node);
+      else list.prepend(node);
+      return node;
+    }
+    const unbanner = (key) => void find(key)?.remove();
+    return { toast, banner, unbanner };
+  })();
+  /* end of page messages */
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -1038,12 +1104,13 @@ dialog.sheet::backdrop{background:var(--scrim)}
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "library-lean page" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
+      if (!res.ok) return banner(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`, { key: "post" }), false;
+      unbanner("post"), unbanner("reach");
       if (!quiet) toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Try again in a moment.");
+      banner("Can’t reach AnythingLLM. Try again in a moment.", { key: "reach" });
       return false;
     }
   }
@@ -1322,8 +1389,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       },
       // Not sent: the request stands, and shows again.
       send: () => post("need-drop", { id: need.id, label: need.label }, { quiet: true }).then((sent) => sent || (dropped.delete(need.id), (shown = null), draw())),
-    });
-    undoButton.focus();
+    })?.focus();
   }
   function machinesTab(state) {
     const asking = waitingFor(state);
@@ -1493,15 +1559,17 @@ dialog.sheet::backdrop{background:var(--scrim)}
     seen = n;
     if (!news) return;
     if (state.result.ev === "target-save" && form) form.answer(state.result);
-    else if (state.result.error) toast(state.result.error);
+    else if (state.result.error) banner(state.result.error);
   }
 
   let lastRead = null;
+  let lost = false; // the last read didn't reach AnythingLLM
   async function load() {
     try {
       const res = await fetch(cfg.token + ".json", { cache: "no-cache" });
       // Gone: AnythingLLM answers a path it doesn't serve with its own page, 200.
-      if (res.status === 404 || (res.ok && !/json/i.test(res.headers.get("content-type") || ""))) return clearInterval(poll), toast("This link was replaced. Open the page again from where you got it: the agent, AnywhereLLM Lite, or anywherellm-suite pages."); // gone for good: said once
+      if (res.status === 404 || (res.ok && !/json/i.test(res.headers.get("content-type") || ""))) return clearInterval(poll), banner("This link was replaced. Open the page again from where you got it: the agent, AnywhereLLM Lite, or anywherellm-suite pages.", { kind: "warning", key: "gone" }); // gone for good: said once, and it stays
+      (lost = false), unbanner("reach");
       const text = await res.text();
       if (text === lastRead) return; // as it was: nothing to draw
       lastRead = text;
@@ -1513,7 +1581,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
       draw();
       answered(S);
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Try again in a moment.");
+      // Said once while it lasts: closed, it stays closed until AnythingLLM answers again.
+      if (!lost) banner("Can’t reach AnythingLLM. Try again in a moment.", { key: "reach" });
+      lost = true;
     }
   }
 

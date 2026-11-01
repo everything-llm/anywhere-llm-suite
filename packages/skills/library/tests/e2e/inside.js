@@ -179,8 +179,9 @@ const server = http.createServer((req, res) => {
       await shown.click("#apikeys button.add"); // Cancel
       assert.deepEqual(await vaultOpen(), [], "Cancel dropped the draft: closed, and empty");
 
-      // A request says which chat asked and when; Not needed hides it with an Undo that outlasts the
-      // 4 s toasts; Close (or leaving the page) sends it, and the chat that asked is told at its next call.
+      // A request says which chat asked and when; Not needed hides it with an Undo that has no timer
+      // (a toast without one goes after 6 s); Close (or leaving the page) sends it, and the chat that
+      // asked is told at its next call.
       const toldIn = async (args) => {
         for (let i = 0; i < 40; i++) {
           const said = await call(args);
@@ -197,11 +198,11 @@ const server = http.createServer((req, res) => {
       await shown.click("#tab .card.need [data-need]");
       assert.equal(await visible("#tab .card.need"), false, "hidden at once");
       assert.equal(await shown.$eval("#toast", (n) => n.textContent), "Dropped the request for vmUndo");
-      await sleep(5000);
-      assert.equal(await visible("#toast .undo"), true, "Undo is still there after 4 s");
+      await sleep(7000);
+      assert.equal(await visible("#toast .undo"), true, "Undo is still there after 7 s");
       await shown.click("#toast .undo");
       assert.equal(await visible("#tab .card.need"), true, "Undo brings it back");
-      assert.equal(await visible("#toast"), false);
+      assert.deepEqual(await shown.$eval("#toast", (n) => [n.textContent, n.hidden, n.getAttribute("role")]), ["", false, "status"], "emptied, its live region still in the page");
       await shown.click("#tab .card.need [data-need]");
       await shown.click("#toast .shut");
       assert.match(await toldIn({ action: "library" }), /^The user said the machine "vm" isn't needed \(on the Library page\)/, "Close sent it, and the chat is told");
@@ -220,6 +221,62 @@ const server = http.createServer((req, res) => {
       for (let i = 0; i < 40 && keyNeeds().length; i++) await sleep(250);
       assert.deepEqual(keyNeeds(), [], "leaving the page sent it");
       assert.match(await call({ action: "secret", site: "api.github.com", label: "github" }), /^The user said the key "github" for api\.github\.com isn't needed \(on the Vault\)[^]*So the key "github" wasn't asked for again\./, "and the chat is told");
+
+      // ---- The house-style audit of 2026-11-01, at 390 px: a long key site and a long address shown
+      // in full, at 100% and 200% text, the row's buttons under them; a refusal is a banner that stays
+      // until it's closed; a field left empty says so under itself, and has the focus.
+      const LONG_SITE = "api.openweathermap.org.e2e-a-rather-long-site-name.example";
+      const LONG_ADDRESS = "http://10.123.234.201:65000";
+      const vaultPost = (section, event) => fs.writeFileSync(path.join(events, `raw-vault-lean-${section}-${crypto.randomUUID()}.json`), JSON.stringify({ pageContent: JSON.stringify({ vault_lean_event: 1, secret, ...event }) }));
+      vaultPost("keys", { ev: "key-save", label: "openweather", site: LONG_SITE, sealed: crypto.publicEncrypt({ key: pub, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" }, Buffer.from("ow-e2e-key")).toString("base64") });
+      vaultPost("addresses", { ev: "address-allow", origin: LONG_ADDRESS });
+      await call({ action: "library" });
+      const section = (name) => JSON.parse(fs.readFileSync(`${APP}/public/vault-lean/${vaultToken}-${name}.json`, "utf8"));
+      for (let i = 0; i < 40 && !section("addresses").origins.some((o) => o.origin === LONG_ADDRESS); i++) await sleep(250);
+      assert.ok(section("keys").secrets.some((k) => k.site === LONG_SITE), "the key with a long site is saved");
+      assert.ok(section("addresses").origins.some((o) => o.origin === LONG_ADDRESS), "the address is let through");
+      await shown.goto(`${at}/vault-lean/${vaultToken}.html`, { waitUntil: "load" });
+      await shown.waitForFunction((site) => [...document.querySelectorAll("#apikeys .row small")].some((n) => n.textContent.includes(site)), { timeout: 10_000 }, LONG_SITE);
+      /** How the value holding `text` (under `selector`) is shown: whole, not cut, inside the page, its row's buttons under it. */
+      const shownWhole = (selector, text) => shown.evaluate((selector, text) => {
+        const n = [...document.querySelectorAll(selector)].find((x) => x.textContent.includes(text));
+        const s = getComputedStyle(n), r = n.getBoundingClientRect(), ends = n.closest(".row").querySelector(".ends").getBoundingClientRect();
+        return { text: n.textContent, ellipsis: s.textOverflow === "ellipsis", nowrap: s.whiteSpace === "nowrap", cut: n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1, inside: r.left >= 0 && r.right <= innerWidth + 0.5, under: ends.top >= r.bottom - 1, title: n.hasAttribute("title") };
+      }, selector, text);
+      const whole = (text) => ({ text, ellipsis: false, nowrap: false, cut: false, inside: true, under: true, title: false });
+      const big = (on) => shown.evaluate((on) => (document.documentElement.style.fontSize = on ? "200%" : ""), on);
+      for (const on of [false, true]) {
+        await big(on);
+        assert.deepEqual(await shownWhole("#apikeys .row small", LONG_SITE), whole(LONG_SITE), `the key's site in full${on ? " at 200% text" : ""}`);
+      }
+      await big(false);
+      await shown.click('nav button[data-tab="addresses"]');
+      await shown.waitForSelector("#addresses .addr", { timeout: 10_000 });
+      for (const on of [false, true]) {
+        await big(on);
+        assert.deepEqual(await shownWhole("#addresses .addr .who b", LONG_ADDRESS), whole(LONG_ADDRESS), `the address in full${on ? " at 200% text" : ""}`);
+      }
+      await big(false);
+      // A loopback address is refused by the skill: the refusal is a banner, near the top, still there after 10 s.
+      const originIn = "#addresses form input";
+      await shown.type(originIn, "http://localhost:8080");
+      await shown.click('#addresses form button[type="submit"]');
+      await shown.waitForSelector("#banners > div", { timeout: 15_000 });
+      const said = () => shown.$$eval("#banners > div", (bs) => bs.map((b) => [b.getAttribute("role"), b.textContent]));
+      assert.deepEqual(await said(), [["alert", "http://localhost:8080 is AnythingLLM’s own machine. Use a name or address on your network."]]);
+      assert.ok(await shown.$eval("#banners", (b) => b.getBoundingClientRect().top < 120), "near the top");
+      await sleep(10_000);
+      assert.equal((await said()).length, 1, "still there after 10 s");
+      await shown.click("#banners .shut");
+      assert.deepEqual(await said(), [], "Close takes it away");
+      // Add a key sent empty: each field says what it needs under it, and the first has the focus.
+      await shown.click('nav button[data-tab="keys"]');
+      await shown.click("#apikeys button.add");
+      await shown.click('#apikeys button.add + form button[type="submit"]');
+      const marked = await shown.$$eval(keysForm, (inputs) => inputs.map((i) => [i.getAttribute("aria-invalid"), document.getElementById(i.getAttribute("aria-describedby")).textContent, i === document.activeElement]));
+      assert.deepEqual(marked, [["true", "Give the key a name, like github.", true], ["true", "Give the site it’s for, like api.github.com.", false], ["true", "Paste the key.", false]], "under each field, the first focused");
+      assert.equal(await shown.$eval("#toast", (n) => n.textContent), "", "no toast for it");
+      await shown.click("#apikeys button.add"); // Cancel
       assert.deepEqual(errors, [], "no error on the pages");
     } finally {
       await viewer.close();
