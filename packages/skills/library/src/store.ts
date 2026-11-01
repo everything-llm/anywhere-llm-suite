@@ -65,6 +65,9 @@ export interface Toolkit {
   /** What locking pinned of each of its targets (pinOf), by name: a locked toolkit uses a target
    *  only while it is as it was when the user read the toolkit and locked it. */
   pins?: Record<string, string>;
+  /** The name the user gave it on the Library page, shown there in place of its title; the agent
+   *  still knows it by its service and title. */
+  shown?: string;
 }
 
 export interface Input {
@@ -194,6 +197,30 @@ export async function setLocked(service: string, on: boolean): Promise<void> {
   });
 }
 
+/** Gives the toolkit `service` the name `shown` on the Library page, locked or not, since it changes
+ *  only what the user sees; an empty name shows its title again. */
+export async function setShown(service: string, shown: string): Promise<void> {
+  if (!fs.existsSync(kitFile(service))) return;
+  await locked(`${kitFile(service)}.lock`, "the toolkit", () => {
+    const kit = readJson<Toolkit>(kitFile(service));
+    if (kit) writeJson(kitFile(service), { ...kit, shown: shown || undefined });
+  });
+}
+
+/** The names the user gave keys on the Vault, by key name (lower case): the Vault shows them in
+ *  place of the key's own, which the agent and the functions still use. */
+const shownFile = () => path.join(libraryDir(), "shown.json");
+export const shownNames = (): Record<string, string> => readJsonOr<Record<string, string>>(shownFile(), () => ({}));
+
+/** Shows the key `label` as `shown` on the Vault; an empty name, as for a key deleted, shows its
+ *  own again. */
+export async function setShownName(label: string, shown: string): Promise<void> {
+  await locked(`${shownFile()}.lock`, "the Vault's names", () => {
+    const { [label.toLowerCase()]: _was, ...rest } = shownNames();
+    writeJson(shownFile(), shown ? { ...rest, [label.toLowerCase()]: shown } : rest);
+  });
+}
+
 /** Whether two registered targets are the same account on the same machine: the same host key and
  *  login (however they are reached, by a name or an address), or the same host (canonical), port and login. */
 const sameAccount = (a: Target, b: Target): boolean =>
@@ -279,6 +306,7 @@ export function saveToolkit(service: string, given: Record<string, unknown>): To
     docs: pick("docs", (v) => strings(v, "docs").map(urlChecked).slice(0, MAX_DOCS), [] as string[]),
     notes,
     updated: new Date().toISOString(),
+    ...(was?.shown ? { shown: was.shown } : {}),
   };
   writeJson(kitFile(service), kit);
   return kit;

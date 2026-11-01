@@ -889,6 +889,8 @@ dialog.sheet::backdrop{background:var(--scrim)}
 .sheetin h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
 .menu{position:fixed;z-index:6;min-width:160px;padding:var(--space-1);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--tile);box-shadow:var(--shadow-raised)}
 .menu button{display:flex;align-items:center;width:100%;min-height:48px;padding:0 var(--space-4);border-radius:var(--radius-sm);color:var(--danger);font-size:1rem}
+.menu button.plain{color:var(--ink)}
+.head .ends{display:flex;align-items:center;gap:var(--space-2)}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
 </style>
 </head>
@@ -904,6 +906,14 @@ dialog.sheet::backdrop{background:var(--scrim)}
 </div>
 <div class="view" id="screen" hidden></div>
 <div class="menu" id="menu" role="menu" hidden></div>
+<dialog class="sheet" id="rename" aria-labelledby="rename-t">
+  <span class="grip" aria-hidden="true"></span>
+  <form method="dialog" class="sheetin">
+    <div><h2 id="rename-t"></h2><p class="say">Only this page shows the new name. The agent still knows it by its old one.</p></div>
+    <label class="ff"><span>Name</span><input class="fld" id="rename-in" type="text" maxlength="100" autocomplete="off" spellcheck="false"></label>
+    <div class="acts"><button class="hu-button hu-button--secondary" value="keep">Cancel</button><button class="hu-button hu-button--primary" value="yes" id="rename-yes">Save</button></div>
+  </form>
+</dialog>
 <dialog class="sheet" id="sheet" aria-labelledby="sheet-t" aria-describedby="sheet-b">
   <span class="grip" aria-hidden="true"></span>
   <form method="dialog" class="sheetin">
@@ -1029,6 +1039,27 @@ dialog.sheet::backdrop{background:var(--scrim)}
   });
   sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
 
+  // The sheet that renames what this page shows: `act` gets the new name, empty for the old one back.
+  const renameSheet = $("rename");
+  let renaming = null;
+  function rename(name, act) {
+    $("rename-t").textContent = `Rename ${name}`;
+    $("rename-in").value = name;
+    renaming = { act, from: document.activeElement };
+    renameSheet.returnValue = "";
+    renameSheet.showModal();
+    $("rename-in").select();
+  }
+  // Enter saves, though Cancel comes first in the form.
+  $("rename-in").addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), renameSheet.close("yes")));
+  renameSheet.addEventListener("close", () => {
+    const was = renaming;
+    renaming = null;
+    if (was?.from?.isConnected) was.from.focus();
+    if (was && renameSheet.returnValue === "yes") was.act($("rename-in").value.trim());
+  });
+  renameSheet.addEventListener("click", (e) => e.target === renameSheet && renameSheet.close("keep"));
+
   const menu = $("menu");
   let menuFrom = null;
   function closeMenu() {
@@ -1041,7 +1072,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const b = el("button", { className: cls, type: "button", attrs: { "aria-label": label, "aria-haspopup": "menu", "aria-expanded": "false" } }, icon("more", 20));
     b.onclick = () => {
       closeMenu();
-      menu.replaceChildren(...items.map(([text, act]) => el("button", { type: "button", textContent: text, attrs: { role: "menuitem" }, onclick: () => (closeMenu(), act()) })));
+      menu.replaceChildren(...items.map(([text, act, cls = ""]) => el("button", { type: "button", className: cls, textContent: text, attrs: { role: "menuitem" }, onclick: () => (closeMenu(), act()) })));
       menu.hidden = false;
       const box = b.getBoundingClientRect();
       const below = box.bottom + 4 + menu.offsetHeight <= innerHeight;
@@ -1097,7 +1128,11 @@ dialog.sheet::backdrop{background:var(--scrim)}
     if (!state.toolkits.length) return [card(say("No toolkits yet. Ask the agent to connect a service, and it shows here."))];
     return state.toolkits.map((t) => card(
       el("div", { className: "head" }, el("h2", { textContent: t.title }),
-        t.locked ? tag("Locked", "ok", "lock") : deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service })),
+        el("div", { className: "ends" }, t.locked ? tag("Locked", "ok", "lock") : null, moreButton(`More for ${t.title}`, [
+          ["Rename", () => rename(t.title, (name) => post("toolkit-rename", { service: t.service, name })), "plain"],
+          // Locked, nothing removes it; renaming changes only what this page shows.
+          ...(t.locked ? [] : [["Delete", () => ask(`Delete ${t.title}?`, "Its functions are deleted too. This can’t be undone.", "Delete", () => post("toolkit-delete", { service: t.service }))]]),
+        ]))),
       reachOf(t),
       t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), el("span", { className: "one", textContent: does(f) })))) : null,
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),

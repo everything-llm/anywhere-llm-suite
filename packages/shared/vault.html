@@ -1025,6 +1025,24 @@ input::placeholder{color:var(--muted);opacity:1}
 
   // ---- Keys and signing keys: the library's section, a group each on the Keys tab.
   let adding = false;
+  // A key or signing key the user renames: the Vault shows its new name, which the agent never
+  // sees; it and the functions still use the key's own. `renaming` is the one whose row is a form.
+  let renaming = null;
+  const shownAs = (k) => k.shown || k.label;
+  /** What a key's row says under its name: `detail`, after the key's own name once it's renamed. */
+  const ownName = (k, detail) => (k.shown ? `${k.label} · ${detail}` : detail);
+  const renameButton = (k, ks) => el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Rename", attrs: { "aria-label": `Rename ${shownAs(k)}` }, onclick: () => ((renaming = k.label), drawKeys(ks)) });
+  function renameForm(k, ks) {
+    const f = form([["name", "Name", "text", false, k.label]], "Save name", async (v) => {
+      const went = await post("keys", "key-rename", { label: k.label, name: v.name === k.label ? "" : v.name });
+      if (went) (renaming = null), drawKeys(ks);
+      return went;
+    });
+    f.querySelector("input").value = shownAs(k);
+    f.prepend(el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: `Only the Vault shows it. The agent still calls it ${k.label}.` }));
+    f.append(el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Cancel", onclick: () => ((renaming = null), drawKeys(ks)) }));
+    return f;
+  }
   /** A group's heading, with how many it holds: the tabs carry no counts, so the bar fits a phone. */
   const lab = (text, n) => el("div", { className: "lab", textContent: n === undefined ? text : `${text} · ${n}` });
 
@@ -1043,8 +1061,9 @@ input::placeholder{color:var(--muted);opacity:1}
       return el("div", { className: "card need" }, f);
     });
     const saved = ks.secrets.map((k) => {
-      const del = remove([`Delete the key ${k.label}?`, `The agent can’t call ${k.site} with it after.`], `Delete the key ${k.label}`, () => post("keys", "key-delete", { label: k.label }));
-      return row(k.label, k.site, del);
+      if (renaming === k.label) return renameForm(k, ks);
+      const del = remove([`Delete the key ${shownAs(k)}?`, `The agent can’t call ${k.site} with it after.`], `Delete the key ${shownAs(k)}`, () => post("keys", "key-delete", { label: k.label }));
+      return row(shownAs(k), ownName(k, k.site), renameButton(k, ks), del);
     });
     const addForm = form([["label", "Name", "text", false, "github"], ["site", "Site", "text", true, "api.github.com"], ["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
       if (!v.value || !v.label || !v.site) return toast("Fill in every field"), false;
@@ -1087,11 +1106,11 @@ input::placeholder{color:var(--muted);opacity:1}
       } });
       const jobs = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: g.unattended ? "Stop it signing in scheduled jobs" : "Let it sign in scheduled jobs", onclick: () => post("keys", "signing-unattended", { label: g.label, on: !g.unattended }) });
       const tag = el("span", { className: "tag" + (g.public ? " ok" : ""), textContent: !g.public ? "Damaged" : g.unattended ? "Chats and jobs" : "Chats" });
-      return el("details", {},
-        el("summary", {}, row(g.label, g.namespace, tag, el("span", { className: "chev" }, icon("M4 6l4 4 4-4", 14)))),
+      return el("details", { open: renaming === g.label },
+        el("summary", {}, row(shownAs(g), ownName(g, g.namespace), tag, el("span", { className: "chev" }, icon("M4 6l4 4 4-4", 14)))),
         el("div", { className: "body" },
           g.public ? facts : el("p", { className: "say", textContent: "Damaged: delete it and import it again." }),
-          el("div", { className: "pair" }, copy, jobs), del));
+          renaming === g.label ? renameForm(g, ks) : el("div", { className: "pair" }, copy, jobs, renameButton(g, ks)), del));
     });
     const addForm = form([["label", "Name", "text", false, "muse"], ["namespace", "Namespace", "text", true, "muse-coordination"], ["seed", "Seed to import, if you have one", "password", false, "base64"]], "Save signing key", async (v) => {
       if (!v.label || !v.namespace) return toast("Fill in the name and the namespace"), false;

@@ -131,7 +131,7 @@ function state(p: PageFile) {
     result: p.result ?? null,
     toolkits: kits.map(({ service, kit, fns }) => ({
       service,
-      title: kit.title,
+      title: kit.shown || kit.title,
       locked: kit.locked === true,
       hosts: store.hostsOf(kit),
       machines: kit.targets,
@@ -146,10 +146,12 @@ function state(p: PageFile) {
 
 /** The Vault's keys section, as the Vault reads it: nothing secret. */
 function keysState(p: PageFile | null) {
+  const shown = store.shownNames();
+  const named = <K extends { label: string }>(k: K) => ({ ...k, shown: shown[k.label.toLowerCase()] ?? null });
   return {
     needs: needsOf(p, "key"),
-    secrets: secrets.secrets(),
-    signing: signing.signingKeys(),
+    secrets: secrets.secrets().map(named),
+    signing: signing.signingKeys().map(named),
   };
 }
 
@@ -252,6 +254,9 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
     case "toolkit-delete":
       store.removeToolkit(store.serviceOf(e.service));
       return { relist: true };
+    case "toolkit-rename":
+      await store.setShown(store.serviceOf(e.service), text(e.name, 100).trim());
+      return { relist: true };
     case "toolkit-lock":
     case "toolkit-unlock":
       await store.setLocked(store.serviceOf(e.service), e.ev === "toolkit-lock");
@@ -288,6 +293,10 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return label;
     case "key-delete":
       await secrets.removeSecret(label);
+      await store.setShownName(label, "");
+      return null;
+    case "key-rename":
+      await store.setShownName(label, text(e.name, 60));
       return null;
     case "signing-new":
       await signing.create(secrets.labelOf(label), signing.namespaceOf(e.namespace));
@@ -297,6 +306,7 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return null;
     case "signing-delete":
       await signing.removeSigning(label);
+      await store.setShownName(label, "");
       return null;
     case "signing-unattended":
       await signing.setUnattended(label, e.on === true);
