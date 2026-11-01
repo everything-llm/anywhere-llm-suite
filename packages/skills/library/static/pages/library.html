@@ -950,6 +950,58 @@ dialog.sheet::backdrop{background:var(--scrim)}
   let toastTimer = 0;
   const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
 
+  /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
+     that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
+     is the form's draft: `form` names it ("add/pi"), `key` is the page's token, of which only a hash
+     is kept (every page on AnythingLLM's address reads the same storage, and the token lets in
+     whoever has it). keep(input, field) puts the field's draft back (only what was typed over the
+     value the page gave it) and saves each change; it keeps nothing of a password field, a code or a
+     field marked data-secret. clear() drops the draft: the form was saved, cancelled or met. A field
+     whose text is kept is marked data-draft, so a page may draw it again (it comes back). Storage
+     may be blocked, or full: then nothing is kept and the page works as before. The same block in
+     every suite page, as shared/vault.html has it (shared/drafts.test.mts keeps them the same). */
+  const draft = (() => {
+    const DAY = 24 * 60 * 60 * 1000, PREFIX = "anywherellm-suite.draft:";
+    const quiet = (fn, or) => { try { return fn(); } catch { return or; } };
+    const store = () => window.localStorage;
+    const hash = (text) => {
+      let a = 0x9e3779b9, b = 0x85ebca6b;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+      a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+      b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+      return (b >>> 0).toString(36) + (a >>> 0).toString(36);
+    };
+    const fresh = (d) => !!d && typeof d === "object" && Math.abs(Date.now() - d.at) < DAY && !!d.v && typeof d.v === "object";
+    const secret = (input) => input.type === "password" || /password|one-time-code/.test(input.autocomplete || "") || "secret" in input.dataset;
+    const usable = quiet(() => (store().setItem(PREFIX + "probe", "1"), store().removeItem(PREFIX + "probe"), true), false);
+    // A draft past its day goes, whichever page left it.
+    quiet(() => { const local = store(); for (let i = local.length - 1; i >= 0; i--) { const entry = local.key(i); if (entry?.startsWith(PREFIX) && !fresh(quiet(() => JSON.parse(local.getItem(entry)), null))) local.removeItem(entry); } });
+    return (form, key) => {
+      const name = `${PREFIX}${hash(String(key))}:${form}`;
+      const read = () => quiet(() => { const d = JSON.parse(store().getItem(name)); return fresh(d) ? d.v : {}; }, {});
+      const write = (v) => quiet(() => (Object.keys(v).length ? store().setItem(name, JSON.stringify({ at: Date.now(), v })) : store().removeItem(name), true), false);
+      return {
+        has: () => Object.keys(read()).length > 0,
+        keep(input, field) {
+          if (!input || secret(input)) return () => {};
+          const start = input.value, was = read()[field];
+          if (typeof was === "string") input.value = was;
+          if (usable) input.dataset.draft = "";
+          const save = () => {
+            const v = read();
+            if (input.value === start || secret(input)) delete v[field];
+            else v[field] = input.value;
+            if (!write(v)) delete input.dataset.draft; // not kept: the page must not draw it again
+          };
+          input.addEventListener("input", save);
+          return () => input.removeEventListener("input", save);
+        },
+        clear: () => quiet(() => store().removeItem(name)),
+      };
+    };
+  })();
+  /* end of page drafts */
+
   // ---- Posting: each thing done here is an event, posted through AnythingLLM's upload.
   async function post(ev, fields = {}) {
     const event = { library_lean_event: 1, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
@@ -1017,8 +1069,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
   const sheet = $("sheet");
   let asked = null;
   // With `value`, the sheet holds a Name field that starts with it, `yes` is the primary button and
-  // Enter presses it, and `act` gets the name typed.
-  function ask(title, body, yes, act, { value } = {}) {
+  // Enter presses it, and `act` gets the name typed; with `form` too, what's typed there is kept as
+  // that form's draft until it's sent or the sheet is closed.
+  function ask(title, body, yes, act, { value, form } = {}) {
     const named = value !== undefined;
     $("sheet-t").textContent = title;
     $("sheet-b").textContent = body;
@@ -1026,7 +1079,8 @@ dialog.sheet::backdrop{background:var(--scrim)}
     $("sheet-yes").className = `hu-button hu-button--${named ? "primary" : "danger"}`;
     $("sheet-f").hidden = !named;
     $("sheet-in").value = value ?? "";
-    asked = { act, from: document.activeElement };
+    const kept = named && form ? draft(form, cfg.token) : null;
+    asked = { act, from: document.activeElement, kept, stop: kept?.keep($("sheet-in"), "name") };
     sheet.returnValue = "";
     sheet.showModal();
     named ? $("sheet-in").select() : $("sheet-keep").focus();
@@ -1035,8 +1089,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
   sheet.addEventListener("close", () => {
     const was = asked;
     asked = null;
+    was?.stop?.();
     if (was?.from?.isConnected) was.from.focus();
-    if (was && sheet.returnValue === "yes") was.act($("sheet-in").value.trim());
+    if (was && sheet.returnValue === "yes") Promise.resolve(was.act($("sheet-in").value.trim())).then((sent) => sent && was.kept?.clear());
+    else was?.kept?.clear();
   });
   sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
 
@@ -1069,7 +1125,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     moreButton(`More for ${name}`, [...items, ["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
   // ⋯ › Rename: a name only this page shows.
   const renameItem = (name, ev, fields) =>
-    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name }), "plain"];
+    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name, form: `rename/${ev}/${JSON.stringify(fields)}` }), "plain"];
   document.addEventListener("pointerdown", (e) => !menu.hidden && !menu.contains(e.target) && !e.target.closest?.("[aria-haspopup]") && closeMenu());
   document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && closeMenu());
 
@@ -1244,8 +1300,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const describe = (name) => (errors[name] = el("span", { className: "err", id: `err-${name}`, attrs: { role: "alert" } }));
     // Not a login form: names hold nothing a browser reads as a login, and nothing is filled in.
     // A field with `named` has no label shown, only its name for a screen reader.
-    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false, named = false } = {}) => {
-      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}`, "aria-label": named ? label : null } };
+    // A `secret` field is marked so no draft keeps it.
+    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false, named = false, secret = false } = {}) => {
+      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}`, "aria-label": named ? label : null, "data-secret": secret } };
       const input = (inputs[name] = textarea ? el("textarea", { ...props, rows: 4 }) : el("input", { type: "text", ...props }));
       return el(named ? "div" : "label", { className: "ff" }, named ? null : el("span", { textContent: label }), input, hint ? el("span", { className: "hint", textContent: hint }) : null, describe(name));
     };
@@ -1253,7 +1310,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const pre = el("pre", { className: "cmd" });
     const runText = el("p", { className: "say" });
     const own = el("details", { className: "own" }, el("summary", {}, el("span", { textContent: "Use my own key instead" }), icon("down", 16, "chev")),
-      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, named: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
+      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, named: true, secret: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
     const key = inputs.key;
     const save = el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: "Save", style: "align-self:stretch" });
     const node = el("form", { className: `card${at.need ? " need" : ""}`, noValidate: true },
@@ -1266,6 +1323,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
       own,
       describe("form"),
       save);
+    // What's typed stays on this device a day, by the form (a machine the agent asked for, or one set
+    // up again, has its own): the name, address, account and printed line, never the private key.
+    const kept = draft(at.again ? `again/${at.again}` : at.need ? `add/${at.need}` : "add", cfg.token);
+    for (const name of ["label", "host", "login", "fingerprint"]) kept.keep(inputs[name], name);
     const ownKey = () => own.open && key.value.trim() !== "";
     const name = () => named ?? inputs.label.value.trim().toLowerCase();
     // The machine's own key while it stays where it was (set up again); otherwise the page's spare.
@@ -1313,13 +1374,13 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const answer = (said) => {
       if (!waiting) return;
       done();
-      if (!said.error) return void (location.hash = "#machines");
+      if (!said.error) return void (kept.clear(), (location.hash = "#machines"));
       fail(said.field ?? "form", said.error, said.hint).focus();
     };
     refresh();
     form = { hash: location.hash, node, refresh, answer };
     return [
-      el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
+      el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", onclick: () => kept.clear(), attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
         el("div", { className: "ttl" }, el("h1", { tabIndex: -1, textContent: again ? `Set up ${again.label} again` : "Add a machine" })), el("span")),
       el("p", { className: "say", textContent: at.need ? `The agent is waiting for a machine named ${at.need}, to run a toolkit’s commands on.` : again ? `Run the command on ${again.label} again, then paste what it printed.` : "A machine the agent’s functions can run commands on." }),
       node,
@@ -1385,6 +1446,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       lastRead = text;
       const first = S === null;
       S = JSON.parse(text);
+      for (const m of S.targets) draft(`add/${m.label}`, cfg.token).clear(); // the agent's request is met
       // Opened while the agent asks for a machine: Machines, where it's added.
       if (first && !location.hash && S.needs.length) history.replaceState(null, "", "#machines");
       draw();

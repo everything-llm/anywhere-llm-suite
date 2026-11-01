@@ -893,6 +893,58 @@ input::placeholder{color:var(--muted);opacity:1}
   let toastTimer = 0;
   const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
 
+  /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
+     that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
+     is the form's draft: `form` names it ("add/pi"), `key` is the page's token, of which only a hash
+     is kept (every page on AnythingLLM's address reads the same storage, and the token lets in
+     whoever has it). keep(input, field) puts the field's draft back (only what was typed over the
+     value the page gave it) and saves each change; it keeps nothing of a password field, a code or a
+     field marked data-secret. clear() drops the draft: the form was saved, cancelled or met. A field
+     whose text is kept is marked data-draft, so a page may draw it again (it comes back). Storage
+     may be blocked, or full: then nothing is kept and the page works as before. The same block in
+     every suite page, as shared/vault.html has it (shared/drafts.test.mts keeps them the same). */
+  const draft = (() => {
+    const DAY = 24 * 60 * 60 * 1000, PREFIX = "anywherellm-suite.draft:";
+    const quiet = (fn, or) => { try { return fn(); } catch { return or; } };
+    const store = () => window.localStorage;
+    const hash = (text) => {
+      let a = 0x9e3779b9, b = 0x85ebca6b;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+      a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+      b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+      return (b >>> 0).toString(36) + (a >>> 0).toString(36);
+    };
+    const fresh = (d) => !!d && typeof d === "object" && Math.abs(Date.now() - d.at) < DAY && !!d.v && typeof d.v === "object";
+    const secret = (input) => input.type === "password" || /password|one-time-code/.test(input.autocomplete || "") || "secret" in input.dataset;
+    const usable = quiet(() => (store().setItem(PREFIX + "probe", "1"), store().removeItem(PREFIX + "probe"), true), false);
+    // A draft past its day goes, whichever page left it.
+    quiet(() => { const local = store(); for (let i = local.length - 1; i >= 0; i--) { const entry = local.key(i); if (entry?.startsWith(PREFIX) && !fresh(quiet(() => JSON.parse(local.getItem(entry)), null))) local.removeItem(entry); } });
+    return (form, key) => {
+      const name = `${PREFIX}${hash(String(key))}:${form}`;
+      const read = () => quiet(() => { const d = JSON.parse(store().getItem(name)); return fresh(d) ? d.v : {}; }, {});
+      const write = (v) => quiet(() => (Object.keys(v).length ? store().setItem(name, JSON.stringify({ at: Date.now(), v })) : store().removeItem(name), true), false);
+      return {
+        has: () => Object.keys(read()).length > 0,
+        keep(input, field) {
+          if (!input || secret(input)) return () => {};
+          const start = input.value, was = read()[field];
+          if (typeof was === "string") input.value = was;
+          if (usable) input.dataset.draft = "";
+          const save = () => {
+            const v = read();
+            if (input.value === start || secret(input)) delete v[field];
+            else v[field] = input.value;
+            if (!write(v)) delete input.dataset.draft; // not kept: the page must not draw it again
+          };
+          input.addEventListener("input", save);
+          return () => input.removeEventListener("input", save);
+        },
+        clear: () => quiet(() => store().removeItem(name)),
+      };
+    };
+  })();
+  /* end of page drafts */
+
   // ---- Posting: each thing done here is an event of its section, posted through AnythingLLM's
   // upload under the section's title, so the skill that owns the section applies it.
   async function post(section, ev, fields = {}) {
@@ -953,16 +1005,20 @@ input::placeholder{color:var(--muted);opacity:1}
 
   /** A form of `fields` ([name, label, type?, mono?, placeholder?]) that sends with `submit`;
    *  `onsubmit` answers whether it went, which clears it and hides any field shown. A label is a
-   *  word or two; its example is the placeholder. */
-  function form(fields, submit, onsubmit) {
+   *  word or two; its example is the placeholder. `values` are what its fields start with; with
+   *  `kept` (a draft), what's typed in its fields but a password field's stays on this device until
+   *  it went. */
+  function form(fields, submit, onsubmit, { values = {}, kept = null } = {}) {
     const inputs = {};
     const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
+    for (const [name, value] of Object.entries(values)) inputs[name].value = value;
+    if (kept) for (const [name, , type] of fields) if (type !== "password") kept.keep(inputs[name], name);
     node.addEventListener("reset", () => { for (const b of node.querySelectorAll('.peek [aria-pressed="true"]')) b.click(); });
     node.onsubmit = async (e) => {
       e.preventDefault();
       const v = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value.trim()]));
       try {
-        if (await onsubmit(v)) node.reset();
+        if (await onsubmit(v)) node.reset(), kept?.clear();
       } catch (err) {
         toast(err.message);
       }
@@ -1023,24 +1079,27 @@ input::placeholder{color:var(--muted);opacity:1}
   /** A row of a card: its name over its detail (mono), then `end`, a Delete or a tag. */
   const row = (name, detail, ...end) => el("div", { className: "row" }, el("div", { className: "who" }, el("b", { textContent: name }), el("small", { textContent: detail })), ...end);
 
-  // ---- Keys and signing keys: the library's section, a group each on the Keys tab.
-  let adding = false;
+  // ---- Keys and signing keys: the library's section, a group each on the Keys tab. A form left
+  // with a draft (the page was reloaded) is open again, its text in it.
+  const keyDraft = draft("key-add", cfg.token);
+  let adding = keyDraft.has();
   // A key or signing key the user renames: the Vault shows its new name, which the agent never
   // sees; it and the functions still use the key's own. `renaming` is the one whose row is a form.
-  let renaming = null;
+  let renaming = null, reopened = false;
+  const renameDraft = (k) => draft(`rename/${k.label}`, cfg.token);
   const shownAs = (k) => k.shown || k.label;
   /** What a key's row says under its name: `detail`, after the key's own name once it's renamed. */
   const ownName = (k, detail) => (k.shown ? `${k.label} · ${detail}` : detail);
-  const renameButton = (k, ks) => el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Rename", attrs: { "aria-label": `Rename ${shownAs(k)}` }, onclick: () => ((renaming = k.label), drawKeys(ks)) });
+  const renameButton = (k, ks) => el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Rename", attrs: { "aria-label": `Rename ${shownAs(k)}` }, onclick: () => (renaming && draft(`rename/${renaming}`, cfg.token).clear(), (renaming = k.label), drawKeys(ks)) });
   function renameForm(k, ks) {
+    const kept = renameDraft(k);
     const f = form([["name", "Name", "text", false, k.label]], "Save name", async (v) => {
       const went = await post("keys", "key-rename", { label: k.label, name: v.name });
       if (went) (renaming = null), drawKeys(ks);
       return went;
-    });
-    f.querySelector("input").value = shownAs(k);
+    }, { values: { name: shownAs(k) }, kept });
     f.prepend(el("span", { className: "cap", style: "padding:0;line-height:1.4", textContent: `Only the Vault shows it. The agent still calls it ${k.label}.` }));
-    f.append(el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Cancel", onclick: () => ((renaming = null), drawKeys(ks)) }));
+    f.append(el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Cancel", onclick: () => ((renaming = null), kept.clear(), drawKeys(ks)) }));
     return f;
   }
   /** A group's heading, with how many it holds: the tabs carry no counts, so the bar fits a phone. */
@@ -1051,6 +1110,7 @@ input::placeholder{color:var(--muted);opacity:1}
 
   function drawKeys(ks) {
     const keys = $("apikeys");
+    if (!reopened) (reopened = true), (renaming ??= [...ks.secrets, ...(ks.signing ?? [])].find((k) => renameDraft(k).has())?.label ?? null);
     const needs = ks.needs.map((n) => {
       const f = form([["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
         if (!v.value) return toast("Paste the key first"), false;
@@ -1072,8 +1132,8 @@ input::placeholder{color:var(--muted);opacity:1}
       const went = await post("keys", "key-save", { label: v.label, site: v.site, sealed: await seal(v.value) });
       if (went) (adding = false), drawKeys(ks);
       return went;
-    });
-    const add = el("button", { className: "add", type: "button", onclick: () => ((adding = !adding), drawKeys(ks)) }, icon(adding ? "M4 8h8" : "M8 3v10M3 8h10"), adding ? "Cancel" : "Add a key");
+    }, { kept: keyDraft });
+    const add = el("button", { className: "add", type: "button", onclick: () => ((adding = !adding) || keyDraft.clear(), drawKeys(ks)) }, icon(adding ? "M4 8h8" : "M8 3v10M3 8h10"), adding ? "Cancel" : "Add a key");
     keys.replaceChildren(...needs, lab("API keys", saved.length), el("div", { className: "card" }, ...saved, ...(saved.length ? [] : [el("p", { className: "empty", textContent: "No keys yet. The agent asks for one when a task needs it." })]), el("div", {}, add, adding ? addForm : null)));
 
     drawSigning(ks);
@@ -1087,7 +1147,8 @@ input::placeholder{color:var(--muted);opacity:1}
 
   // ---- Signing keys: the library's too. A function signs with one by its name and gets the
   // signature, never the key. Not a checkbox for scheduled jobs: an input with a value reads as busy.
-  let addingSigning = false;
+  const signingDraft = draft("signing-add", cfg.token);
+  let addingSigning = signingDraft.has();
   function drawSigning(ks) {
     const list = ks.signing ?? [];
     const items = list.map((g) => {
@@ -1119,8 +1180,8 @@ input::placeholder{color:var(--muted);opacity:1}
       const went = v.seed ? await post("keys", "signing-import", { ...fields, sealed: await seal(v.seed) }) : await post("keys", "signing-new", fields);
       if (went) (addingSigning = false), drawSigning(ks);
       return went;
-    });
-    const add = el("button", { className: "add", type: "button", onclick: () => ((addingSigning = !addingSigning), drawSigning(ks)) }, icon(addingSigning ? "M4 8h8" : "M8 3v10M3 8h10"), addingSigning ? "Cancel" : "Add a signing key");
+    }, { kept: signingDraft });
+    const add = el("button", { className: "add", type: "button", onclick: () => ((addingSigning = !addingSigning) || signingDraft.clear(), drawSigning(ks)) }, icon(addingSigning ? "M4 8h8" : "M8 3v10M3 8h10"), addingSigning ? "Cancel" : "Add a signing key");
     $("signing").replaceChildren(lab("Signing keys", items.length),
       el("div", { className: "card" }, ...items, ...(items.length ? [] : [el("p", { className: "empty", textContent: "No signing keys yet. Make one here when a function needs to sign." })]), el("div", {}, add, addingSigning ? addForm : null)));
   }
@@ -1165,7 +1226,7 @@ input::placeholder{color:var(--muted);opacity:1}
       const allow = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Allow", ariaLabel: `Allow ${r.origin}`, onclick: () => post("addresses", "address-allow", { origin: r.origin }) });
       return addr(row(r.origin, `Refused ${moment(r.at)}`, allow));
     });
-    const addForm = form([["origin", "Address", "text", true, "http://muse-vm:8463"]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)));
+    const addForm = form([["origin", "Address", "text", true, "http://muse-vm:8463"]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)), { kept: draft("address-add", cfg.token) });
     $("addresses").replaceChildren(lab("Allowed addresses", allowed.length),
       el("div", { className: "card" }, ...allowed, ...(allowed.length ? [] : [el("p", { className: "empty", textContent: "None yet. The skills reach the public web only." })]), addForm),
       lab("Recently refused"),
@@ -1174,11 +1235,12 @@ input::placeholder{color:var(--muted);opacity:1}
   }
 
   // ---- The sections there are, each its own state file; a tab for each. A section the user is in
-  // the middle of (a form being filled) isn't drawn again under them, nor any while a question is open.
+  // the middle of (a field focused, or one holding what no draft keeps: a key) isn't drawn again
+  // under them, nor any while a question is open; a field with a draft gets its text back when drawn.
   const drawn = { keys: drawKeys, logins: drawLogins, addresses: drawAddresses };
   const shown = new Set();
   const last = {};
-  const busy = (section) => !!asking || [...$(section).querySelectorAll("input")].some((i) => i.value || i === document.activeElement);
+  const busy = (section) => !!asking || [...$(section).querySelectorAll("input")].some((i) => (i.value && !("draft" in i.dataset)) || i === document.activeElement);
   const select = (b) => {
     for (const x of document.querySelectorAll("nav button")) x.setAttribute("aria-selected", String(x === b));
     for (const section of document.querySelectorAll("main section")) section.hidden = section.id !== b.dataset.tab;
