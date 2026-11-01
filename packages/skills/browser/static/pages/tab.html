@@ -1328,7 +1328,7 @@ svg{flex:none}
     updating("Opening the tab…");
   }
 
-  // ---- More: New tab, Close this tab; none on a new tab's home, and New tab alone once the tab is
+  // ---- More: New tab, Close this tab; New tab alone on a new tab's home and once the tab is
   // gone. No Back to the chat: the page opens in a sheet whose toolbar has a Close (AnywhereLLM Lite's
   // Custom Tab), or in a browser tab with its own Back.
   function openMore() {
@@ -1471,8 +1471,9 @@ svg{flex:none}
     $("hold").textContent = held ? "Hand back" : "Take over";
     $("navback").disabled = homeView || !st.back;
     $("navfwd").disabled = homeView || !st.forward;
-    $("morebtn").disabled = homeView && !gone;
-    $("moreclose").hidden = !!gone;
+    // More stays, as every tool does whatever shows: New tab alone on a new tab's home, where the
+    // tab under it isn't in view to close, and once the tab is gone.
+    $("moreclose").hidden = homeView || !!gone;
     $("logins").hidden = !st.vault;
     if (st.vault) $("logins").href = st.vault;
     $("take").hidden = held || homeView;
