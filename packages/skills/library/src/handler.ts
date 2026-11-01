@@ -12,7 +12,7 @@
 // esbuild bundles this into the one handler.js AnythingLLM loads.
 
 import * as addresses from "#shared/addresses";
-import { baseUrlOf as baseOf, noteBase, workspaceOf } from "#shared/anythingllm";
+import { baseUrlOf as baseOf, chatOf, noteBase, workspaceOf } from "#shared/anythingllm";
 import { answerText, flag, keepOf, objectOf, textOf } from "#shared/answer";
 import { Told } from "#shared/errors";
 import { checkUrl } from "#shared/fence";
@@ -160,18 +160,26 @@ function signingLines(): string[] {
   return ["", "Signing keys (kit.secret.sign; the user makes them on the Vault, under Keys):", ...keys.map(line)];
 }
 
+/** What the user said isn't needed of what this chat asked for, told ahead of this call's answer. */
+type Declined = Awaited<ReturnType<typeof page.declined>>;
+
+/** The answer to asking again, in the same call that told the agent the user said it isn't needed:
+ *  nothing is asked, since the user hasn't said otherwise. */
+const notAsked = (what: string): string => `So ${what} wasn't asked for again. If the user says they want it after all, ask again.`;
+
 /** Asks the user for a key, which they paste into the library's own settings (slot.ts), or give on
  *  the Vault where pages work: AnythingLLM's question card would show it in the chat once answered.
  *  Asked again while it's still waiting (after the user said done), it says whether the key came. */
-async function secret(args: Args, self: HandlerContext, took: slot.Taken | null): Promise<string> {
+async function secret(args: Args, self: HandlerContext, took: slot.Taken | null, declined: Declined): Promise<string> {
   const named = clean(args.label);
-  if (clean(args.kind).toLowerCase() === "ssh") return target(args, self);
+  if (clean(args.kind).toLowerCase() === "ssh") return target(args, self, declined);
   const site = secrets.siteChecked(args.site);
   const label = secrets.labelOf(named || site);
   if (took && took.label.toLowerCase() === label.toLowerCase()) return `The key "${took.label}" for ${took.site} is saved. Call library: it shows as saved.`;
   secrets.assertKeyName(label);
+  if (declined.some((d) => d.kind === "key" && d.label.toLowerCase() === label.toLowerCase())) return notAsked(`the key "${label}"`);
   const waiting = page.keyNeeds().some((n) => n.label === label && n.site === site);
-  await page.need(label, site);
+  await page.need(label, site, "key", chatOf(self));
   const lead = waiting
     ? `NEW_KEY is still empty, so nothing was saved for "${label}" (${site}). ${slot.steps(site, label)}`
     : `The user gives the key in the library's own settings, so it never passes through the chat. ${slot.steps(site, label)}`;
@@ -192,9 +200,10 @@ async function onVault(self: HandlerContext): Promise<string> {
 /** Asks the user to add a target, a machine the library's functions run commands on: its address and
  *  account are given on the Library page, under Machines, which shows one command to run on it and
  *  takes back the host key's fingerprint that prints. */
-async function target(args: Args, self: HandlerContext): Promise<string> {
+async function target(args: Args, self: HandlerContext, declined: Declined): Promise<string> {
   const label = targets.nameOf(args.label);
-  await page.need(label, "", "target");
+  if (declined.some((d) => d.kind === "target" && d.label === label)) return notAsked(`the machine "${label}"`);
+  await page.need(label, "", "target", chatOf(self));
   const library = await page.show(baseOf(self));
   return `${linksHidden() ? `The user adds the machine "${label}" on the Library page, under Machines (they open it ${OPEN_PAGES}).` : `The user adds the machine "${label}" on the Library page, under Machines. ${giveCard(libraryCard(library))}`}\n\nTell them to open it, give the machine's address and the account to sign in as, run the one command the page shows on the machine, signed in as that account, and paste back the line it prints. The command adds the page's key to the account's ~/.ssh/authorized_keys and prints the host key's fingerprint; the page also takes a key of theirs. Never ask for a key, a password, an address or a fingerprint in the chat. When they say it's done, call library: "${label}" shows whether it signed in. Name it in a toolkit's targets: ["${label}"] (guide topic targets).`;
 }
@@ -310,8 +319,9 @@ async function run(args: Args, self: HandlerContext): Promise<string> {
   return told(self, runs.runText(record));
 }
 
-/** An action: what the agent asked (`args`), the call's `this`, and the key the slot gave in this call, if one. */
-type Action = (args: Args, self: HandlerContext, took: slot.Taken | null) => Promise<string> | string;
+/** An action: what the agent asked (`args`), the call's `this`, the key the slot gave in this call, if
+ *  one, and what the user said this chat's requests aren't needed, told ahead of the answer. */
+type Action = (args: Args, self: HandlerContext, took: slot.Taken | null, declined: Declined) => Promise<string> | string;
 const ACTIONS: Record<string, Action> = { guide, library, secret, call, save, run };
 
 /** The skill, as Settings › Agent Skills names it. */
@@ -339,6 +349,18 @@ async function fromPage(self: HandlerContext, base: string | null): Promise<void
   }
 }
 
+/** What the user said, on the pages, isn't needed of what this call's chat asked for: taken, so the
+ *  chat is told once (after fromPage, which applies what the pages posted). A failure is only logged:
+ *  the "not needed" waits for the next call. */
+async function declinedHere(self: HandlerContext): Promise<Declined> {
+  try {
+    return await page.declined(chatOf(self).key);
+  } catch (e) {
+    self.logger?.(`library-lean couldn't read the requests the user said aren't needed: ${page.plain((e as Error)?.message || String(e))}`);
+    return [];
+  }
+}
+
 export const runtime = {
   handler: async function (this: HandlerContext, args: Args = {}): Promise<string> {
     const action = clean(args.action).toLowerCase() || "guide";
@@ -358,7 +380,9 @@ export const runtime = {
       const base = baseOf(this);
       noteBase(base);
       await fromPage(this, base);
-      return pageKeys.ahead(said, await act(args, this, took?.taken ?? null));
+      const declined = await declinedHere(this);
+      said.push(...declined.map(page.declinedText));
+      return pageKeys.ahead(said, await act(args, this, took?.taken ?? null, declined));
     } catch (e) {
       if (e instanceof Told) return pageKeys.ahead(said, `Library: ${page.plain(e.message)}.`);
       this.logger?.(`library-lean ${action} failed: ${(e as Error)?.stack || e}`);

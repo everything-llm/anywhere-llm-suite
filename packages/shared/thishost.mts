@@ -13,6 +13,17 @@
 //
 // That file is written by the installer, on the host, and only read here. A host that was never
 // (re)installed has none: kit.ssh then refuses every target (thisHostUsable), since it can't tell.
+//
+// One exception, the owner's: the record may name accounts on this host the owner vouches for
+// (`allow`: login and port, written by `anywherellm-suite this-host --allow login@port`). A target
+// that is this machine by its address or its host key is let through only when its login and port
+// are exactly one of those (thisHostAllows); every other login or port here stays refused. It is for
+// a separate unprivileged account that can't read AnythingLLM's storage (a home of its own at 0700,
+// processes hidden from it, a firewall keeping it to its own ports), such as an sshd on another port
+// of the VM AnythingLLM runs in. The record lives in AnythingLLM's storage, which code in the
+// container can write, so `allow` is an owner switch about which accounts the owner vouches for,
+// like page-links-hidden, not a lock against code inside the container: nothing the skills do writes
+// it, and only the installer does.
 // A test that stands a machine up on 127.0.0.1 names it in THISHOST_EXCEPT (a Set on globalThis), and
 // a test can give the record in THISHOST_RECORD; nothing shipped sets either.
 
@@ -29,13 +40,41 @@ export const THISHOST_EXCEPT = Symbol.for("anywherellm-suite.thishost.except");
 /** The test seam: a ThisHost record used instead of the file's. Nothing shipped sets it. */
 export const THISHOST_RECORD = Symbol.for("anywherellm-suite.thishost.record");
 
+/** An account on this host the owner vouches for: a target here at exactly this login and port is
+ *  let through (thisHostAllows). */
+export interface Account {
+  login: string;
+  port: number;
+}
+
 /** What the installer records of the host it runs on. */
 export interface ThisHost {
   /** `SHA256:…` of each of its SSH host keys, as ssh-keygen -lf prints them. */
   fingerprints: string[];
   /** Every address of every interface it has, IPv4 and IPv6. */
   addresses: string[];
+  /** The accounts here the owner allowed (`this-host --allow`); none when not given. */
+  allow?: Account[];
 }
+
+/** An account's login, as a target's is checked (the library's LOGIN). */
+export const ACCOUNT_LOGIN = /^[a-z_][a-z0-9_.-]{0,31}$/i;
+
+/** Whether `v` is an account as the record holds one: a login and a port from 1 to 65535. */
+export const isAccount = (v: unknown): v is Account => {
+  const a = v as Account;
+  return !!a && typeof a === "object" && typeof a.login === "string" && ACCOUNT_LOGIN.test(a.login) && Number.isInteger(a.port) && a.port >= 1 && a.port <= 65535;
+};
+
+/** `login@port` as an account, or null when it isn't one. */
+export function accountOf(text: string): Account | null {
+  const m = String(text).trim().match(/^([^@\s]+)@(\d{1,5})$/);
+  const account = m ? { login: m[1], port: Number(m[2]) } : null;
+  return isAccount(account) ? account : null;
+}
+
+/** An account as the owner writes it: `login@port`. */
+export const accountText = (a: Account): string => `${a.login}@${a.port}`;
 
 /** Where the installer records this host, in AnythingLLM's storage `storage`. */
 export const thisHostFile = (storage: string = storageDir()): string => path.join(storage, SUITE_DIR, "this-host.json");
@@ -85,7 +124,9 @@ function read(file: string): Recorded {
   const fingerprints = strings(value?.fingerprints);
   const addresses = strings(value?.addresses);
   if (!fingerprints || !addresses) return { why: `${file} isn't a record of this machine` };
-  return { host: { fingerprints, addresses } };
+  // Only entries that are accounts: anything else allows nothing.
+  const allow = Array.isArray(value.allow) ? value.allow.filter(isAccount).map(({ login, port }) => ({ login, port })) : [];
+  return { host: { fingerprints, addresses, allow } };
 }
 
 /** Whether the host is recorded (a file that is a record, even an empty one). */
@@ -101,6 +142,14 @@ export function thisHostFingerprints(): Set<string> {
 export function thisHostAddresses(): string[] {
   const r = recorded();
   return "host" in r ? [...r.host.addresses] : [];
+}
+
+/** Whether the owner allowed the account `login` at `port` on this host (the record's `allow`): a
+ *  target that is this machine is let through only then. The login is compared exactly, as sshd
+ *  does; nothing is allowed without a record. */
+export function thisHostAllows(login: string, port: number): boolean {
+  const r = recorded();
+  return "host" in r && (r.host.allow ?? []).some((a) => isAccount(a) && a.login === login && a.port === port);
 }
 
 /** Whether the record is good enough to trust a target is another machine: it is there, it can be

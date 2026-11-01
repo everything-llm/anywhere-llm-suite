@@ -21,6 +21,7 @@ const PORT = 18083;
 const KEY = "e2e-key-0123456789";
 
 const ImportedPlugin = require(`${APP}/utils/agents/imported.js`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // A scheduled job's process, as run-scheduled-job.js is: forked, the skill loaded afresh, no workspace.
 if (process.argv[2] === "job") {
@@ -58,7 +59,8 @@ const server = http.createServer((req, res) => {
   const call = async (args, slug = "check") => {
     let fn;
     const agent = {
-      handlerProps: { invocation: { workspace: slug ? { slug } : null, thread_id: 1 }, log: (m) => console.error(m) },
+      // The workspace's row, as AnythingLLM's invocation carries it: its name with its slug.
+      handlerProps: { invocation: { workspace: slug ? { slug, name: "Check room" } : null, thread_id: 1 }, log: (m) => console.error(m) },
       requestUserClarification: async (q) => (cards.push(q), { skipped: true }),
       addClarifyingQuestionSurvey: () => {},
       function: (def) => (fn = def),
@@ -114,6 +116,115 @@ const server = http.createServer((req, res) => {
   killed.child.kill("SIGKILL");
   await new Promise((r) => killed.child.once("exit", r));
   assert.match(await call({ action: "library" }), /^Finished since last shown [^\n]*\n- digest\.nap: interrupted \(Interrupted: [^\n]*from a scheduled job/);
+
+  // ---- The pages keep a draft of what's typed, in a real Chrome (the collector's) at a phone's width:
+  // a reload (a phone's browser drops a page put away) brings back the Library's add form and the
+  // Vault's Add a key as they were typed, never the private key or the key itself; Back and Cancel
+  // drop the draft.
+  {
+    const puppeteer = require("/app/collector/node_modules/puppeteer");
+    const viewer = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+    try {
+      const at = `http://127.0.0.1:${process.env.INNER_PORT || 3001}`;
+      const libToken = JSON.parse(fs.readFileSync(`${storage}/library-lean/page.json`, "utf8")).token;
+      const vaultToken = JSON.parse(fs.readFileSync(`${storage}/vault-lean/vault-page.json`, "utf8")).token;
+      const shown = await viewer.newPage();
+      await shown.setViewport({ width: 390, height: 844 });
+      const errors = [];
+      shown.on("pageerror", (e) => errors.push(e.message));
+      const PRIVATE = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA-e2e-not-a-real-key\n-----END OPENSSH PRIVATE KEY-----";
+      const LINE = "256 SHA256:e2eDraftLine0123456789abcdefghijklmnopqrstu root@pi (ED25519)";
+      const fieldOf = (name) => `#screen form [aria-describedby="err-${name}"]`;
+      const addForm = async () => {
+        await shown.waitForSelector(fieldOf("host"), { timeout: 10_000 });
+        return shown.evaluate((names) => names.map((n) => document.querySelector(`#screen form [aria-describedby="err-${n}"]`)?.value ?? null), ["label", "host", "login", "fingerprint", "key"]);
+      };
+      const stored = () => shown.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+      await shown.goto(`${at}/library-lean/${libToken}.html#add`, { waitUntil: "load" });
+      await addForm();
+      await shown.type(fieldOf("label"), "pi");
+      await shown.type(fieldOf("host"), "192.168.1.20:2222");
+      await shown.type(fieldOf("login"), "sandbox");
+      await shown.type(fieldOf("fingerprint"), LINE);
+      await shown.click("#screen details.own summary");
+      await shown.type(fieldOf("key"), PRIVATE);
+      await shown.reload({ waitUntil: "load" });
+      assert.deepEqual(await addForm(), ["pi", "192.168.1.20:2222", "sandbox", LINE, ""], "the add form as it was typed, the private key gone");
+      const kept = await stored();
+      assert.ok(kept.includes("192.168.1.20:2222"), "kept on the device");
+      assert.ok(!kept.includes("OPENSSH") && !kept.includes("e2e-not-a-real-key"), "never the private key");
+      assert.ok(!kept.includes(libToken), "nor the page's token");
+      await shown.click("#screen .bar a.back");
+      await shown.waitForSelector("#home:not([hidden])");
+      await shown.goto(`${at}/library-lean/${libToken}.html#add`, { waitUntil: "load" });
+      assert.deepEqual(await addForm(), ["", "", "", "", ""], "Back dropped the draft");
+
+      // The Vault's Add a key: Name and Site come back, open as they were; the key never.
+      const keysForm = "#apikeys button.add + form input";
+      const vaultOpen = async () => {
+        await shown.goto(`${at}/vault-lean/${vaultToken}.html`, { waitUntil: "load" });
+        await shown.waitForSelector("#apikeys button.add", { timeout: 10_000 });
+        return shown.$$eval(keysForm, (inputs) => inputs.map((i) => [i.type, i.value]));
+      };
+      assert.deepEqual(await vaultOpen(), [], "the form is closed at first");
+      await shown.click("#apikeys button.add");
+      const [nameIn, siteIn, keyIn] = await shown.$$(keysForm);
+      await nameIn.type("github");
+      await siteIn.type("api.github.com");
+      await keyIn.type("ghp_e2eDraftSecretValue0123456789");
+      await shown.reload({ waitUntil: "load" });
+      await shown.waitForSelector(keysForm, { timeout: 10_000 });
+      assert.deepEqual(await shown.$$eval(keysForm, (inputs) => inputs.map((i) => [i.type, i.value])), [["text", "github"], ["text", "api.github.com"], ["password", ""]], "open again, as it was typed, the key gone");
+      assert.ok(!(await stored()).includes("ghp_e2eDraftSecretValue"), "never the key");
+      await shown.click("#apikeys button.add"); // Cancel
+      assert.deepEqual(await vaultOpen(), [], "Cancel dropped the draft: closed, and empty");
+
+      // A request says which chat asked and when; Not needed hides it with an Undo that outlasts the
+      // 4 s toasts; Close (or leaving the page) sends it, and the chat that asked is told at its next call.
+      const toldIn = async (args) => {
+        for (let i = 0; i < 40; i++) {
+          const said = await call(args);
+          if (said.includes("isn't needed")) return said;
+          await sleep(250);
+        }
+        assert.fail("the chat wasn't told the user said it isn't needed");
+      };
+      const visible = (selector) => shown.$eval(selector, (n) => !n.hidden && !n.closest("[hidden]")).catch(() => false);
+      await call({ action: "secret", kind: "ssh", label: "vm" });
+      await shown.goto(`${at}/library-lean/${libToken}.html#machines`, { waitUntil: "load" });
+      await shown.waitForSelector("#tab .card.need [data-need]", { timeout: 10_000 });
+      assert.match(await shown.$eval("#tab .card.need", (n) => n.textContent), /The agent is waiting for vm.*Asked in Check room · just now/, "where and when");
+      await shown.click("#tab .card.need [data-need]");
+      assert.equal(await visible("#tab .card.need"), false, "hidden at once");
+      assert.equal(await shown.$eval("#toast", (n) => n.textContent), "Dropped the request for vmUndo");
+      await sleep(5000);
+      assert.equal(await visible("#toast .undo"), true, "Undo is still there after 4 s");
+      await shown.click("#toast .undo");
+      assert.equal(await visible("#tab .card.need"), true, "Undo brings it back");
+      assert.equal(await visible("#toast"), false);
+      await shown.click("#tab .card.need [data-need]");
+      await shown.click("#toast .shut");
+      assert.match(await toldIn({ action: "library" }), /^The user said the machine "vm" isn't needed \(on the Library page\)/, "Close sent it, and the chat is told");
+      await shown.waitForFunction(() => !document.querySelector("#tab .card.need"), { timeout: 10_000 });
+
+      // The Vault's: sent as the page is left.
+      await call({ action: "secret", site: "api.github.com", label: "github" });
+      await shown.goto(`${at}/vault-lean/${vaultToken}.html`, { waitUntil: "load" });
+      await shown.waitForSelector("#apikeys .card.need [data-need]", { timeout: 10_000 });
+      assert.match(await shown.$eval("#apikeys .card.need", (n) => n.textContent), /The agent asks for a key for api\.github\.com.*Asked in Check room · just now/);
+      await shown.click("#apikeys .card.need [data-need]");
+      assert.equal(await visible("#toast .undo"), true);
+      await shown.goto("about:blank");
+      // Applied by the Vault's watch (asked again first, it would be a new request the drop misses).
+      const keyNeeds = () => JSON.parse(fs.readFileSync(`${APP}/public/vault-lean/${vaultToken}-keys.json`, "utf8")).needs;
+      for (let i = 0; i < 40 && keyNeeds().length; i++) await sleep(250);
+      assert.deepEqual(keyNeeds(), [], "leaving the page sent it");
+      assert.match(await call({ action: "secret", site: "api.github.com", label: "github" }), /^The user said the key "github" for api\.github\.com isn't needed \(on the Vault\)[^]*So the key "github" wasn't asked for again\./, "and the chat is told");
+      assert.deepEqual(errors, [], "no error on the pages");
+    } finally {
+      await viewer.close();
+    }
+  }
 
   if (process.env.E2E_SSH_PORT) {
     // Machines (targets) are added on the Library page (the keys are given on the Vault), which has a
@@ -174,6 +285,22 @@ const server = http.createServer((req, res) => {
     for (let i = 0; i < 200 && [undefined, "not tried yet"].includes(status("box2")); i++) await new Promise((r) => setTimeout(r, 100));
     assert.equal(status("box2"), "signed in", "the machine added with the page's command signs in with the page's key");
     assert.notEqual(pageState().spare, spare, "the next machine gets a key of its own");
+
+    // The owner's exception (this-host --allow), against the real sshd and without the seam: at
+    // 127.0.0.1 it is this machine, used only while the record allows that login at that port.
+    const EXCEPT = Symbol.for("anywherellm-suite.thishost.except");
+    const record = globalThis[Symbol.for("anywherellm-suite.thishost.record")];
+    const sshPort = Number(process.env.E2E_SSH_PORT);
+    const standIn = globalThis[EXCEPT];
+    globalThis[EXCEPT] = new Set();
+    const runText = () => call({ action: "run", name: "ops.run", inputs: { req: { command: "id -un" } } });
+    assert.match(await runText(), /an address of this machine itself/, "this machine, not allowed");
+    record.allow = [{ login: "sandbox", port: sshPort }];
+    assert.equal((await result({ command: "id -un" })).stdout, "sandbox\n", "allowed at that login and port");
+    record.allow = [{ login: "sandbox", port: sshPort + 1 }, { login: "root", port: sshPort }];
+    assert.match(await runText(), /an address of this machine itself/, "another port or login allows nothing");
+    delete record.allow;
+    globalThis[EXCEPT] = standIn;
   }
 
   server.close();

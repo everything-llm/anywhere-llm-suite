@@ -881,6 +881,7 @@ details.own .inside{padding:var(--space-1) 0 var(--space-3);gap:6px}
 .err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
 .err svg{margin-top:1px}
 .err:empty{display:none}
+.err .also{display:block;margin-top:2px;color:var(--ink)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 dialog.sheet{position:fixed;inset:auto 0 0;margin:0 auto;width:100%;max-width:640px;max-height:90vh;padding:0;border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--tile);color:var(--ink);box-shadow:var(--shadow-sheet)}
 dialog.sheet::backdrop{background:var(--scrim)}
@@ -892,6 +893,11 @@ dialog.sheet::backdrop{background:var(--scrim)}
 .menu button.plain{color:var(--ink)}
 .head .ends{display:flex;align-items:center;gap:var(--space-2)}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
+#toast:not([hidden]){display:flex;align-items:center;gap:var(--space-2)}
+#toast>span{flex:1;min-width:0}
+#toast>button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--ground);font:700 1rem/1 var(--font-sans);cursor:pointer}
+#toast>button[hidden]{display:none}
+#toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
 </style>
 </head>
 <body class="hu-root" data-density="touch">
@@ -914,7 +920,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
-<div id="toast" role="status" hidden></div>
+<div id="toast" role="status" hidden><span></span><button type="button" class="undo" hidden>Undo</button><button type="button" class="shut" aria-label="Close" hidden></button></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -944,22 +950,96 @@ dialog.sheet::backdrop{background:var(--scrim)}
     stop: '<circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
     alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
     warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   };
   const icon = (name, size = 16, cls = "") => Object.assign(document.createElement("template"), { innerHTML: `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>` }).content.firstChild;
-  let toastTimer = 0;
-  const toast = (text) => { $("toast").textContent = text; $("toast").hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($("toast").hidden = true), 4000); };
+  // ---- The toast: what was sent or done, or a refusal, for 4 s. One with `undo` ({ undo, send })
+  // holds what it undoes, unsent, and stays with Undo and Close until one is pressed, another toast
+  // takes its place, or the page is left: then what it holds is sent. Undo has no timer to beat.
+  let toastTimer = 0, held = null;
+  const toastBox = $("toast"), [toastText, undoButton, shutButton] = toastBox.children;
+  shutButton.append(icon("close", 20));
+  const hideToast = () => { toastBox.hidden = true; clearTimeout(toastTimer); };
+  const sendHeld = () => { const was = held; held = null; was?.send(); };
+  function toast(text, undo = null) {
+    sendHeld();
+    toastText.textContent = text;
+    undoButton.hidden = shutButton.hidden = !undo;
+    toastBox.hidden = false;
+    clearTimeout(toastTimer);
+    if (undo) held = undo;
+    else toastTimer = setTimeout(hideToast, 4000);
+  }
+  undoButton.onclick = () => { const was = held; held = null; hideToast(); was?.undo(); };
+  shutButton.onclick = () => { hideToast(); sendHeld(); };
+  addEventListener("pagehide", () => { hideToast(); sendHeld(); });
+  document.addEventListener("visibilitychange", () => document.hidden && held && (hideToast(), sendHeld()));
+
+  /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
+     that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
+     is the form's draft: `form` names it ("add/pi"), `key` is the page's token, of which only a hash
+     is kept (every page on AnythingLLM's address reads the same storage, and the token lets in
+     whoever has it). keep(input, field) puts the field's draft back (only what was typed over the
+     value the page gave it) and saves each change; it keeps nothing of a password field, a code or a
+     field marked data-secret. clear() drops the draft: the form was saved, cancelled or met. A field
+     whose text is kept is marked data-draft, so a page may draw it again (it comes back). Storage
+     may be blocked, or full: then nothing is kept and the page works as before. The same block in
+     every suite page, as shared/vault.html has it (shared/drafts.test.mts keeps them the same). */
+  const draft = (() => {
+    const DAY = 24 * 60 * 60 * 1000, PREFIX = "anywherellm-suite.draft:";
+    const quiet = (fn, or) => { try { return fn(); } catch { return or; } };
+    const store = () => window.localStorage;
+    const hash = (text) => {
+      let a = 0x9e3779b9, b = 0x85ebca6b;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+      a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+      b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+      return (b >>> 0).toString(36) + (a >>> 0).toString(36);
+    };
+    const fresh = (d) => !!d && typeof d === "object" && Math.abs(Date.now() - d.at) < DAY && !!d.v && typeof d.v === "object";
+    const secret = (input) => input.type === "password" || /password|one-time-code/.test(input.autocomplete || "") || "secret" in input.dataset;
+    const usable = quiet(() => (store().setItem(PREFIX + "probe", "1"), store().removeItem(PREFIX + "probe"), true), false);
+    // A draft past its day goes, whichever page left it.
+    quiet(() => { const local = store(); for (let i = local.length - 1; i >= 0; i--) { const entry = local.key(i); if (entry?.startsWith(PREFIX) && !fresh(quiet(() => JSON.parse(local.getItem(entry)), null))) local.removeItem(entry); } });
+    return (form, key) => {
+      const name = `${PREFIX}${hash(String(key))}:${form}`;
+      const read = () => quiet(() => { const d = JSON.parse(store().getItem(name)); return fresh(d) ? d.v : {}; }, {});
+      const write = (v) => quiet(() => (Object.keys(v).length ? store().setItem(name, JSON.stringify({ at: Date.now(), v })) : store().removeItem(name), true), false);
+      return {
+        has: () => Object.keys(read()).length > 0,
+        keep(input, field) {
+          if (!input || secret(input)) return () => {};
+          const start = input.value, was = read()[field];
+          if (typeof was === "string") input.value = was;
+          if (usable) input.dataset.draft = "";
+          const save = () => {
+            const v = read();
+            if (input.value === start || secret(input)) delete v[field];
+            else v[field] = input.value;
+            if (!write(v)) delete input.dataset.draft; // not kept: the page must not draw it again
+          };
+          input.addEventListener("input", save);
+          return () => input.removeEventListener("input", save);
+        },
+        clear: () => quiet(() => store().removeItem(name)),
+      };
+    };
+  })();
+  /* end of page drafts */
 
   // ---- Posting: each thing done here is an event, posted through AnythingLLM's upload.
-  async function post(ev, fields = {}) {
+  // `quiet`: no "Sent" (what a toast held, sent as it closes), and kept alive as the page is left.
+  async function post(ev, fields = {}, { quiet = false } = {}) {
     const event = { library_lean_event: 1, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
     try {
       const res = await fetch("/api/browser-extension/upload-content", {
         method: "POST",
+        keepalive: quiet,
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "library-lean page" } }),
       });
       if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
-      toast("Sent");
+      if (!quiet) toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
@@ -1016,8 +1096,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
   const sheet = $("sheet");
   let asked = null;
   // With `value`, the sheet holds a Name field that starts with it, `yes` is the primary button and
-  // Enter presses it, and `act` gets the name typed.
-  function ask(title, body, yes, act, { value } = {}) {
+  // Enter presses it, and `act` gets the name typed; with `form` too, what's typed there is kept as
+  // that form's draft until it's sent or the sheet is closed.
+  function ask(title, body, yes, act, { value, form } = {}) {
     const named = value !== undefined;
     $("sheet-t").textContent = title;
     $("sheet-b").textContent = body;
@@ -1025,7 +1106,8 @@ dialog.sheet::backdrop{background:var(--scrim)}
     $("sheet-yes").className = `hu-button hu-button--${named ? "primary" : "danger"}`;
     $("sheet-f").hidden = !named;
     $("sheet-in").value = value ?? "";
-    asked = { act, from: document.activeElement };
+    const kept = named && form ? draft(form, cfg.token) : null;
+    asked = { act, from: document.activeElement, kept, stop: kept?.keep($("sheet-in"), "name") };
     sheet.returnValue = "";
     sheet.showModal();
     named ? $("sheet-in").select() : $("sheet-keep").focus();
@@ -1034,8 +1116,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
   sheet.addEventListener("close", () => {
     const was = asked;
     asked = null;
+    was?.stop?.();
     if (was?.from?.isConnected) was.from.focus();
-    if (was && sheet.returnValue === "yes") was.act($("sheet-in").value.trim());
+    if (was && sheet.returnValue === "yes") Promise.resolve(was.act($("sheet-in").value.trim())).then((sent) => sent && was.kept?.clear());
+    else was?.kept?.clear();
   });
   sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
 
@@ -1068,7 +1152,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     moreButton(`More for ${name}`, [...items, ["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
   // ⋯ › Rename: a name only this page shows.
   const renameItem = (name, ev, fields) =>
-    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name }), "plain"];
+    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name, form: `rename/${ev}/${JSON.stringify(fields)}` }), "plain"];
   document.addEventListener("pointerdown", (e) => !menu.hidden && !menu.contains(e.target) && !e.target.closest?.("[aria-haspopup]") && closeMenu());
   document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && closeMenu());
 
@@ -1084,6 +1168,15 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   const took = (ms) => (ms < 1000 ? "under 1 s" : ms < 60000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60000)} min`);
   const startedAt = (r) => new Date(r.started);
+  // A request the agent made: where and how long ago. A day old, it's gone (the skill drops it too).
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (at) => {
+    const m = Math.floor((Date.now() - at) / 60000), h = Math.floor(m / 60);
+    return m < 1 ? "just now" : m < 60 ? `${m} minute${m === 1 ? "" : "s"} ago` : `${h} hour${h === 1 ? "" : "s"} ago`;
+  };
+  const askedLine = (need) => el("p", { className: "cap" }, need.where ? `Asked in ${need.where} · ` : "Asked by a scheduled job · ", el("span", { textContent: ago(need.at), attrs: { "data-at": need.at } }));
+  // Kept up as the page stays open; a request that reaches its day is hidden.
+  const ageAll = () => { for (const when of document.querySelectorAll("[data-at]")) { const at = Number(when.dataset.at); when.textContent = ago(at); if (Date.now() - at >= DAY) when.closest(".need")?.setAttribute("hidden", ""); } };
   const lastLine = (r) => (r.status === "running" ? `since ${hm(startedAt(r))}` : `${/^(Today|Yesterday)$/.test(dayOf(startedAt(r))) ? dayOf(startedAt(r)).toLowerCase() : dayOf(startedAt(r))} ${hm(startedAt(r))} · took ${took(r.ms)}`);
 
   // ---- Where the page is: a tab (#toolkits, #machines, #runs), a function (#fn/<service>/<name>),
@@ -1168,12 +1261,15 @@ dialog.sheet::backdrop{background:var(--scrim)}
   // ---- Machines.
   const tryAgain = (m, kind = "primary") => btn("Try again", kind, `Try signing in to ${m.label} again`, () => post("target-check", { label: m.label }));
   const setUp = (m) => el("a", { className: "hu-button hu-button--secondary", href: `#again/${encodeURIComponent(m.label)}`, textContent: "Set it up again" });
+  // What the owner can do about a machine refused as AnythingLLM's own: allow a separate account on
+  // it, on the host (the installer's this-host --allow), for this login and port alone.
+  const allowHint = (m) => `The owner can allow a separate account on it: on the host, anywherellm-suite this-host --allow ${m.login}@${m.port}.`;
   // A machine that isn't signed in, by why (the skill's barred, else its problem): the tag, what the
-  // card says, and its one next step.
+  // card says, its one next step, and a hint when there is one.
   const NOT_IN = {
     barred: ["Not used", "bad", (m) => sentence(m.barred), (m) => (/try again\.?$/i.test(m.barred) ? tryAgain(m) : null)],
     "host-key": ["Host key changed", "bad", () => "Its host key changed, so nothing was sent. If you rebuilt the machine, set it up again.", setUp],
-    "this-machine": ["Not used", "bad", () => "This is the machine AnythingLLM runs on, so nothing was sent. Use another machine.", setUp],
+    "this-machine": ["Not used", "bad", () => "This is the machine AnythingLLM runs on, so nothing was sent. Use another machine.", setUp, allowHint],
     fenced: ["Not signed in", "warn", () => "Its name leads to an address that isn’t public, so it wasn’t reached. Set it up again with the address itself, like 192.168.1.20.", setUp],
     unreachable: ["Not signed in", "warn", (m) => `${m.label} didn’t answer at ${addressOf(m)}. Check that it’s on and its address is right, then try again.`, tryAgain],
     failed: ["Not signed in", "warn", (m) => (m.status === "not tried yet" ? "It hasn’t been tried yet." : sentence(m.status)), tryAgain],
@@ -1199,10 +1295,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
       } else body = [say(`${m.label} didn’t accept your key. Add its public half to ~/.ssh/authorized_keys for ${m.login} on ${m.label}, then try again.`)];
       body.push(acts(tryAgain(m)));
     } else {
-      const [text, kind, says, next] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
+      const [text, kind, says, next, hint] = NOT_IN[m.barred ? "barred" : m.problem] ?? NOT_IN.failed;
       state = tag(text, kind, "warn");
       const step = next(m);
-      body = [say(says(m)), step ? acts(step) : null];
+      body = [say(says(m)), hint ? cap(hint(m)) : null, step ? acts(step) : null];
     }
     return card(
       el("div", { className: "head" }, el("h2", { textContent: m.label }), el("span", { className: "end" }, state,
@@ -1211,15 +1307,40 @@ dialog.sheet::backdrop{background:var(--scrim)}
       body,
       m.held ? cap(`Kept for locked toolkits (${S.toolkits.find((t) => t.service === m.held)?.title ?? m.held}). Unlocked toolkits can’t use it.`) : null);
   }
+  // The requests the user said aren't needed: hidden at once, and sent once the toast with Undo closes.
+  const dropped = new Set();
+  const waitingFor = (state) => state.needs.filter((need) => !dropped.has(need.id) && Date.now() - need.at < DAY && !state.targets.some((m) => m.label === need.label));
+  function notNeeded(need, node) {
+    dropped.add(need.id);
+    node.hidden = true;
+    toast(`Dropped the request for ${need.label}`, {
+      undo: () => {
+        dropped.delete(need.id);
+        if (node.isConnected) node.hidden = false;
+        else (shown = null), draw();
+        document.querySelector(`[data-need="${need.id}"]`)?.focus();
+      },
+      // Not sent: the request stands, and shows again.
+      send: () => post("need-drop", { id: need.id, label: need.label }, { quiet: true }).then((sent) => sent || (dropped.delete(need.id), (shown = null), draw())),
+    });
+    undoButton.focus();
+  }
   function machinesTab(state) {
-    const asking = state.needs.filter((need) => !state.targets.some((m) => m.label === need.label));
+    const asking = waitingFor(state);
     const add = (href, text) => el("a", { className: "add", href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
-    // A machine the agent waits for is its own card, named as the agent's toolkits will use it: adding
-    // it there meets the request, and the agent carries on.
-    const waiting = (need) => card(
-      el("div", { className: "head" }, el("h2", { textContent: `The agent is waiting for ${need.label}` })),
-      say(`A toolkit runs commands on a machine named ${need.label}. Add it, and the agent carries on.`),
-      acts(el("a", { className: "hu-button hu-button--primary", href: `#add/${encodeURIComponent(need.label)}`, textContent: `Add ${need.label}` })));
+    // A machine the agent waits for is its own card, named as the agent's toolkits will use it, with
+    // the chat that asked and when: adding it there meets the request, and the agent carries on; Not
+    // needed drops it, and the chat is told the user said so.
+    const waiting = (need) => {
+      const no = btn("Not needed", "secondary", `Not needed: ${need.label}`, () => notNeeded(need, node));
+      no.dataset.need = need.id;
+      const node = card(
+        el("div", { className: "head" }, el("h2", { textContent: `The agent is waiting for ${need.label}` })),
+        say(`A toolkit runs commands on a machine named ${need.label}. Add it, and the agent carries on.`),
+        askedLine(need),
+        acts(el("a", { className: "hu-button hu-button--primary", href: `#add/${encodeURIComponent(need.label)}`, textContent: `Add ${need.label}` }), no));
+      return node;
+    };
     return [
       ...(state.targets.length || asking.length ? [] : [card(say("No machines. When a function needs one, the agent asks you to add it."))]),
       ...asking.map((need) => Object.assign(waiting(need), { className: "card need" })),
@@ -1240,8 +1361,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const describe = (name) => (errors[name] = el("span", { className: "err", id: `err-${name}`, attrs: { role: "alert" } }));
     // Not a login form: names hold nothing a browser reads as a login, and nothing is filled in.
     // A field with `named` has no label shown, only its name for a screen reader.
-    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false, named = false } = {}) => {
-      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}`, "aria-label": named ? label : null } };
+    // A `secret` field is marked so no draft keeps it.
+    const field = (name, label, { hint, mono, placeholder, value = "", textarea = false, named = false, secret = false } = {}) => {
+      const props = { className: `fld${mono ? " mono" : ""}`, name: `lib-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: "off", spellcheck: false, value, placeholder: placeholder ?? "", attrs: { autocapitalize: "none", "aria-describedby": `err-${name}`, "aria-label": named ? label : null, "data-secret": secret } };
       const input = (inputs[name] = textarea ? el("textarea", { ...props, rows: 4 }) : el("input", { type: "text", ...props }));
       return el(named ? "div" : "label", { className: "ff" }, named ? null : el("span", { textContent: label }), input, hint ? el("span", { className: "hint", textContent: hint }) : null, describe(name));
     };
@@ -1249,7 +1371,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const pre = el("pre", { className: "cmd" });
     const runText = el("p", { className: "say" });
     const own = el("details", { className: "own" }, el("summary", {}, el("span", { textContent: "Use my own key instead" }), icon("down", 16, "chev")),
-      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, named: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
+      el("div", { className: "inside" }, field("key", "Private key", { mono: true, textarea: true, named: true, secret: true, hint: "Without a passphrase. It’s sealed on this device; the agent never sees it." })));
     const key = inputs.key;
     const save = el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: "Save", style: "align-self:stretch" });
     const node = el("form", { className: `card${at.need ? " need" : ""}`, noValidate: true },
@@ -1262,6 +1384,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
       own,
       describe("form"),
       save);
+    // What's typed stays on this device a day, by the form (a machine the agent asked for, or one set
+    // up again, has its own): the name, address, account and printed line, never the private key.
+    const kept = draft(at.again ? `again/${at.again}` : at.need ? `add/${at.need}` : "add", cfg.token);
+    for (const name of ["label", "host", "login", "fingerprint"]) kept.keep(inputs[name], name);
     const ownKey = () => own.open && key.value.trim() !== "";
     const name = () => named ?? inputs.label.value.trim().toLowerCase();
     // The machine's own key while it stays where it was (set up again); otherwise the page's spare.
@@ -1273,9 +1399,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
     }
     for (const input of [inputs.label, inputs.host, inputs.login, key]) input?.addEventListener("input", () => refresh());
     own.addEventListener("toggle", () => refresh());
-    const fail = (name, text) => {
+    const fail = (name, text, hint) => {
       const at = errors[name] ?? errors.form;
-      at.replaceChildren(icon("warn"), el("span", { textContent: text }));
+      at.replaceChildren(icon("warn"), el("span", {}, text, hint ? el("span", { className: "also", textContent: hint }) : null));
       const input = inputs[name];
       if (name === "key") own.open = true;
       input?.setAttribute("aria-invalid", "true");
@@ -1309,13 +1435,13 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const answer = (said) => {
       if (!waiting) return;
       done();
-      if (!said.error) return void (location.hash = "#machines");
-      fail(said.field ?? "form", said.error).focus();
+      if (!said.error) return void (kept.clear(), (location.hash = "#machines"));
+      fail(said.field ?? "form", said.error, said.hint).focus();
     };
     refresh();
     form = { hash: location.hash, node, refresh, answer };
     return [
-      el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
+      el("div", { className: "bar" }, el("a", { className: "round back", href: "#machines", onclick: () => kept.clear(), attrs: { "aria-label": "Back to Machines" } }, icon("back", 20)),
         el("div", { className: "ttl" }, el("h1", { tabIndex: -1, textContent: again ? `Set up ${again.label} again` : "Add a machine" })), el("span")),
       el("p", { className: "say", textContent: at.need ? `The agent is waiting for a machine named ${at.need}, to run a toolkit’s commands on.` : again ? `Run the command on ${again.label} again, then paste what it printed.` : "A machine the agent’s functions can run commands on." }),
       node,
@@ -1381,8 +1507,9 @@ dialog.sheet::backdrop{background:var(--scrim)}
       lastRead = text;
       const first = S === null;
       S = JSON.parse(text);
+      for (const m of S.targets) draft(`add/${m.label}`, cfg.token).clear(); // the agent's request is met
       // Opened while the agent asks for a machine: Machines, where it's added.
-      if (first && !location.hash && S.needs.length) history.replaceState(null, "", "#machines");
+      if (first && !location.hash && waitingFor(S).length) history.replaceState(null, "", "#machines");
       draw();
       answered(S);
     } catch (e) {
@@ -1395,7 +1522,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   for (const b of document.querySelectorAll("nav button")) b.onclick = () => (location.hash = `#${b.dataset.tab}`);
   $("rotate").onclick = replaceLink;
-  const poll = setInterval(load, 5000);
+  const poll = setInterval(() => (load(), ageAll()), 5000);
   load();
 })();
 </script>

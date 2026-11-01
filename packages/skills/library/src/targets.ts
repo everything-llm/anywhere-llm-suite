@@ -31,7 +31,7 @@ import { lastBase, perBuild, perProcess } from "#shared/anythingllm";
 import { NetError, bareHost, lookupAll, portOf, privateByItself } from "#shared/fence";
 import { Unreachable, connect, send } from "#shared/net";
 import { removePublic, writePublic } from "#shared/pages";
-import { OWN_PORTS, alwaysOwn, bare, canonicalHost, sshFingerprint, thisHostAddresses, thisHostKeyRefusal, thisHostRefusal, thisHostUsable } from "#shared/thishost";
+import { ACCOUNT_LOGIN, OWN_PORTS, alwaysOwn, bare, canonicalHost, sshFingerprint, thisHostAddresses, thisHostAllows, thisHostKeyRefusal, thisHostRefusal, thisHostUsable } from "#shared/thishost";
 import * as vault from "#shared/vault";
 import { LibraryError } from "./errors";
 import { countUse } from "./secrets";
@@ -59,7 +59,7 @@ const LIMITS = {
 
 const NAME = /^[a-z][a-z0-9-]{1,30}$/;
 const HOST = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
-const LOGIN = /^[a-z_][a-z0-9_.-]{0,31}$/i;
+const LOGIN = ACCOUNT_LOGIN;
 // Exactly 43 characters: a longer run is a mistyped fingerprint, not one with something after it.
 const FINGERPRINT = /SHA256:[A-Za-z0-9+/]{43}(?![A-Za-z0-9+/])/;
 
@@ -74,9 +74,12 @@ type KnownProblem = Exclude<Problem, "failed">;
  *  (null: the form as a whole). Only the page saves a target, so these go only to the page. */
 export class Refused extends LibraryError {
   readonly field: "label" | "host" | "login" | "fingerprint" | "key" | "command" | null;
-  constructor(message: string, field: Refused["field"]) {
+  /** A line the page shows under the refusal, when there is something the owner can do about it. */
+  readonly hint: string | null;
+  constructor(message: string, field: Refused["field"], hint: string | null = null) {
     super(message);
     this.field = field;
+    this.hint = hint;
   }
 }
 
@@ -279,8 +282,12 @@ export async function save(given: Given): Promise<string> {
   if (!fingerprint) throw new Refused("That line has no SHA256 fingerprint. Paste the whole line the command printed, like 256 SHA256:… root@pi (ED25519).", "fingerprint");
   // Without a record of this machine (the installer writes it) nothing can be told from it: no target.
   if (!thisHostUsable().ok) throw new Refused("The page can’t yet tell this machine from others. Run the installer on the AnythingLLM host, as the README says.", null);
-  if (thisHostKeyRefusal(fingerprint)) throw new Refused("That’s the machine AnythingLLM runs on. Add a different machine.", "fingerprint");
-  if (await thisMachine(host)) throw new Refused(net.isIP(host) ? "That’s an address of the machine AnythingLLM runs on. Add a different machine." : `${host} leads to the machine AnythingLLM runs on. Add a different machine.`, "host");
+  // This machine is refused, by its key or its address, unless the owner allowed this very login and
+  // port on it (#shared/thishost thisHostAllows): what the hint says how to do.
+  const vouched = thisHostAllows(login, port);
+  const hint = `The owner can allow a separate account on it: on the host, anywherellm-suite this-host --allow ${login}@${port}.`;
+  if (!vouched && thisHostKeyRefusal(fingerprint)) throw new Refused("That’s the machine AnythingLLM runs on. Add a different machine.", "fingerprint", hint);
+  if (!vouched && (await thisMachine(host))) throw new Refused(net.isIP(host) ? "That’s an address of the machine AnythingLLM runs on. Add a different machine." : `${host} leads to the machine AnythingLLM runs on. Add a different machine.`, "host", hint);
   const was = found(label);
   const samePlace = !!was && canonicalHost(was.site) === canonicalHost(host) && was.port === port && was.login === login;
   const shown = keyBody(given.public);
@@ -530,9 +537,13 @@ async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Pr
   const usable = thisHostUsable();
   if (!usable.ok) throw new LibraryError(usable.reason);
   if (left() <= 0) throw outOfTime();
+  // This machine is refused at every address and by its host key, unless the owner allows this login
+  // and port on it: asked again at each connect, so a target saved while it was allowed isn't used
+  // once it isn't.
+  const vouched = thisHostAllows(e.login, e.port);
   let mine = false; // whether the fence refused an address of this machine's
   const refuse = (a: string) => {
-    const why = thisHostRefusal(a);
+    const why = vouched ? null : thisHostRefusal(a);
     mine ||= why !== null;
     return why;
   };
@@ -568,7 +579,7 @@ async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Pr
       resolve(client);
     });
     client.once("error", failed);
-    client.connect({ sock, username: e.login, privateKey: e.key, readyTimeout: timeout, hostVerifier: (key: Buffer) => ((seen = sshFingerprint(key)), (ownKey = thisHostKeyRefusal(seen)), !ownKey && seen === e.fingerprint) });
+    client.connect({ sock, username: e.login, privateKey: e.key, readyTimeout: timeout, hostVerifier: (key: Buffer) => ((seen = sshFingerprint(key)), (ownKey = vouched ? null : thisHostKeyRefusal(seen)), !ownKey && seen === e.fingerprint) });
   });
 }
 

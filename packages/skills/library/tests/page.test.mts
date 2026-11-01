@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import { linksFile, readLinks } from "#shared/page-links";
 import { call, giveKey, hideLinks, library, LIBRARY_CARD, pageConfig, pageState, post, postVault, publicDir, reset, seal, skillDir, storage, until, VAULT_CARD, vaultConfig, vaultState } from "./harness.mts";
 
@@ -13,6 +14,8 @@ const KEY = "page-key-0123456789";
 test.beforeEach(reset);
 
 const vaultFile = (name: string) => path.join(publicDir, "vault-lean", name);
+/** What a page's requests ask for, without where and when. */
+const askedFor = (needs: { label: string; site: string }[]) => needs.map(({ label, site }) => ({ label, site }));
 
 test("library gives the Vault's card and the Library page's, each as a quote with its link: relative, or absolute with ANYTHINGLLM_URL", async () => {
   assert.match(await call({ action: "library" }), new RegExp(`The Vault and the Library page are the user's own pages\\. Give the user each card as it is, in its own quote, so they open it from your answer:\\n\\n${VAULT_CARD}\\n\\n${LIBRARY_CARD}$`));
@@ -49,18 +52,18 @@ test("the Vault shows a saved key by name only, never its value, and only the li
 test("a key and a target asked for under one label are on their own pages, and one given doesn't meet the other", async () => {
   await call({ action: "secret", site: "api.example.com", label: "pi" });
   await call({ action: "secret", kind: "ssh", label: "pi" });
-  assert.deepEqual(vaultState().needs, [{ label: "pi", site: "api.example.com" }], "the key's need is on the Vault");
-  assert.deepEqual(pageState().needs, [{ label: "pi", site: "" }], "the target's is on the Library page");
+  assert.deepEqual(askedFor(vaultState().needs), [{ label: "pi", site: "api.example.com" }], "the key's need is on the Vault");
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "pi", site: "" }], "the target's is on the Library page");
   postVault({ ev: "key-save", label: "pi", site: "api.example.com", sealed: seal(KEY) });
   await call({ action: "library" });
   assert.deepEqual(vaultState().needs, [], "the key's need is met");
-  assert.deepEqual(pageState().needs, [{ label: "pi", site: "" }], "the target's is not");
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "pi", site: "" }], "the target's is not");
 });
 
 test("a key is asked for on the Vault, given there, and the agent is told", async () => {
   const asked = await call({ action: "secret", site: "api.example.com", label: "ex" });
   assert.match(asked, new RegExp(`on the Vault instead, at the top of Keys\\. If they ask for it, give them this card as it is, in its own quote:\\n\\n${VAULT_CARD}\\n\\n`));
-  assert.deepEqual(vaultState().needs, [{ label: "ex", site: "api.example.com" }]);
+  assert.deepEqual(askedFor(vaultState().needs), [{ label: "ex", site: "api.example.com" }]);
   postVault({ ev: "key-save", label: "ex", site: "api.example.com", sealed: seal(KEY) });
   await call({ action: "library" });
   assert.deepEqual(vaultState().needs, [], "the need is met");
@@ -297,4 +300,129 @@ test("a machine the agent asks for is a card saying the agent waits for it, with
   assert.match(html, /`The agent is waiting for \$\{need\.label\}`/);
   assert.match(html, /textContent: `Add \$\{need\.label\}`/);
   assert.match(html, /asking\.length \? "Add another machine" : "Add a machine"/);
+});
+
+// ---- What the agent asks the user for: which chat asked and when, one per chat and kind, Not needed
+// (and the chat told), and a day's expiry.
+
+const HOME = { slug: "home", name: "Household", thread: 5 };
+const pageFile = () => path.join(library, "page.json");
+const kept = () => JSON.parse(fs.readFileSync(pageFile(), "utf8"));
+/** page.json changed by `fn`, as an older one, or one left a day, would be. */
+const age = (fn: (p: any) => void) => {
+  const p = kept();
+  fn(p);
+  fs.writeFileSync(pageFile(), JSON.stringify(p));
+};
+const DAY = 24 * 60 * 60 * 1000;
+
+test("a request says which chat asked and when: the workspace's name (AnythingLLM gives a thread by its id only), else its slug; a scheduled job's says none", async () => {
+  const before = Date.now();
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  await call({ action: "secret", site: "api.example.com", label: "ex" }, { slug: "work", thread: null });
+  const [machine] = pageState().needs;
+  assert.deepEqual([machine.label, machine.where], ["vm", "Household"]);
+  assert.ok(machine.at >= before && machine.at <= Date.now(), "when it was asked");
+  assert.match(machine.id, /^[\w-]{12}$/, "an id the page drops it by");
+  assert.equal(vaultState().needs[0].where, "work", "no name: the slug");
+  assert.ok(!("chat" in machine), "the chat's key stays in page.json");
+  await call({ action: "secret", kind: "ssh", label: "nightly" }, null);
+  assert.deepEqual(pageState().needs.map((n: { label: string; where: string }) => [n.label, n.where]), [["vm", "Household"], ["nightly", ""]]);
+});
+
+test("a chat's new request replaces its earlier one of that kind; another chat's stays, even for the same label, and the key given meets them all", async () => {
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  await call({ action: "secret", kind: "ssh", label: "owen" }, HOME);
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "owen", site: "" }], "the chat moved on to owen");
+  await call({ action: "secret", kind: "ssh", label: "vm" }, { ...HOME, thread: 6 });
+  await call({ action: "secret", kind: "ssh", label: "owen" }, "work");
+  assert.deepEqual(askedFor(pageState().needs).map((n) => n.label), ["owen", "vm", "owen"], "each chat's own: another thread, another workspace");
+  await call({ action: "secret", site: "api.github.com", label: "github" }, HOME);
+  assert.equal(pageState().needs.length, 3, "a key doesn't replace a machine");
+  await call({ action: "secret", site: "api.slack.com", label: "slack" }, HOME);
+  await call({ action: "secret", site: "api.slack.com", label: "slack" }, "work");
+  assert.deepEqual(askedFor(vaultState().needs), [{ label: "slack", site: "api.slack.com" }, { label: "slack", site: "api.slack.com" }]);
+  const again = vaultState().needs[0];
+  await call({ action: "secret", site: "api.slack.com", label: "slack" }, HOME);
+  assert.equal(vaultState().needs.length, 2, "asked again: still one for the chat");
+  assert.notEqual(vaultState().needs.at(-1).id, again.id, "the newer ask, with its own time");
+  postVault({ ev: "key-save", label: "slack", site: "api.slack.com", sealed: seal(KEY) });
+  await call({ action: "library" });
+  assert.deepEqual(vaultState().needs, [], "the key given meets both chats' requests");
+});
+
+test("Not needed drops a machine's request at once, and the chat that asked is told at its next call, once; no other chat is", async () => {
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  await call({ action: "secret", kind: "ssh", label: "box" }, "work");
+  const [vm] = pageState().needs;
+  post({ ev: "need-drop", id: vm.id, label: "vm" });
+  const other = await call({ action: "library" }, "work");
+  assert.ok(!other.includes("isn't needed"), "another chat isn't told");
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "box", site: "" }], "gone from the page");
+  const said = await call({ action: "library" }, HOME);
+  assert.match(said, /^The user said the machine "vm" isn't needed \(on the Library page\), so its request is dropped\. Don't ask for it again unless the user says so\.\n\n/);
+  assert.ok(!(await call({ action: "library" }, HOME)).includes("isn't needed"), "told once");
+  post({ ev: "need-drop", id: pageState().needs[0].id, secret: "not-the-pages" });
+  await call({ action: "library" }, "work");
+  assert.equal(pageState().needs.length, 1, "a forgery drops nothing");
+});
+
+test("Not needed on the Vault drops a key's request, and the agent asking again in that chat is told the user said so, not asked again", async () => {
+  await call({ action: "secret", site: "api.github.com", label: "github" }, HOME);
+  postVault({ ev: "need-drop", id: vaultState().needs[0].id, label: "github" });
+  const again = await call({ action: "secret", site: "api.github.com", label: "github" }, HOME);
+  assert.match(again, /^The user said the key "github" for api\.github\.com isn't needed \(on the Vault\), so its request is dropped\. Don't ask for it again unless the user says so\.\n\nSo the key "github" wasn't asked for again\. If the user says they want it after all, ask again\.$/);
+  assert.deepEqual(vaultState().needs, [], "not asked again");
+  assert.match(await call({ action: "secret", site: "api.github.com", label: "github" }, HOME), /^The user gives the key in the library's own settings/, "asked once more, after being told: asked");
+  assert.equal(vaultState().needs.length, 1);
+  // A machine the user said isn't needed, asked for again in the same call that tells it.
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  post({ ev: "need-drop", id: pageState().needs[0].id });
+  assert.match(await call({ action: "secret", kind: "ssh", label: "vm" }, HOME), /isn't needed[^]*\n\nSo the machine "vm" wasn't asked for again\./);
+  assert.deepEqual(pageState().needs, []);
+});
+
+test("a Not needed for a request met or replaced meanwhile drops nothing, and tells nothing", async () => {
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  const old = pageState().needs[0].id;
+  await call({ action: "secret", kind: "ssh", label: "owen" }, HOME);
+  post({ ev: "need-drop", id: old });
+  const said = await call({ action: "library" }, HOME);
+  assert.ok(!said.includes("isn't needed"));
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "owen", site: "" }], "the newer request stands");
+});
+
+test("a request a day old isn't shown, and is gone from page.json at the next call; so is one from before requests had a time, and a Not needed its chat never heard", async () => {
+  await call({ action: "secret", kind: "ssh", label: "vm" }, HOME);
+  await call({ action: "secret", site: "api.github.com", label: "github" }, "work");
+  await call({ action: "secret", kind: "ssh", label: "box" }, "work");
+  post({ ev: "need-drop", id: pageState().needs.find((n: { label: string }) => n.label === "box").id });
+  await call({ action: "library" }, "other");
+  assert.equal(kept().declined.length, 1, "work hasn't been told yet");
+  age((p) => {
+    for (const n of p.needs) n.at -= DAY;
+    p.declined[0].at -= DAY;
+  });
+  await call({ action: "secret", kind: "ssh", label: "fresh" }, "other");
+  age((p) => p.needs.push({ label: "old", site: "", kind: "target", until: Date.now() + 60_000 })); // page.json as before 2026-11-01
+  assert.ok(!(await call({ action: "library" }, "work")).includes("isn't needed"), "a day on, work isn't told");
+  assert.deepEqual(askedFor(pageState().needs), [{ label: "fresh", site: "" }]);
+  assert.deepEqual(vaultState().needs, []);
+  assert.deepEqual(kept().needs.map((n: { label: string }) => n.label), ["fresh"], "gone from page.json");
+  assert.deepEqual(kept().declined, []);
+});
+
+test("a request's card says where and when, with Not needed, a plain secondary, beside its one primary; Undo holds the drop with no timer, until the toast closes or the page is left", () => {
+  for (const html of [pageSource("library.html"), vaultSource()]) {
+    for (const [, script] of html.matchAll(/<script>([^]*?)<\/script>/g)) new vm.Script(script); // compiles: run nowhere
+    assert.match(html, /need\.where \? `Asked in \$\{need\.where\} · ` : "Asked by a scheduled job · "|n\.where \? `Asked in \$\{n\.where\} · ` : "Asked by a scheduled job · "/);
+    assert.match(html, /<div id="toast" role="status" hidden><span><\/span><button type="button" class="undo" hidden>Undo<\/button><button type="button" class="shut" aria-label="Close" hidden><\/button><\/div>/);
+    assert.match(html, /if \(undo\) held = undo;\n {4}else toastTimer = setTimeout\(hideToast, 4000\);/, "only a toast without Undo times out");
+    assert.match(html, /addEventListener\("pagehide", \(\) => \{ hideToast\(\); sendHeld\(\); \}\);/);
+    assert.match(html, /\{ quiet: true \}\)/, "the drop is sent as the toast closes, kept alive as the page is left");
+    assert.match(html, /Date\.now\(\) - (need|n)\.at < DAY/, "a day old: not shown");
+  }
+  assert.match(pageSource("library.html"), /acts\(el\("a", \{ className: "hu-button hu-button--primary", href: `#add\/\$\{encodeURIComponent\(need\.label\)\}`, textContent: `Add \$\{need\.label\}` \}\), no\)/);
+  assert.match(pageSource("library.html"), /btn\("Not needed", "secondary", /);
+  assert.match(vaultSource(), /el\("button", \{ className: "hu-button hu-button--secondary", type: "button", textContent: "Not needed"/);
 });

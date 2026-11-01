@@ -26,6 +26,7 @@
 // they are replaced once (settle), and the page's names are marked `hidden`. Either way the page's
 // path is kept in the links file, for whoever shows it to the user.
 
+import crypto from "node:crypto";
 import path from "node:path";
 import * as addresses from "#shared/addresses";
 import { mask } from "#shared/answer";
@@ -47,15 +48,39 @@ import * as targets from "./targets";
 const TITLE = "library-lean-event";
 /** How long the page is watched for events after it was last shown. */
 const WATCH_MS = 30 * 60 * 1000;
-/** How long the agent's request for a key shows in the Vault, or for a machine on the Library page. */
-const NEED_MS = 30 * 60 * 1000;
+/** How long the agent's request for a key shows in the Vault, or for a machine on the Library page,
+ *  and how long the user's "not needed" waits for the chat that asked: a day, as a page's draft. */
+const NEED_MS = 24 * 60 * 60 * 1000;
 
+/** The chat a request came from (#shared/anythingllm chatOf): `key` tells it apart, `where` is shown. */
+export interface Chat {
+  key: string;
+  where: string;
+}
+
+/** What the agent asked the user for: one per chat and kind, a later ask replacing the earlier. */
 interface Need {
+  /** What the page names it by when the user says it isn't needed. */
+  id: string;
   label: string;
   site: string;
   /** A key is given on the Vault; a target is added on the Library page, under Machines. */
   kind: "key" | "target";
-  until: number;
+  /** When it was asked (ms). */
+  at: number;
+  /** The chat that asked: its key, and what the page shows ("" for a scheduled job). */
+  chat: string;
+  where: string;
+}
+
+/** A request the user said isn't needed, until the chat that asked is told, at its next call. */
+interface Declined {
+  label: string;
+  site: string;
+  kind: Need["kind"];
+  chat: string;
+  /** When the user said so (ms). */
+  at: number;
 }
 
 /** How the last thing the page was asked to do that it can show went: a refusal (the skill's own
@@ -67,10 +92,14 @@ interface Result {
   label: string;
   error: string | null;
   field?: string | null;
+  /** What the owner can do about a refusal, shown under it; only when there is something. */
+  hint?: string;
 }
 
 interface PageFile extends Names {
   needs: Need[];
+  /** Absent in a page.json from before 2026-11-01. */
+  declined?: Declined[];
   watchUntil: number;
   result?: Result;
 }
@@ -86,7 +115,7 @@ const names = tokenPage<PageFile>({
   folder: "library-lean",
   file: pageFile,
   what: "the Library page",
-  fresh: (n) => ({ ...n, needs: [], watchUntil: 0 }),
+  fresh: (n) => ({ ...n, needs: [], declined: [], watchUntil: 0 }),
   pattern: /^([\w-]{12,})(\.html|\.json)$/,
 });
 
@@ -99,7 +128,18 @@ function read(): PageFile | null {
   }
 }
 
-const change = names.change;
+/** A request, or a "not needed", less than a day old. One from before 2026-11-01 has no `at`, and goes. */
+const fresh = (n: { at?: unknown }): boolean => typeof n.at === "number" && Date.now() - n.at < NEED_MS;
+/** Whether page.json holds a request or a "not needed" past its day. */
+const stale = (p: PageFile): boolean => !p.needs.every(fresh) || !(p.declined ?? []).every(fresh);
+
+/** Changes page.json under its lock, dropping first what is past its day. */
+const change = <T,>(fn: (p: PageFile) => T): Promise<T> =>
+  names.change((p) => {
+    p.needs = p.needs.filter(fresh);
+    p.declined = (p.declined ?? []).filter(fresh);
+    return fn(p);
+  });
 
 /** The Library page's template in static/pages, as shipped or as tuned on this instance. */
 function template(): string {
@@ -109,8 +149,9 @@ function template(): string {
 }
 
 
-/** The needs of `kind` that haven't run out, as a page shows them. */
-const needsOf = (p: PageFile | null, kind: Need["kind"]) => (p?.needs ?? []).filter((n) => n.kind === kind && n.until > Date.now()).map(({ label, site }) => ({ label, site }));
+/** The needs of `kind` that haven't run out, oldest first, as a page shows them: what was asked, in
+ *  which chat and when (the chat's key stays here). */
+const needsOf = (p: PageFile | null, kind: Need["kind"]) => (p?.needs ?? []).filter((n) => n.kind === kind && fresh(n)).map(({ id, label, site, at, where }) => ({ id, label, site, at, where }));
 
 const text = (v: unknown, n = 500) => String(v ?? "").trim().slice(0, n);
 
@@ -172,7 +213,8 @@ export const settle = (base: string | null): Promise<void> => names.settleCall((
  *  `rotated` says the token was just replaced, which the links file records. */
 async function write(base: string | null, rotated = false, hidden = linksHidden()): Promise<string> {
   const kept = read();
-  if (!kept || kept.watchUntil - Date.now() <= WATCH_MS / 2) await change((p) => void (p.watchUntil = Date.now() + WATCH_MS));
+  // A request past its day is gone from page.json as the page is shown, not only from what it shows.
+  if (!kept || kept.watchUntil - Date.now() <= WATCH_MS / 2 || stale(kept)) await change((p) => void (p.watchUntil = Date.now() + WATCH_MS));
   const p = await names.publish(async (n) => [names.put(`${n.token}.html`, await pageHtml(template(), { token: n.token, secret: n.secret, title: TITLE })), names.put(`${n.token}.json`, JSON.stringify(state(n)))], rotated, hidden);
   watch(TITLE, () => drain(base), () => read()?.watchUntil ?? 0);
   return `${base ?? ""}/${pub(`${p.token}.html`)}`;
@@ -213,7 +255,7 @@ export function refresh(base: string | null): void {
 }
 
 /** The keys the agent asked for that haven't run out, oldest first, as the key slot (slot.ts) matches them. */
-export const keyNeeds = (): { label: string; site: string }[] => needsOf(read(), "key");
+export const keyNeeds = (): { label: string; site: string }[] => needsOf(read(), "key").map(({ label, site }) => ({ label, site }));
 
 /** The key `label` was given (in the key slot): its need is met, and the Vault's Keys show it so. */
 export async function met(label: string): Promise<void> {
@@ -229,11 +271,49 @@ export async function met(label: string): Promise<void> {
 const needId = (kind: Need["kind"], label: string) => `${kind}:${label}`;
 
 /** Shows a need: at the top of the Vault's keys, where the agent asked for a key the user gives, or
- *  on the Library page's Machines, where it asked for a machine the user adds. */
-export const need = (label: string, site: string, kind: Need["kind"] = "key"): Promise<void> =>
-  change((p) => {
-    p.needs = [...p.needs.filter((n) => needId(n.kind, n.label) !== needId(kind, label) && n.until > Date.now()), { label, site, kind, until: Date.now() + NEED_MS }];
+ *  on the Library page's Machines, where it asked for a machine the user adds. A chat asks for one of
+ *  each at a time: this replaces what the same chat asked for before of that kind (a chat that moved
+ *  on to another machine no longer waits for the first). Another chat's stays, even for the same
+ *  label: each is a card of its own, and the key or machine given meets them all. */
+export async function need(label: string, site: string, kind: Need["kind"], chat: Chat): Promise<void> {
+  await change((p) => {
+    p.needs = [...p.needs.filter((n) => !(n.kind === kind && n.chat === chat.key)), { id: crypto.randomBytes(9).toString("base64url"), label, site, kind, at: Date.now(), chat: chat.key, where: chat.where }];
+    // Asked again: an earlier "not needed" for it is old news to this chat.
+    p.declined = (p.declined ?? []).filter((d) => !(d.kind === kind && d.chat === chat.key && d.label === label));
   });
+}
+
+/** The user said the request `id` (of `kind`) isn't needed, on its page: it goes at once, and the
+ *  chat that asked is told at its next call (declined). Whether there was such a request. */
+async function drop(id: string, kind: Need["kind"]): Promise<boolean> {
+  let found = false;
+  await change((p) => {
+    const n = p.needs.find((x) => x.id === id && x.kind === kind);
+    if (!n) return; // met, replaced or past its day meanwhile: nothing to drop
+    found = true;
+    p.needs = p.needs.filter((x) => x !== n);
+    p.declined = [...(p.declined ?? []).filter((d) => !(d.kind === n.kind && d.chat === n.chat && d.label === n.label)), { label: n.label, site: n.site, kind: n.kind, chat: n.chat, at: Date.now() }];
+  });
+  return found;
+}
+
+/** What the user said isn't needed of what the chat `chat` asked for, taken: the chat is told once. */
+export async function declined(chat: string): Promise<Declined[]> {
+  const mine = (d: Declined) => d.chat === chat && fresh(d);
+  if (!(read()?.declined ?? []).some(mine)) return [];
+  let taken: Declined[] = [];
+  await change((p) => {
+    taken = (p.declined ?? []).filter(mine);
+    p.declined = (p.declined ?? []).filter((d) => !mine(d));
+  });
+  return taken;
+}
+
+/** What the agent is told of a request the user said isn't needed. */
+export const declinedText = (d: Declined): string =>
+  d.kind === "target"
+    ? `The user said the machine "${d.label}" isn't needed (on the Library page), so its request is dropped. Don't ask for it again unless the user says so.`
+    : `The user said the key "${d.label}" for ${d.site} isn't needed (on the Vault), so its request is dropped. Don't ask for it again unless the user says so.`;
 
 /** What applying an event did beyond the store: a need it met, a new link, a function gone from the
  *  skill's description, a machine to try signing in to, or a change the page shows. */
@@ -274,6 +354,8 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
     case "target-delete":
       await targets.remove(label);
       return { changed: true };
+    case "need-drop":
+      return (await drop(text(e.id, 40), "target")) ? { changed: true } : null;
     case "rotate":
       return { rotate: true };
     default:
@@ -306,6 +388,9 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return null;
     case "signing-unattended":
       await signing.setUnattended(label, e.on === true);
+      return null;
+    case "need-drop":
+      await drop(text(e.id, 40), "key");
       return null;
     case "rotate":
       await vaultPage.rotate();
@@ -368,6 +453,7 @@ async function drain(base: string | null): Promise<void> {
       const told = err instanceof Told;
       if (!told) console.error(`library-lean couldn't apply a page event (${text(e.ev, 40)}): ${(err as Error).message}`);
       result = { ev: text(e.ev, 40), label: text(e.label, 60), error: told ? err.message.slice(0, 400) : e.ev === "target-save" ? "Couldn’t save the machine. Try again, or check AnythingLLM’s log." : "Couldn’t do that. Try again, or check AnythingLLM’s log.", field: err instanceof targets.Refused ? err.field : null };
+      if (err instanceof targets.Refused && err.hint) result.hint = err.hint.slice(0, 200);
     }
   }
   const outcome = result;

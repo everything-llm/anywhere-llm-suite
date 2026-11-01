@@ -42,7 +42,7 @@ test("names made before the switch are replaced once it is on: what waited under
   assert.deepEqual(now.needs.map((n) => n.label), ["pi"], "the needs are kept");
   assert.ok(!fs.existsSync(pub(`${was.token}.html`)) && !fs.existsSync(pub(`${was.token}.json`)), "the old page and its state are gone");
   assert.ok(fs.existsSync(pub(`${now.token}.html`)) && fs.existsSync(pub(`${now.token}.json`)));
-  assert.deepEqual(pageState().needs, [{ label: "pi", site: "" }]);
+  assert.deepEqual(pageState().needs.map(({ label, site }: { label: string; site: string }) => ({ label, site })), [{ label: "pi", site: "" }]);
   assert.equal(readLinks().library, `/library-lean/${now.token}.html`, "the links file has the new path");
   assert.equal(fs.statSync(linksFile()).mode & 0o777, 0o600);
 });

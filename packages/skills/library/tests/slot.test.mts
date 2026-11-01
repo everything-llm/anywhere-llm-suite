@@ -57,7 +57,8 @@ test("a key in NEW_KEY is taken at the next call, whatever it is: sealed into th
 
 test("a key goes to the newest key asked for that still waits", async (t) => {
   const page = settingsPage(t);
-  await call({ action: "secret", site: "api.example.com", label: "ex" });
+  // Two chats: a chat's second ask replaces its first (page.ts need).
+  await call({ action: "secret", site: "api.example.com", label: "ex" }, "home");
   await call({ action: "secret", site: "api.other.com", label: "other" });
   page.save({ NEW_KEY: KEY });
   assert.match(await call({ action: "library" }), /^Saved the key "other" for api\.other\.com/);

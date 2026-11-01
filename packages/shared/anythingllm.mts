@@ -71,12 +71,27 @@ export const SAVED_NOW = "\n\nSaved now:";
  *  AnythingLLM's own web UI has the invocation's `uuid` and `thread_id`; one through its developer
  *  API has neither. */
 export interface Invoked {
-  super?: { handlerProps?: { invocation?: { workspace?: { slug?: string } | null; uuid?: string | null; thread_id?: number | null } } };
+  super?: { handlerProps?: { invocation?: { workspace?: { slug?: string; name?: string } | null; uuid?: string | null; thread_id?: number | null } } };
 }
 
 /** The workspace a skill was called from, from AnythingLLM's invocation, never from what the model
  *  says; null for a call with none (a scheduled job's). */
 export const workspaceOf = (self: Invoked | undefined): string | null => self?.super?.handlerProps?.invocation?.workspace?.slug || null;
+
+/** The chat a skill was called from, from AnythingLLM's invocation: `key` tells it from every other
+ *  chat (the workspace's slug, and the thread's id when there is one), `where` is what a page shows
+ *  (the workspace's name, else its slug). The invocation carries the workspace's row, name and all
+ *  (WorkspaceAgentInvocation.getWithWorkspace; the developer API's agent passes its workspace too),
+ *  but a thread only by its id, never its name. A call with no workspace (a scheduled job's) is the
+ *  chat "", shown as "". */
+export function chatOf(self: Invoked | undefined): { key: string; where: string } {
+  const invocation = self?.super?.handlerProps?.invocation;
+  const slug = workspaceOf(self);
+  if (!slug) return { key: "", where: "" };
+  const thread = invocation?.thread_id === null || invocation?.thread_id === undefined ? NaN : Number(invocation.thread_id);
+  const name = String(invocation?.workspace?.name ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  return { key: Number.isInteger(thread) ? `${slug}#${thread}` : slug, where: name || slug };
+}
 
 /** AnythingLLM's address, as the user set it for a skill (its ANYTHINGLLM_URL setting), without a
  *  trailing slash; null when unset, and then a skill's page links are relative, which only
