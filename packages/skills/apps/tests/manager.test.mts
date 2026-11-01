@@ -46,7 +46,7 @@ test("a chat call makes the manager beside the apps' pages, keeps its path as ap
   const page = files.find((f) => MANAGER.test(f))!;
   assert.ok(page, files.join(", "));
   assert.equal(links().apps, `/apps-lean/${page}`);
-  assert.ok(listed.endsWith(`The user manages every workspace's artifacts, and the trash, at /apps-lean/${page}`), listed);
+  assert.ok(listed.endsWith(`The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, give them this card as it is, in its own quote:\n\n> **[Artifacts](/apps-lean/${page} "artifacts")**\n>\n> Every workspace's artifacts, and the trash.`), listed);
   const html = fs.readFileSync(path.join(pub(), page), "utf8");
   assert.ok(html.includes(`"token":"manager-${names().token}"`) && html.includes('"key":"brx-test"'), "the page reads its state and posts with the pages' key");
   assert.ok(!html.includes("/*CONFIG*/null"));

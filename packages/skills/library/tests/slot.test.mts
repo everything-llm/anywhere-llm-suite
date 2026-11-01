@@ -48,7 +48,7 @@ test("a key in NEW_KEY is taken at the next call, whatever it is: sealed into th
   assert.match(said, /^Saved the key "ex" for api\.example\.com from NEW_KEY \(Settings › Agent Skills › Library\) into the Vault, sealed; NEW_KEY is empty again\. Tell the user it's saved, by its name only\.\n\n# Keys/);
   assert.ok(!said.includes(KEY), "the model never sees it");
   assert.equal(page.value("NEW_KEY"), "");
-  assert.deepEqual(keys(), [{ label: "ex", site: "api.example.com" }]);
+  assert.deepEqual(keys(), [{ label: "ex", site: "api.example.com", shown: null }]);
   assert.deepEqual(vaultState().needs, [], "the need is met");
   assert.ok(!fs.readFileSync(path.join(storage, "vault-lean", "vault.json"), "utf8").includes(KEY), "sealed");
   assert.equal(page.config().active, true, "the rest of plugin.json is as it was");

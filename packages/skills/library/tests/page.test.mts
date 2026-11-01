@@ -40,7 +40,7 @@ test("the Vault shows a saved key by name only, never its value, and only the li
   await giveKey("ex", "api.example.com", KEY);
   await call({ action: "library" });
   const state = vaultState();
-  assert.deepEqual(state.secrets, [{ label: "ex", site: "api.example.com" }]);
+  assert.deepEqual(state.secrets, [{ label: "ex", site: "api.example.com", shown: null }]);
   assert.ok(!JSON.stringify(state).includes(KEY));
   assert.ok(!fs.readFileSync(vaultFile(`${vaultConfig().token}.html`), "utf8").includes(KEY));
   assert.ok(!fs.existsSync(vaultFile(`${vaultConfig().token}-logins.json`)), "no logins section without the browser");
@@ -64,7 +64,7 @@ test("a key is asked for on the Vault, given there, and the agent is told", asyn
   postVault({ ev: "key-save", label: "ex", site: "api.example.com", sealed: seal(KEY) });
   await call({ action: "library" });
   assert.deepEqual(vaultState().needs, [], "the need is met");
-  assert.deepEqual(vaultState().secrets, [{ label: "ex", site: "api.example.com" }]);
+  assert.deepEqual(vaultState().secrets, [{ label: "ex", site: "api.example.com", shown: null }]);
 });
 
 test("an event without the page's secret (an old link's, or a forgery) is dropped", async () => {
@@ -264,4 +264,29 @@ test("every field the pages read from their state is one the skill writes", asyn
   }
   assert.ok(fs.existsSync(path.join(library, "page.json")));
   assert.ok(fs.existsSync(path.join(storage, "vault-lean", "vault-page.json")));
+});
+
+test("a toolkit's functions are one line each on the Library page, as the canvas draws them: what each does, cut short with an ellipsis", () => {
+  const html = pageSource("library.html");
+  assert.match(html, /\.one\{overflow:hidden;white-space:nowrap;text-overflow:ellipsis\}/);
+  assert.match(html, /t\.functions\.map\(\(f\) => rowLink\(fnHref\(t\.service, f\.name\), el\("span", \{ className: "one", textContent: does\(f\) \}\)\)\)/);
+});
+
+test("the user renames a toolkit on the Library page and a key on the Vault: only the pages show the new names, and the agent's next save keeps them", async () => {
+  await giveKey("ex", "api.example.com", KEY);
+  await call({ action: "save", service: "ex", toolkit: { title: "Example", base_urls: ["https://api.example.com"] }, function: { name: "one", description: "One.", source: "async function main() { return 1; }" } });
+  await call({ action: "library" });
+  post({ ev: "toolkit-rename", service: "ex", name: "My example" });
+  postVault({ ev: "key-rename", label: "ex", name: "Example key" });
+  await call({ action: "save", service: "ex", toolkit: { title: "Example 2" } });
+  await call({ action: "library" });
+  assert.equal(pageState().toolkits[0].title, "My example");
+  assert.deepEqual(vaultState().secrets, [{ label: "ex", site: "api.example.com", shown: "Example key" }]);
+  assert.match(await call({ action: "library", service: "ex" }), /Example 2/, "the agent still reads the toolkit's own title");
+  post({ ev: "toolkit-rename", service: "ex", name: "" });
+  postVault({ ev: "key-delete", label: "ex" });
+  await giveKey("ex", "api.example.com", KEY);
+  await call({ action: "library" });
+  assert.equal(pageState().toolkits[0].title, "Example 2", "an empty name shows the title again");
+  assert.deepEqual(vaultState().secrets, [{ label: "ex", site: "api.example.com", shown: null }], "a deleted key's name goes with it");
 });

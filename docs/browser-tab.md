@@ -51,7 +51,22 @@ Read `<token>.json` with a query that changes (`?t=<now>`) or no cache: it's rew
 | `msg` | `{text, id}` or null | a line for the page to show once ("Saved for example.com"; a login the site seems to have refused). It stays in the state for up to a minute, so show each `id` once |
 | `vault` | string or null | the path of the Vault on this host, on its Logins tab (`/vault-lean/<token>.html#logins`), where the saved logins and passkeys are listed and deleted; null where it couldn't be written, or when the links to the Library page and the Vault are kept from the agent (the tab's page then shows no Vault button) |
 
-A closed tab's state is `{"closed": true}`, and its other files are gone. The open tabs of every chat (a scheduled job's aren't) are listed in the links file for the bridge, which passes them on (`browser` in [page-links.md](page-links.md)), so a client finds the tabs of chats it hasn't read too.
+The open tabs of every chat (a scheduled job's aren't) are listed in the links file for the bridge, which passes them on (`browser` in [page-links.md](page-links.md)), so a client finds the tabs of chats it hasn't read too.
+
+### A closed tab's state
+
+A tab that closed (from its page, or with its browser, after its idle time) keeps its page's frame: its pictures are gone, and its state says it closed, with what the frame shows. For two hours its page (`<token>.html`, kept meanwhile) may still ask for a tab of the user's own (`new`, below), and nothing else; the state is written again as the workspace's tabs come and go. After that, or once its chat's thread opens a tab again (the tab's page replaced), the page is gone and the state is `{"closed": true}` alone. A scheduled job's tabs have that state as soon as they close.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `closed` | `true` | the tab closed |
+| `until` | number | until when its page may ask for a tab of the user's own, ms since 1970 by AnythingLLM's clock |
+| `tabs` | array | the workspace's open tabs, as an open tab's `tabs` has them (this one isn't among them) |
+| `sites` | array of strings | as an open tab's, with the closed tab's own site first where it isn't there already |
+| `vault` | string or null | as an open tab's |
+| `msg` | `{text, id}` or null | as an open tab's: why a tab it asked for didn't open |
+
+A tab whose state doesn't say it closed, though it did (AnythingLLM restarted under it, which writes nothing), is closed once its `until` is past. When its page asks for a tab then, it's taken for closed as of that `until`, and has this state from then on.
 
 ### `need`
 
@@ -90,11 +105,11 @@ Every event carries `{"browser_lean_event": 1, "workspace": cfg.workspace, "tab"
 
 **Sealing a password:** RSA-OAEP with SHA-256 under `cfg.pub`, base64. A value longer than 190 bytes is sealed as `h1.<key>.<iv>.<value>`: the value with a new AES-256-GCM key (its 16-byte tag last), and that key with RSA-OAEP, each part base64. The skill opens it with the vault's private key; AnythingLLM's documents hold only the sealed text. A code is sent as it is.
 
-The page's other events (`take`, `give`, `tap`, `scroll`, `type`, `nav` with `do` back, forward or reload, `size`, `offer`) are its takeover and its offer to save a login, and `new` (`q`, a search or an address, and `made`, an id to find the tab by along `tabs`) and `close` open a tab of the user's own and close a tab; they're not part of this contract yet.
+The page's other events (`take`, `give`, `tap`, `scroll`, `type`, `nav` with `do` back, forward or reload, `size`, `offer`) are its takeover and its offer to save a login, and `new` (`q`, a search or an address, `made`, an id to find the tab by along `tabs`, and `at`, when it was asked by AnythingLLM's clock) and `close` open a tab of the user's own and close a tab; they're not part of this contract yet. `new` is the one event a closed tab's page may post, while its state's `until` lasts; one asked more than a minute before it's applied (it waited out a restart) opens nothing.
 
 ## The user's own tabs
 
-From a tab's page the user can open tabs of their own: its + and More › New tab show a new tab's home, where a search or an address (`new`) opens one. Such a tab's key is `you-<n>`, a name no chat's thread has, and it's kept apart from the chats' tabs: in a browser context of its own (its cookies aren't the chats'), in a map the agent's actions never look in, with nothing done in it noted for the agent, and under a token no answer of the agent's carries. Its state has `mine` true and `who` always `"user"`, and never a `need`. It goes through the fence as a chat's tab does; an address the fence refuses is said on the page that asked (`msg`), and noted for the Vault to offer under Allowed addresses.
+From a tab's page the user can open tabs of their own: its + and More › New tab show a new tab's home (where More has New tab alone), where a search or an address (`new`) opens one. Such a tab's key is `you-<n>`, a name no chat's thread has, and it's kept apart from the chats' tabs: in a browser context of its own (its cookies aren't the chats'), in a map the agent's actions never look in, with nothing done in it noted for the agent, and under a token no answer of the agent's carries. Its state has `mine` true and `who` always `"user"`, and never a `need`. It goes through the fence as a chat's tab does; an address the fence refuses is said on the page that asked (`msg`), and noted for the Vault to offer under Allowed addresses.
 
 ## When an answer lands
 

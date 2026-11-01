@@ -65,6 +65,9 @@ export interface Toolkit {
   /** What locking pinned of each of its targets (pinOf), by name: a locked toolkit uses a target
    *  only while it is as it was when the user read the toolkit and locked it. */
   pins?: Record<string, string>;
+  /** The name the user gave it on the Library page, shown there in place of its title; the agent
+   *  still knows it by its service and title. */
+  shown?: string;
 }
 
 export interface Input {
@@ -186,13 +189,25 @@ function unlocked(service: string): Toolkit | null {
 
 /** Locks the toolkit `service`, or unlocks it: the user's, from the Library page. Under the
  *  toolkit's lock, so a lock and an unlock at once from two processes don't lose one. */
-export async function setLocked(service: string, on: boolean): Promise<void> {
+export const setLocked = (service: string, on: boolean): Promise<void> =>
+  changeKit(service, (kit) => ({ ...kit, locked: on || undefined, pins: on ? pinsOf(kit.targets) : undefined }));
+
+/** Changes the toolkit `service` with `change`, under its lock; nothing when there's none. */
+async function changeKit(service: string, change: (kit: Toolkit) => Toolkit): Promise<void> {
   if (!fs.existsSync(kitFile(service))) return;
   await locked(`${kitFile(service)}.lock`, "the toolkit", () => {
     const kit = readJson<Toolkit>(kitFile(service));
-    if (kit) writeJson(kitFile(service), { ...kit, locked: on || undefined, pins: on ? pinsOf(kit.targets) : undefined });
+    if (kit) writeJson(kitFile(service), change(kit));
   });
 }
+
+/** Gives the toolkit `service` the name `shown` on the Library page, locked or not, since it changes
+ *  only what the user sees; a name that is empty or its title shows its title again. */
+export const setShown = (service: string, shown: string): Promise<void> =>
+  changeKit(service, (kit) => {
+    const name = shown.trim().slice(0, 100);
+    return { ...kit, shown: name && name !== kit.title ? name : undefined };
+  });
 
 /** Whether two registered targets are the same account on the same machine: the same host key and
  *  login (however they are reached, by a name or an address), or the same host (canonical), port and login. */
@@ -279,6 +294,7 @@ export function saveToolkit(service: string, given: Record<string, unknown>): To
     docs: pick("docs", (v) => strings(v, "docs").map(urlChecked).slice(0, MAX_DOCS), [] as string[]),
     notes,
     updated: new Date().toISOString(),
+    ...(was?.shown ? { shown: was.shown } : {}),
   };
   writeJson(kitFile(service), kit);
   return kit;

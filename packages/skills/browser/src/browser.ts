@@ -19,7 +19,7 @@ import { firstLine } from "#shared/errors";
 import { ACT_MS, NAVIGATE_MS, settle } from "./act";
 import { BrowserError } from "./errors";
 import type { Browser, Page, Puppeteer } from "./host";
-import { forgetTab, redraw, restamp } from "./page";
+import { forgetTabs, hasNames, redraw, restamp } from "./page";
 import * as passkey from "./passkey";
 import * as sessions from "./sessions";
 import { type Entry, IDLE_MS, type Tab, type TabRef, VIEWPORT, YOURS, note, say, state, threadKey } from "./state";
@@ -92,9 +92,11 @@ function saveSoon(workspace: string, entry: Entry): void {
 /** At most this many tabs the user opened themselves, in each workspace's browser. */
 export const MAX_YOURS = 8;
 
-/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed.
- *  With the user's last tab of their own goes their browser context, and its cookies. */
-function dropTab(workspace: string, entry: Entry, key: string): void {
+/** Forgets a tab, a thread's or the user's, however it closed: its page then says the tab closed,
+ *  keeping its frame, and may open a tab of the user's own for a while (page.ts forgetTabs; not here
+ *  with `page` false, for a caller that forgets several at once). With the user's last tab of their
+ *  own goes their browser context, and its cookies. */
+function dropTab(workspace: string, entry: Entry, key: string, page = true): void {
   entry.tabs.delete(key);
   entry.yours.delete(key);
   if (!entry.yours.size && entry.context) {
@@ -107,7 +109,7 @@ function dropTab(workspace: string, entry: Entry, key: string): void {
   entry.msgs.delete(key);
   entry.holds.delete(key);
   entry.screens.delete(key);
-  forgetTab(workspace, key);
+  if (page) forgetTabs(workspace, [key]);
 }
 
 /** Forgets a workspace's browser and every tab in it. */
@@ -117,7 +119,9 @@ function dropEntry(workspace: string, entry: Entry): void {
   browsers.delete(workspace);
   clearTimeout(entry.timer ?? undefined);
   clearTimeout(entry.saving ?? undefined);
-  for (const key of [...entry.tabs.keys(), ...entry.yours.keys()]) dropTab(workspace, entry, key);
+  const keys = [...entry.tabs.keys(), ...entry.yours.keys()];
+  for (const key of keys) dropTab(workspace, entry, key, false);
+  forgetTabs(workspace, keys);
 }
 
 async function closeEntry(workspace: string): Promise<void> {
@@ -158,14 +162,15 @@ async function launch(workspace: string): Promise<Browser> {
 }
 
 /** The workspace's browser entry, its browser launched (and the least recently used one closed,
- *  past MAX_BROWSERS) if it isn't running. */
-async function entryFor(workspace: string): Promise<Entry> {
+ *  past MAX_BROWSERS) if it isn't running: for a chat's tab, or a tab of the user's own asked for on
+ *  a closed tab's page (page.ts), whose fence (`fence`, asked already) a new entry keeps. */
+export async function entryFor(workspace: string, fence?: ReturnType<typeof makeFence>): Promise<Entry> {
   const { browsers } = state();
   let entry = browsers.get(workspace);
   if (!entry) {
     const others = [...browsers.entries()].sort((a, b) => a[1].last - b[1].last);
     while (others.length >= MAX_BROWSERS) await closeEntry(others.shift()![0]);
-    const made: Entry = { tabs: new Map(), yours: new Map(), context: null, opened: 0, notes: new Map(), needs: new Map(), offers: new Map(), msgs: new Map(), holds: new Map(), screens: new Map(), authenticators: new Map(), secrets: new Set(), fence: makeFence(), last: Date.now(), timer: null, saving: null, saved: null, ready: null!, touch: () => touch(workspace, made), changed: () => saveSoon(workspace, made), busy: new Set() };
+    const made: Entry = { tabs: new Map(), yours: new Map(), context: null, opened: 0, notes: new Map(), needs: new Map(), offers: new Map(), msgs: new Map(), holds: new Map(), screens: new Map(), authenticators: new Map(), secrets: new Set(), fence: fence ?? makeFence(), last: Date.now(), timer: null, saving: null, saved: null, ready: null!, touch: () => touch(workspace, made), changed: () => saveSoon(workspace, made), busy: new Set() };
     made.ready = launch(workspace).then(async (browser) => {
       made.saved = await sessions.restore(workspace, browser).catch(() => null);
       return (made.browser = browser);
@@ -298,7 +303,11 @@ export async function openYours(workspace: string, entry: Entry, url: string, ma
   if (!entry.browser) throw new BrowserError("the browser isn't running");
   entry.context ??= entry.browser.createBrowserContext();
   const context = await entry.context;
-  const ref: TabRef = { workspace, entry, key: `${YOURS}${++entry.opened}`, owner: "user" };
+  // A name no tab of the workspace has, closed ones' included (their pages may still ask for a tab).
+  let key: string;
+  do key = `${YOURS}${++entry.opened}`;
+  while (hasNames(workspace, key));
+  const ref: TabRef = { workspace, entry, key, owner: "user" };
   const page = await adopt(ref, await context.newPage());
   entry.yours.set(ref.key, { page, made });
   page.once("close", () => entry.yours.get(ref.key)?.page === page && dropTab(workspace, entry, ref.key));
@@ -308,9 +317,8 @@ export async function openYours(workspace: string, entry: Entry, url: string, ma
 
 /** Closes a tab from its page: the user's own, or a chat's (whose agent then finds no page open). */
 export async function closeTab({ workspace, entry, key, page }: Tab): Promise<void> {
-  dropTab(workspace, entry, key);
+  dropTab(workspace, entry, key); // its pages stamped and listed again (page.ts forgetTabs)
   await page.close().catch(() => {});
-  restamp(workspace, entry);
 }
 
 /** How a refusal is said: when there's no origin to let through, and where the user lets one through. */

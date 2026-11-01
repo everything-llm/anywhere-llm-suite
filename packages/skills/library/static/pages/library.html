@@ -836,6 +836,7 @@ nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1
 .row{min-height:52px;padding:var(--space-2) 0;display:flex;align-items:center;gap:var(--space-3);color:var(--ink);text-decoration:none}
 .row+.row{border-top:1px solid var(--line)}
 .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:1rem;overflow-wrap:anywhere}
+.one{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .meta{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .day{margin:0 0 calc(-1 * var(--space-2));font-size:0.8125rem;font-weight:600;line-height:1.4}
 .add{min-height:56px;padding:var(--space-2) var(--space-5);display:flex;align-items:center;gap:var(--space-3);background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-tile);color:var(--ink);text-decoration:none}
@@ -888,6 +889,8 @@ dialog.sheet::backdrop{background:var(--scrim)}
 .sheetin h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display);overflow-wrap:anywhere}
 .menu{position:fixed;z-index:6;min-width:160px;padding:var(--space-1);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--tile);box-shadow:var(--shadow-raised)}
 .menu button{display:flex;align-items:center;width:100%;min-height:48px;padding:0 var(--space-4);border-radius:var(--radius-sm);color:var(--danger);font-size:1rem}
+.menu button.plain{color:var(--ink)}
+.head .ends{display:flex;align-items:center;gap:var(--space-2)}
 #toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);font:400 1rem/1.5 var(--font-sans);text-align:center;box-shadow:var(--shadow-raised)}
 </style>
 </head>
@@ -907,6 +910,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   <span class="grip" aria-hidden="true"></span>
   <form method="dialog" class="sheetin">
     <div><h2 id="sheet-t"></h2><p class="say" id="sheet-b"></p></div>
+    <label class="ff" id="sheet-f" hidden><span>Name</span><input class="fld" id="sheet-in" type="text" maxlength="100" autocomplete="off" spellcheck="false"></label>
     <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
@@ -1011,20 +1015,27 @@ dialog.sheet::backdrop{background:var(--scrim)}
   // ---- The sheet that asks first, and the ⋯ menu.
   const sheet = $("sheet");
   let asked = null;
-  function ask(title, body, yes, act) {
+  // With `value`, the sheet holds a Name field that starts with it, `yes` is the primary button and
+  // Enter presses it, and `act` gets the name typed.
+  function ask(title, body, yes, act, { value } = {}) {
+    const named = value !== undefined;
     $("sheet-t").textContent = title;
     $("sheet-b").textContent = body;
     $("sheet-yes").textContent = yes;
+    $("sheet-yes").className = `hu-button hu-button--${named ? "primary" : "danger"}`;
+    $("sheet-f").hidden = !named;
+    $("sheet-in").value = value ?? "";
     asked = { act, from: document.activeElement };
     sheet.returnValue = "";
     sheet.showModal();
-    $("sheet-keep").focus();
+    named ? $("sheet-in").select() : $("sheet-keep").focus();
   }
+  $("sheet-in").addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), sheet.close("yes")));
   sheet.addEventListener("close", () => {
     const was = asked;
     asked = null;
     if (was?.from?.isConnected) was.from.focus();
-    if (was && sheet.returnValue === "yes") was.act();
+    if (was && sheet.returnValue === "yes") was.act($("sheet-in").value.trim());
   });
   sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
 
@@ -1040,7 +1051,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     const b = el("button", { className: cls, type: "button", attrs: { "aria-label": label, "aria-haspopup": "menu", "aria-expanded": "false" } }, icon("more", 20));
     b.onclick = () => {
       closeMenu();
-      menu.replaceChildren(...items.map(([text, act]) => el("button", { type: "button", textContent: text, attrs: { role: "menuitem" }, onclick: () => (closeMenu(), act()) })));
+      menu.replaceChildren(...items.map(([text, act, cls = ""]) => el("button", { type: "button", className: cls, textContent: text, attrs: { role: "menuitem" }, onclick: () => (closeMenu(), act()) })));
       menu.hidden = false;
       const box = b.getBoundingClientRect();
       const below = box.bottom + 4 + menu.offsetHeight <= innerHeight;
@@ -1052,9 +1063,12 @@ dialog.sheet::backdrop{background:var(--scrim)}
     };
     return b;
   }
-  // ⋯ › Delete, which asks first and then posts `ev`; `after` follows a delete that was sent.
-  const deleteMenu = (name, body, ev, fields, { cls, after } = {}) =>
-    moreButton(`More for ${name}`, [["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
+  // ⋯ › `items`, then Delete, which asks first and then posts `ev`; `after` follows a delete that was sent.
+  const deleteMenu = (name, body, ev, fields, { cls, after, items = [] } = {}) =>
+    moreButton(`More for ${name}`, [...items, ["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
+  // ⋯ › Rename: a name only this page shows.
+  const renameItem = (name, ev, fields) =>
+    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name }), "plain"];
   document.addEventListener("pointerdown", (e) => !menu.hidden && !menu.contains(e.target) && !e.target.closest?.("[aria-haspopup]") && closeMenu());
   document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && closeMenu());
 
@@ -1096,9 +1110,12 @@ dialog.sheet::backdrop{background:var(--scrim)}
     if (!state.toolkits.length) return [card(say("No toolkits yet. Ask the agent to connect a service, and it shows here."))];
     return state.toolkits.map((t) => card(
       el("div", { className: "head" }, el("h2", { textContent: t.title }),
-        t.locked ? tag("Locked", "ok", "lock") : deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service })),
+        // Locked, nothing removes it; renaming changes only what this page shows.
+        el("div", { className: "ends" }, ...(t.locked
+          ? [tag("Locked", "ok", "lock"), moreButton(`More for ${t.title}`, [renameItem(t.title, "toolkit-rename", { service: t.service })])]
+          : [deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service }, { items: [renameItem(t.title, "toolkit-rename", { service: t.service })] })]))),
       reachOf(t),
-      t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), does(f)))) : null,
+      t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), el("span", { className: "one", textContent: does(f) })))) : null,
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),
       // Lock acts at once; Unlock only the page can do, and asks first.
       acts(t.locked

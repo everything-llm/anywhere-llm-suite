@@ -131,7 +131,7 @@ function state(p: PageFile) {
     result: p.result ?? null,
     toolkits: kits.map(({ service, kit, fns }) => ({
       service,
-      title: kit.title,
+      title: kit.shown || kit.title,
       locked: kit.locked === true,
       hosts: store.hostsOf(kit),
       machines: kit.targets,
@@ -252,6 +252,9 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
     case "toolkit-delete":
       store.removeToolkit(store.serviceOf(e.service));
       return { relist: true };
+    case "toolkit-rename":
+      await store.setShown(store.serviceOf(e.service), text(e.name, 100));
+      return { relist: true };
     case "toolkit-lock":
     case "toolkit-unlock":
       await store.setLocked(store.serviceOf(e.service), e.ev === "toolkit-lock");
@@ -288,6 +291,9 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return label;
     case "key-delete":
       await secrets.removeSecret(label);
+      return null;
+    case "key-rename":
+      await secrets.setShown(label, text(e.name, 60));
       return null;
     case "signing-new":
       await signing.create(secrets.labelOf(label), signing.namespaceOf(e.namespace));

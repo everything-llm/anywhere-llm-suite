@@ -7,7 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import * as logins from "#shared/logins";
 import { lf } from "#shared/static";
-import { call, post, site, skillDir, tabState, vaultLogins } from "./harness.mts";
+import { call, post, publicDir, site, skillDir, tabConfig, tabState, vaultLogins } from "./harness.mts";
 
 const pageSource = () => fs.readFileSync(path.join(skillDir, "static", "pages", "tab.html"), "utf8");
 const handled = fs.readFileSync(path.join(skillDir, "src", "page.ts"), "utf8");
@@ -41,6 +41,14 @@ test("every field the page reads from its state is one the skill writes", async 
   };
   assert.deepEqual(listed("## The state, `<token>.json`"), Object.keys(state).sort(), "the state's fields in the contract");
   assert.deepEqual(listed("### `need`"), Object.keys(state.need).sort(), "the need's fields in the contract");
+  // A closed tab's state, which its page draws its frame from (goneState): the same fields there.
+  const { token } = tabConfig("drift");
+  post({ ev: "close" }, opts);
+  await call({ action: "guide" }, opts);
+  const closed = JSON.parse(fs.readFileSync(path.join(publicDir, "browser-lean", `${token}.json`), "utf8"));
+  assert.deepEqual(listed("### A closed tab's state"), Object.keys(closed).sort(), "a closed tab's fields in the contract");
+  const drawn = html.match(/const goneState = [\s\S]*?\n  \}\);/)![0];
+  for (const field of Object.keys(closed).filter((f) => f !== "closed")) assert.match(drawn, new RegExp(`\\bs\\.${field}\\b`), `the page draws ${field}`);
 });
 
 test("the Vault's logins section: every event it posts is one the skill applies, every field it reads one the skill writes", async () => {

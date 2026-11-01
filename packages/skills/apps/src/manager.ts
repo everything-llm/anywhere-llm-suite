@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { jobTimeLeft } from "#shared/anythingllm";
 import { firstLine, Told } from "#shared/errors";
-import { linksHidden, noteStatus, OPEN_PAGES } from "#shared/page-links";
+import { giveCard, linksHidden, noteStatus, OPEN_PAGES, pageCard } from "#shared/page-links";
 import { embed, inTurn, pageKey, publicPath, sameSecret, takeEvents, watch } from "#shared/pages";
 import { type Names, tokenPage } from "#shared/token-page";
 import { summary } from "./card.ts";
@@ -142,12 +142,13 @@ export async function show(base: string | null): Promise<string | null> {
   }
 }
 
+
 /** What the agent is told about the manager: its link, or where the user opens it while the links
  *  are kept from the agent; nothing when it can't be written. */
 export async function line(base: string | null): Promise<string | null> {
   const url = await show(base);
   if (!url) return null;
-  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, at ${url}`;
+  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, ${giveCard(pageCard("Artifacts", "artifacts", "Every workspace's artifacts, and the trash.", url)).replace(/^G/, "g")}`;
 }
 
 /** What every call does before its own work: the manager's names made to fit the switch (#shared/
