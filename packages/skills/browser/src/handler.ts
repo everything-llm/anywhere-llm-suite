@@ -19,14 +19,14 @@ import * as logins from "#shared/logins";
 import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
 import { act, checkAct, element, isPassword, notTyped, reachable, settle, settled, submitted, typeIn } from "./act";
-import { existing, load, tab, through } from "./browser";
+import { chatTab, existing, load, tab, through } from "./browser";
 import { BrowserError } from "./errors";
 import type { HandlerContext } from "./host";
 import { card, caughtUp, settlePages } from "./page";
 import * as research from "./research";
 import { type Scope, scopeOf } from "./scope";
 import { type Read, type Snap, asksCode, asksPassword, fieldAt, readPage } from "./snapshot";
-import { NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes, threadKey } from "./state";
+import { HUB_ID, NEED_MS, type Need, type Tab, holder, note, state, statics, takeNotes } from "./state";
 import { free } from "./takeover";
 import { render } from "./view";
 
@@ -52,7 +52,7 @@ const CODES: Record<string, string> = {
 async function reply(self: HandlerContext, at: Tab, lead: string, find = "", from: unknown = 0, read?: Read): Promise<{ text: string; page: boolean; snap: Snap }> {
   const { snap, title, url } = read ?? (await readPage(at.page));
   const drawn = await card(at, baseUrlOf(self), { snap, title });
-  const held = holder(at.entry, at.key);
+  const held = holder(at);
   const asking = at.entry.needs.has(at.key);
   const shown = render({ title, url, snap, notes: takeNotes(at.entry, at.key), find, from, secrets: at.entry.secrets });
   // A sign-in or a code on the page is login's: act never types one, and the user's is theirs to give.
@@ -162,10 +162,9 @@ async function signIn(self: HandlerContext, at: Tab, args: Args): Promise<string
   const host = hostChecked(at, args.site);
   // A new account's password is the user's to choose, whatever is saved for the site.
   const saved = confirmRef ? null : logins.forHost(host);
-  const [text, told] = confirmRef
-    ? [`${host} needs a password for the new account, which you choose.`, `${host} needs a password for the new account, which the user chooses`]
-    : ["No login is saved for this site.", `${host} needs the user to sign in, and no login is saved for it`];
-  if (!saved) return askOnPage(self, at, { kind: "login", host, userRef, secretRef: passRef, confirmRef, submitRef, text }, told);
+  const told = confirmRef ? `${host} needs a password for the new account, which the user chooses` : `${host} needs the user to sign in, and no login is saved for it`;
+  // The page's title says it all ("Sign in to <host>", "Choose a password for <host>"): no line under it.
+  if (!saved) return askOnPage(self, at, { kind: "login", host, userRef, secretRef: passRef, confirmRef, submitRef, text: "" }, told);
   self.introspect?.(`Signing in to ${host} with the saved login`);
   const left = await typeIn(at, host, { userRef, user: saved.user, secretRef: passRef, secret: saved.pass }, submitRef);
   return answer(self, at, `Typed the login the user saved for ${saved.site} into the page${submitted(submitRef, left)}. It's hidden from you; read the page below to see whether it worked.`);
@@ -205,13 +204,13 @@ const ON_TAB = new Set(["open", "act", "login", "call"]);
 /** Runs an action that changes the thread's tab, unless the user holds it (takeover.ts). */
 async function onTab(scope: Scope, run: () => Promise<string> | string): Promise<string> {
   const entry = state().browsers.get(scope.workspace);
-  const key = threadKey(scope.thread);
-  if (entry) free(entry, key);
-  entry?.busy.add(key);
+  const at = entry && chatTab(scope.workspace, entry, scope.thread);
+  if (at) free(at);
+  at?.entry.busy.add(at.key);
   try {
     return await run();
   } finally {
-    entry?.busy.delete(key);
+    at?.entry.busy.delete(at.key);
     state().browsers.get(scope.workspace)?.changed();
   }
 }
@@ -220,7 +219,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
   guide: (self, scope, args) => entryOf(statics(), "guide", ".md", "topic", args.topic, "index").text,
   search: (self, scope, args) => {
     self.introspect?.(`Searching for ${clean(args.query).slice(0, 100)}`);
-    return research.search(scope.workspace, args.query, self.runtimeArgs?.SEARCH_URL);
+    return research.search(scope.workspace, args.query);
   },
   look: (self, scope, args) => {
     if (!clean(args.url)) throw new BrowserError("look needs url, the address to read");
@@ -231,7 +230,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
     self.introspect?.(`Opening ${url}`);
     const at = await tab(scope.workspace, scope.thread);
     const failed = await load(at.entry, at.page, url);
-    if (failed) note(at.entry, at.key, `loading ${url} didn't finish: ${failed}`);
+    if (failed) note(at, `loading ${url} didn't finish: ${failed}`);
     return answer(self, at, `Opened ${url} in this chat's tab.`);
   },
   read: (self, scope, args) => answer(self, existing(scope.workspace, scope.thread), "This chat's tab as it is now.", clean(args.find), args.from),
@@ -244,7 +243,7 @@ const ACTIONS: Record<string, (self: HandlerContext, scope: Scope, args: Args) =
 };
 
 /** The skill, as Settings › Agent Skills names it. */
-const SKILL = { hubId: "browser-lean", name: "Browser" };
+const SKILL = { hubId: HUB_ID, name: "Browser" };
 
 export const runtime = {
   handler: async function (this: HandlerContext, args: Args = {}): Promise<string> {
@@ -252,7 +251,7 @@ export const runtime = {
     const fn = ACTIONS[action];
     if (!fn) return `The browser's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
     // The pages' key, found or made (#shared/pagekey), before anything shows a page.
-    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
+    const said = await pageKeys.find(SKILL, this.runtimeArgs, (m) => this.logger?.(m));
     try {
       // The Vault's names follow the links switch on every call (a scheduled job's too): the first call
       // with the switch on replaces the ones the agent may have been given.

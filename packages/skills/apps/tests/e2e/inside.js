@@ -5,7 +5,8 @@
 // browser-extension upload, written by the real collector and applied by the skill's folder watch
 // with no call; an event without the app's secret refused; Comment in the collector's real Chrome,
 // absent without AnywhereLLM's channel and handing its comment to a stand-in one; the page check, which reads a page's scripts and runs none; a
-// delete that leaves its page saying so. Prints "ok" or throws.
+// delete that leaves its page saying so; the apps manager in the same Chrome, each artifact a picture of its
+// page in a sandboxed frame that reads nothing. Prints "ok" or throws.
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
@@ -13,8 +14,9 @@ const { HUB_ID, STORAGE_DIR } = process.env;
 const APP = "/app/server";
 const SERVER = `http://127.0.0.1:${process.env.INNER_PORT || 3001}`;
 const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-/** The link a card gives to the page of the app titled `title`, with the address as group 1. */
-const linkTo = (title) => new RegExp(String.raw`\*\*\[${title}\]\((${escaped(SERVER)}/${HUB_ID}/[A-Za-z0-9_-]+\.html)\)`);
+/** The link a card gives to the page of the app titled `title`, with the address as group 1 (and,
+ *  titled with the app's icon, its name as group 2). */
+const linkTo = (title) => new RegExp(String.raw`\*\*\[${title}\]\((${escaped(SERVER)}/${HUB_ID}/[A-Za-z0-9_-]+\.html)(?: "([a-z]+)")?\)`);
 const ImportedPlugin = require(`${APP}/utils/agents/imported.js`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,6 +44,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const link = made.match(linkTo("Groceries"));
   assert.ok(link, `create gave a link: ${made.split("\n").slice(0, 3).join(" / ")}`);
   const url = link[1];
+  assert.equal(link[2], "check", "the card's link is titled with the starter's icon, for AnywhereLLM Lite");
   const stateUrl = url.replace(/\.html$/, ".json");
   const page = await fetch(url);
   assert.equal(page.status, 200, "AnythingLLM serves the page");
@@ -52,7 +55,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const state = async () => (await fetch(stateUrl, { cache: "no-store" })).json();
   assert.deepEqual(Object.keys(await state()).sort(), ["data", "line", "refused", "seen", "version"]);
 
-  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Bread", done: false } }] }), /\| ☐ \| Bread \|/);
+  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Bread", done: false } }] }), /\n- ☐ Bread$/m);
   assert.match(await call("work", { action: "list" }), /^This workspace has no artifacts yet\./);
 
   // A tap, posted as the page posts it, twice (a page may send one again), and one claiming the app
@@ -116,6 +119,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await tab.click('[data-ref="more"]');
     await sleep(300);
     assert.equal(await tab.evaluate(() => App.data.count), count + 1, "once sent, taps press again");
+
+    // The apps manager at a phone's width: each artifact a picture of its page, its HTML the document
+    // of a frame that has an origin of its own and asks AnythingLLM for nothing.
+    const links = JSON.parse(fs.readFileSync(path.join(STORAGE_DIR, "anywherellm-suite", "page-links.json"), "utf8"));
+    const manager = await chrome.newPage();
+    await manager.setViewport({ width: 390, height: 844 });
+    const framed = [];
+    // A data: URL (the House UI block's display font) is the page's own bytes, asked of no one.
+    manager.on("request", (r) => r.frame() && r.frame() !== manager.mainFrame() && !r.url().startsWith("data:") && framed.push(r.url()));
+    await manager.goto(SERVER + links.apps, { waitUntil: "load" });
+    await manager.waitForFunction(() => document.querySelectorAll(".pic.drawn").length === 2, { timeout: 20_000 });
+    const shown = await manager.evaluate(() => [...document.querySelectorAll(".ws")].map((s) => [s.querySelector("h2").textContent, [...s.querySelectorAll(".label")].map((l) => l.textContent)]));
+    assert.deepEqual(shown, [["home", ["Reading", "Groceries"]]], "grouped by workspace, newest first");
+    const frames = await manager.evaluate(() => [...document.querySelectorAll(".pic iframe")].map((f) => [f.getAttribute("sandbox"), f.contentDocument === null, f.srcdoc.includes('id="apps-lean"')]));
+    assert.deepEqual(frames, [["allow-scripts", true, true], ["allow-scripts", true, true]], "sandboxed, in an origin of their own, each its page");
+    const read = [];
+    manager.on("request", (r) => r.frame() === manager.mainFrame() && /\.html\b/.test(r.url()) && read.push(r.url()));
+    await manager.evaluate(() => (window.kept = [...document.querySelectorAll(".pic iframe")]));
+    await sleep(5000);
+    assert.deepEqual(framed, [], "a picture asks AnythingLLM for nothing");
+    // A theme switched while it's open: the same frames, given the HTML read already in that theme.
+    await manager.evaluate(() => (document.documentElement.dataset.theme = "dark"));
+    await manager.waitForFunction(() => [...document.querySelectorAll(".pic iframe")].every((f) => f.srcdoc.includes('data-picture data-theme="dark"')), { timeout: 5_000 });
+    assert.ok(await manager.evaluate(() => [...document.querySelectorAll(".pic iframe")].every((f, i) => f === window.kept[i])), "the frames kept");
+    assert.deepEqual(read, [], "no page read again");
   } finally {
     await chrome.close();
   }

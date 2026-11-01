@@ -13,10 +13,10 @@ test("the agent creates an app from a template, changes it and shows it, with it
   assert.match(await call("home", { action: "list" }), /^This workspace has no artifacts yet\.\n\nTo make one: if a starter fits \(checklist, journal/);
   assert.match(await make("home", "groceries", "Groceries"), /^Made the artifact groceries: Groceries, from the column template, which holds no components yet: put each one's markup at <!--slot-->/);
   const patch = JSON.stringify([{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }]);
-  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", patch }), /Done: add on groceries\.\n\nPut the card below in your reply exactly as given, with no label or heading\.\n\| \| \*\*\[Groceries\]\(\/apps-lean\/[\w-]+\.html\)\*\* · 1 of 1 left \|\n\|---\|---\|\n\| ☐ \| Eggs \|/);
+  assert.match(await call("home", { action: "do", name: "groceries", ev: "add", fields: { text: "Eggs" }, patch }), /Done: add on groceries\.\n\nPut the card below in your reply exactly as given, with no label or heading\.\n> \*\*\[Groceries\]\(\/apps-lean\/[\w-]+\.html\)\*\*\n>\n> add: Eggs · 1 of 1 left\n\n- ☐ Eggs$/);
   assert.match(await call("home", { action: "read", name: "groceries" }), /Data: \{"items":\[\{"text":"Eggs","done":false\}\]\}/);
   assert.match(await call("home", { action: "list" }), /^This workspace's artifacts \(change one that fits rather than making another\):\n- groceries: \*\*\[Groceries\]\(\/apps-lean\/[\w-]+\.html\)\*\* · 1 of 1 left\n\nTo make one: /);
-  assert.match(await call("home", { action: "undo", name: "groceries" }), /Took back add/);
+  assert.match(await call("home", { action: "undo", name: "groceries" }), /Took back add[^\n]*\n\nPut the card[^\n]*\n> \*\*\[Groceries\][^\n]*\n>\n> took back add: Eggs · 0 items$/);
 });
 
 test("app.json and page.html are read, written and edited", async () => {
@@ -24,8 +24,8 @@ test("app.json and page.html are read, written and edited", async () => {
   assert.match(json, /^groceries's app\.json[^\n]*\n\{\n  "title": "Groceries"/);
   const page = await call("home", { action: "read", name: "groceries", file: "page.html" });
   assert.match(page, /<!--slot-->/);
-  assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", find: "--accent-h:272", text: "--accent-h:140" }), /^Changed groceries's page\.html\./);
-  assert.match(await call("home", { action: "read", name: "groceries", file: "page.html" }), /--accent-h:140/);
+  assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", find: 'data-scheme="indigo"', text: 'data-scheme="teal"' }), /^Changed groceries's page\.html\./);
+  assert.match(await call("home", { action: "read", name: "groceries", file: "page.html" }), /data-scheme="teal"/);
   assert.match(await call("home", { action: "edit", name: "groceries", file: "page.html", text: "<p>bare</p>" }), /^Artifacts: the artifact can't be saved:\n- page\.html must load the runtime/, "edit with no find writes the whole file");
   assert.match(await call("home", { action: "read", name: "groceries", file: "icon.svg" }), /^Artifacts: file is app\.json or page\.html/);
 });
@@ -73,7 +73,7 @@ test("a starter makes a working app and page in one call, with the user's data o
   assert.match(reply, /^Made the artifact focus: Focus, from the focus-timer starter: the focus template with timer, entry-form, working as it is\. It's ready: give the user the card/);
   assert.match(reply, /\napp\.json:\n\{\n  "title": "Focus"/);
   assert.doesNotMatch(reply, /page\.html:|<!doctype html>|Before showing the artifact/, "a starter is finished as made: no page to rewrite, no checks to make");
-  assert.match(reply, /\*\*\[Focus\]\(\/apps-lean\/[\w-]+\.html\)\*\* · 50-minute timer · 0 sessions/);
+  assert.match(reply, /\n> \*\*\[Focus\]\(\/apps-lean\/[\w-]+\.html "timer"\)\*\*\n>\n> 50-minute timer · 0 sessions$/);
   const shown = await call("home", { action: "read", name: "focus" });
   assert.match(shown, /Data: \{"minutes":50,"started":null,"entries":\[\]\}/);
   // A starter named as a template is taken as the starter.
@@ -104,7 +104,7 @@ test("guide gives several topics in one answer, with the runtime after a compone
   assert.equal((await call("home", { action: "guide", query: "runtime, timer" })).match(/In this edition/g)!.length, 1, "the runtime once");
   assert.equal((await call("home", { action: "guide", query: "runtime app.js" })).match(/In this edition/g)!.length, 1, "a library by its file name is its topic");
   assert.match(await call("home", { action: "guide", query: "counter, nope" }), /\nNo topic "nope": runtime, styles/);
-  assert.match(await call("home", { action: "guide", query: "icons" }), /^This edition has no icon set: leave icon out of app\.json\./);
+  assert.match(await call("home", { action: "guide", query: "icons" }), /^icon in app\.json is one of these names: cart, check, timer, [a-z, ]+, bulb\. /);
   assert.match(await call("home", { action: "guide", query: "focus-timer" }), /^focus-timer starter: [^\n]*\ncreate with \{"action": "create"[^\n]*"starter": "focus-timer"\}/);
   assert.match(await call("home", { action: "guide" }), /Starters, for create with starter[^\n]*\nchecklist - /);
 });
@@ -112,11 +112,11 @@ test("guide gives several topics in one answer, with the runtime after a compone
 test("undo takes back the newest change, to a file or the data, and read lists the earlier files", async () => {
   await make("home", "pages", "Pages");
   await call("home", { action: "do", name: "pages", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }] });
-  await call("home", { action: "edit", name: "pages", file: "page.html", find: "--accent-h:272", text: "--accent-h:140" });
+  await call("home", { action: "edit", name: "pages", file: "page.html", find: 'data-scheme="indigo"', text: 'data-scheme="teal"' });
   assert.match(await call("home", { action: "read", name: "pages" }), /\nEarlier files \(undo with file takes back the newest change to one\):\n- \S+ page\.html\n/);
   assert.doesNotMatch(await call("home", { action: "read", name: "pages" }), /<!doctype/, "read without file leaves the page out");
   assert.match(await call("home", { action: "undo", name: "pages" }), /^Put back pages's page\.html as it was before its change at \S+\./);
-  assert.match(await call("home", { action: "read", name: "pages", file: "page.html" }), /--accent-h:272/);
+  assert.match(await call("home", { action: "read", name: "pages", file: "page.html" }), /data-scheme="indigo"/);
   assert.match(await call("home", { action: "undo", name: "pages" }), /^Took back add/, "then the data's change");
   assert.match(await call("home", { action: "undo", name: "pages", file: "app.json" }), /^Artifacts: [^\n]*no change to app\.json left to take back/);
 });
@@ -128,7 +128,7 @@ test("create composes any components into a template, with their schemas merged 
   assert.match(await call("home", { action: "read", name: "water" }), /"required":\["count","target","days"\][\s\S]*Data: \{"count":3,"target":6,"days":\{\}\}/);
   // Named as text too, as a model may send them, and text adds what the parts don't give.
   const text = JSON.stringify({ about: "Glasses today.", card: { summary: "{/count} of {/target}" } });
-  assert.match(await call("home", { action: "create", plan: PLAN, name: "tea", template: "column", parts: "counter, date-grid", text }), /\*\*\[tea\]\(\/apps-lean\/[\w-]+\.html\)\*\* · 3 of 8/);
+  assert.match(await call("home", { action: "create", plan: PLAN, name: "tea", template: "column", parts: "counter, date-grid", text }), /\n> \*\*\[tea\]\(\/apps-lean\/[\w-]+\.html\)\*\*\n>\n> 3 of 8/);
   const refused = await call("home", { action: "create", plan: PLAN, name: "odd", template: "zoo", parts: ["timer", "nope", "timer", "fanout"] });
   assert.deepEqual(refused.split("\n- ").slice(1).map((p: string) => p.split(" ").slice(0, 3).join(" ")), ["template must be", "parts are components,", "a page holds", "schema: a JSON"]);
   assert.match(refused, /not nope, fanout\n- a page holds each component once, not timer twice/);
@@ -163,7 +163,7 @@ test("create takes what a model sends first: no name, a starter meaning none, it
   const items = JSON.stringify({ items: [{ text: "Passport" }, { text: "Charger" }] });
   const made = await call("first", { action: "create", name: "packing", starter: "list", title: "Packing", data: items });
   assert.match(made, /^Made the artifact packing[\s\S]*\nFilled in what the data left out: items\/\[\]\/done, with false, 0 or \[\]\./);
-  assert.match(made, /\| ☐ \| Passport \|\n\| ☐ \| Charger \|/);
+  assert.match(made, /\n- ☐ Passport\n- ☐ Charger$/);
   const cards = JSON.stringify({ cards: [{ front: "att vara", back: "to be" }] });
   assert.match(await call("first", { action: "create", name: "verbs", starter: "flashcards", data: cards }), /left out: cards\/\[\]\/seen, cards\/\[\]\/right/);
   assert.match(await call("first", { action: "create", plan: PLAN, name: "tip", starter: "blank", template: "column", parts: ["stat"] }), /^Made the artifact tip: tip, from the column template with stat/);
@@ -186,7 +186,7 @@ test("a page that looks up an element by id through q, or calls a function no sc
 
 test("a page with colours of its own is kept, with advice, unless a rule keeps the user's choice", async () => {
   await call("home", { action: "create", name: "board", starter: "checklist" });
-  const white = await call("home", { action: "edit", name: "board", file: "page.html", find: "</style>", text: ".card{background:#fff;border-color:var(--line, #ddd)}</style>" });
+  const white = await call("home", { action: "edit", name: "board", file: "page.html", find: '<link rel="stylesheet" href="motion.css">', text: '<link rel="stylesheet" href="motion.css">\n<style>.card{background:#fff;border-color:var(--line, #ddd)}</style>' });
   assert.match(white, /^Changed board's page\.html\.\npage\.html sets colours of its own \(#fff\), which one of the light and dark themes won't read/);
   await call("home", { action: "edit", name: "board", file: "app.json", find: '"rules": [', text: '"rules": ["[accent] The cards are white: the user asked.", ' });
   assert.doesNotMatch(await call("home", { action: "read", name: "board", file: "page.html" }), /^$/);
@@ -196,7 +196,7 @@ test("a page with colours of its own is kept, with advice, unless a rule keeps t
 test("create takes list items sent as bare text, and one rule as a sentence", async () => {
   const made = await call("second", { action: "create", name: "packing", starter: "checklist", data: JSON.stringify({ items: ["Passport", "Charger"] }) });
   assert.match(made, /left out: items\/\[\] as \{text\}, items\/\[\]\/done/);
-  assert.match(made, /\| ☐ \| Passport \|\n\| ☐ \| Charger \|/);
+  assert.match(made, /\n- ☐ Passport\n- ☐ Charger$/);
   const text = JSON.stringify({ about: "A tip.", rules: "Round up.", schema: { type: "object" }, card: {} });
   assert.match(await call("second", { action: "create", plan: PLAN, name: "tip", template: "column", text }), /^Made the artifact tip/);
   assert.match(await call("second", { action: "read", name: "tip", file: "app.json" }), /"rules": \[\n\s+"Round up\."\n\s+\]/);
@@ -245,12 +245,12 @@ test("a card's title links to the app's page: under AnythingLLM's address when i
   const self = { ...inWorkspace("links"), runtimeArgs: { ANYTHINGLLM_URL: "http://x:3001/" } };
   await call("links", { action: "create", name: "linked", title: "Linked", starter: "checklist" });
   await store.mark("links", "linked", { pageToken: "tok" });
-  const link = "**[Linked](http://x:3001/apps-lean/tok.html)**";
+  const link = '**[Linked](http://x:3001/apps-lean/tok.html "check")**';
   const read = await handler().call(self, { action: "read", name: "linked" });
-  assert.ok(read.includes(`exactly as given, with no label or heading.\n${link}`), read);
+  assert.ok(read.includes(`exactly as given, with no label or heading.\n> ${link}\n>\n> 0 items`), read);
   assert.ok((await handler().call(self, { action: "list" })).includes(`- linked: ${link}`), "list links too");
-  assert.ok((await handler().call(self, { action: "do", name: "linked", ev: "add", patch: JSON.stringify([{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }]) })).includes(`| | ${link} · 1 of 1 left |`));
-  assert.match(await call("links", { action: "read", name: "linked" }), /\*\*\[Linked\]\(\/apps-lean\/tok\.html\)\*\*/, "relative without the address, which AnythingLLM's own chat opens");
+  assert.ok((await handler().call(self, { action: "do", name: "linked", ev: "add", patch: JSON.stringify([{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }]) })).includes(`> ${link}\n>\n> add · 1 of 1 left\n\n- ☐ Eggs`));
+  assert.match(await call("links", { action: "read", name: "linked" }), /\*\*\[Linked\]\(\/apps-lean\/tok\.html "check"\)\*\*/, "relative without the address, which AnythingLLM's own chat opens");
 });
 
 test("the old names show, write, revert and open are gone, and the actions are listed", async () => {
@@ -277,4 +277,11 @@ test("a parameter given as null is one left out", async () => {
   await make("home", "nulls", "Nulls");
   assert.match(await call("home", { action: "do", name: "nulls", ev: "add", patch: [{ op: "add", path: "/items/-", value: { text: "Eggs", done: false } }], workspace: null }), /^Done: add on nulls\./);
   assert.match(await call("home", { action: "undo", name: "nulls", file: null }), /^Took back add/);
+});
+
+test("an icon is one of the set: a starter has its own, text replaces it, and another name is refused", async () => {
+  assert.match(await call("icons", { action: "create", name: "shop", title: "Shop", starter: "checklist" }), /\n> \*\*\[Shop\]\(\/apps-lean\/[\w-]+\.html "check"\)\*\*\n/);
+  assert.match(await call("icons", { action: "create", name: "food", title: "Food", starter: "checklist", text: JSON.stringify({ icon: "cart" }) }), /\n> \*\*\[Food\]\(\/apps-lean\/[\w-]+\.html "cart"\)\*\*\n/);
+  assert.match(await call("icons", { action: "create", name: "trip", title: "Trip", starter: "checklist", text: JSON.stringify({ icon: "rocket" }) }), /^Artifacts: the artifact can't be made:\n- icon: one of cart, check, timer, [a-z, ]+, bulb$/);
+  assert.match(await call("icons", { action: "edit", name: "shop", file: "app.json", find: '"icon": "check"', text: '"icon": "cart"' }), /\n> \*\*\[Shop\]\(\/apps-lean\/[\w-]+\.html "cart"\)\*\*\n/);
 });

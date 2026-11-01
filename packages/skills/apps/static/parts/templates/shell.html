@@ -1,10 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-scheme="indigo">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1@VIEWPORT@">
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="motion.css">
-<style>:root{--accent-h:272}</style>
 @MAIN@
 <script src="app.js"></script>
 <script src="motion.js"></script>
@@ -13,6 +12,6 @@ const $ = (id) => document.getElementById(id);
 const el = (t, p) => Object.assign(document.createElement(t), p);
 App.start(/*APP*/null);
 @TITLE@document.title = App.title;
-App.onstatus((s, t) => ($("status").textContent = t));
+@SUB@App.onstatus((s, t) => ($("status").textContent = t));
 </script>
 <!--scripts-->

@@ -86,15 +86,17 @@ const browsers: (() => void)[] = [];
 afterEach(() => browsers.splice(0).forEach((close) => close()));
 
 /** Runs a rendered page's scripts (the stand-in, the patch library and app.js) against a small stand-in for a browser,
- *  with `served` as what reading the page's state file gives. */
-function browser(html: string, { stored = null, served = () => "{}", typing = false }: { stored?: unknown; served?: () => string; typing?: boolean } = {}) {
+ *  with `served` as what reading the page's state file gives; `framed`, as the document of a frame (srcdoc), whose
+ *  parent's messages are kept. */
+function browser(html: string, { stored = null, served = () => "{}", typing = false, framed = false }: { stored?: unknown; served?: () => string; typing?: boolean; framed?: boolean } = {}) {
   const lean = html.match(/<script id="apps-lean" type="application\/json">(.*?)<\/script>/)![1];
   const scripts = parts.scriptsOf(html);
   const posted: any[] = [];
   const storage = { v: (stored ? JSON.stringify(stored) : null) as string | null, getItem() { return this.v; }, setItem(_k: string, v: string) { this.v = v; } };
   const urls: string[] = [];
+  const reads = { n: 0 }, messages: unknown[] = [], loads: (() => void)[] = [];
   const fetch = async (url: string, opts: any) => {
-    if (url === "/apps-lean/p.json") return new Response(served());
+    if (url === "/apps-lean/p.json") return (reads.n++, new Response(served()));
     urls.push(url);
     posted.push(JSON.parse(JSON.parse(opts.body).textContent));
     return new Response("{}", { status: 200 });
@@ -107,14 +109,16 @@ function browser(html: string, { stored = null, served = () => "{}", typing = fa
     // Fast, and none once closed, so the runtime's sync loop stops with the test.
     setTimeout: (fn: () => void, ms: number) => (open ? setTimeout(fn, Math.min(ms, 20)) : 0), clearTimeout,
     localStorage: storage,
-    location: { protocol: "https:", href: "https://x/apps-lean/p.html", pathname: "/apps-lean/p.html", search: "", reload: () => void seen.reloads++ },
+    location: framed ? { protocol: "about:", href: "about:srcdoc", pathname: "srcdoc", search: "", reload() {} } : { protocol: "https:", href: "https://x/apps-lean/p.html", pathname: "/apps-lean/p.html", search: "", reload: () => void seen.reloads++ },
     document: {
+      documentElement: { hasAttribute: (name: string) => new RegExp(`<html\\b[^>]*\\s${name}[\\s=>]`, "i").test(html) },
       getElementById: (id: string) => (id === "apps-lean" ? { textContent: lean } : null), addEventListener() {}, removeEventListener() {}, visibilityState: "visible", hidden: false,
       activeElement: typing ? { tagName: "INPUT" } : null, createElement: element, readyState: "complete", body: { append: (el: any) => void (el.textContent && seen.bars.push(el.textContent)) },
     },
-    fetch, addEventListener() {},
+    fetch, addEventListener: (type: string, fn: () => void) => void (type === "load" && loads.push(fn)),
   };
   ctx.window = ctx;
+  ctx.parent = framed ? { postMessage: (message: unknown, to: string) => void messages.push([message, to]) } : ctx;
   ctx.self = ctx;
   vm.createContext(ctx);
   // The stand-in, then app.js; the app is started as the template does, with what changed seen.
@@ -122,7 +126,7 @@ function browser(html: string, { stored = null, served = () => "{}", typing = fa
   vm.runInContext("var changes = []; App.start(AppsLean.app()); App.onchange((d) => changes.push(JSON.parse(JSON.stringify(d))));", ctx);
   const close = () => void (open = false);
   browsers.push(close);
-  return { ctx, posted, storage, close, urls, seen };
+  return { ctx, posted, storage, close, urls, seen, reads, messages, loads };
 }
 /** A value from inside the stand-in browser, as plain JSON. */
 const value = (ctx: any, expr: string) => JSON.parse(vm.runInContext(`JSON.stringify(${expr})`, ctx));
@@ -177,6 +181,35 @@ test("a page whose parts changed reloads, unless the user is typing; a deleted a
   await settle(200);
   assert.deepEqual(deleted.seen.bars, ["This artifact was deleted."]);
   deleted.close();
+});
+
+test("a page the manager frames as a picture shows what it was written with, reads and saves nothing, and says when it's drawn", async () => {
+  const html = render({ ...groceries([{ text: "Eggs", done: false }]), secret: "s1" }, "home", "brx-k")!;
+  const options = { framed: true, served: () => JSON.stringify(stateOf({ ...groceries([]), line: 9 })), stored: { pending: [{ id: "x", patch: [{ op: "replace", path: "/items/0/done", value: true }] }] } };
+  // As the manager gives it to its frame.
+  const page = browser(html.replace(/<html\b/i, "<html data-picture"), options);
+  assert.deepEqual(value(page.ctx, "App.data.items"), [{ text: "Eggs", done: false }], "its own data, not this browser's unsaved changes");
+  const saved = await vm.runInContext(`App.patch([{op: "replace", path: "/items/0/done", value: true}], {ev: "tick"})`, page.ctx);
+  await settle(300);
+  assert.equal(saved, false);
+  assert.deepEqual([page.posted, page.reads.n], [[], 0], "nothing posted, the state file never read");
+  assert.deepEqual(page.messages, []);
+  page.loads.forEach((fn) => fn());
+  await settle(200);
+  assert.deepEqual(page.messages, [["apps-lean:drawn", "*"]]);
+  // Framed any other way, it's a page: this browser's unsaved changes over its data, and a change posted.
+  const framed = browser(html, options);
+  assert.deepEqual(value(framed.ctx, "App.data.items"), [{ text: "Eggs", done: true }]);
+  await vm.runInContext(`App.patch([{op: "replace", path: "/items/0/text", value: "Milk"}], {ev: "rename"})`, framed.ctx);
+  framed.loads.forEach((fn) => fn());
+  await settle(300);
+  assert.equal(framed.posted.length, 1);
+  assert.deepEqual(framed.messages, []);
+  // The same page opened on its own keeps up, as before.
+  const open = browser(html, { served: () => JSON.stringify(stateOf({ ...groceries([]), line: 9 })) });
+  await settle(300);
+  assert.ok(open.reads.n > 0);
+  assert.deepEqual(open.messages, []);
 });
 
 test("publishing writes the page's state beside it, and deleting leaves a note that it's gone", async () => {

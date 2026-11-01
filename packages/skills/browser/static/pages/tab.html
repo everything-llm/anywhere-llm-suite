@@ -7,13 +7,18 @@
 <meta name="robots" content="noindex">
 <title>Browser</title>
 <style>
-/* The agent's browser tab: its picture between the controls at the top and the bottom, refreshed as
-   it changes. Tap it to take it over; tap a field to type with this device's keyboard. The tab's
-   screen follows the room between the controls, so it fills a phone or a desktop alike. Inside
-   AnywhereLLM Lite, which draws its own bar for handing the tab back, the bottom row is left out.
-   ?theme=light or dark keeps it to one, as the Vault's does. */
+/* A tab's page: the workspace's tabs along the top, the address bar, the tab's picture filling the
+   room, who holds a chat's tab, and Back, Forward, Logins and More at the bottom. Tap the picture to
+   take the tab over; tap a field to type with this device's keyboard. The tab's screen follows the
+   picture's room, so it fills a phone or a desktop window alike. A sign-in request, and an offer to
+   save a login, rise as a card at the bottom. + and More › New tab show a new tab's home, where a
+   search or an address opens a tab of the user's own. Inside AnywhereLLM Lite, which draws its own
+   bar for handing the tab back, the bar saying who holds the tab is left out. It draws no Close of
+   its own: it opens in a sheet whose toolbar shows its <title> (the tab's) and a Close (AnywhereLLM
+   Lite's Custom Tab), or in a browser tab with its own Back. ?theme=light or dark keeps it to one,
+   as the Vault's does. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
-   tokens.css with the indigo scheme only, then bundle.css's root, density and focus rules. Regenerate
+   tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
 :root {
   --ground: var(--indigo-ground);
@@ -772,70 +777,182 @@ html { font-size: 100%; }
   .hu-root *, .hu-root *::before, .hu-root *::after { transition-property: opacity !important; transition-duration: 150ms !important; }
   .hu-root .hu-button:active, .hu-root a.hu-tile:active, .hu-root button.hu-tile:active, .hu-root .hu-chip:active { transform: none; }
 }
+/* Buttons: primary (the one main action of a form), secondary, danger and ghost */
+.hu-button {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-4);
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  font: 600 1rem/1.25 var(--font-sans); text-decoration: none; cursor: pointer; text-align: center;
+  transition: transform var(--duration-quick) var(--ease-out);
+}
+.hu-button::after { content: ""; position: absolute; inset: calc((var(--control-h) - var(--target)) / 2) -2px; min-height: var(--target); }
+.hu-button:active { transform: scale(0.97); }
+.hu-button svg { width: 20px; height: 20px; flex: none; stroke-width: 2.4; }
+.hu-button--primary {
+  min-height: var(--primary-h); padding: 0 var(--space-6); border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-glow);
+}
+.hu-button--secondary { background: var(--tile); color: var(--ink); border-color: var(--line-strong); }
+.hu-button--ghost { background: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.hu-button--danger { background: var(--tile); color: var(--danger); border-color: var(--danger); }
+.hu-button--block { width: 100%; }
+.hu-button[disabled], .hu-button[aria-disabled="true"] { background: var(--sunken); color: var(--muted); border-color: var(--line); box-shadow: none; cursor: not-allowed; transform: none; }
+@media (forced-colors: active) {
+  .hu-button { border-color: CanvasText; }
+  .hu-button--primary { border-width: 2px; }
+}
 /* end of house ui */
+/* The tab's page as the Browser Lean Design canvas draws it (page "Browser": The tab's page, A new
+   tab's home, Log in on the tab's page), with House UI's tokens only. Every control is at least 44 px
+   tall whatever the pointer (the body's data-density="touch" keeps House UI's buttons at that size
+   too); the type is House UI's ramp in rem, so it grows with the text size. */
 html,body{height:100%;margin:0}
 body{overflow:hidden;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input{font:inherit;color:var(--ink)}
-#take:focus-visible{outline-offset:-3px}
-[hidden],.hosted #hint,.hosted #mine{display:none!important}
-#stage{position:fixed;inset:0;overflow:hidden;touch-action:none}
+input::placeholder{color:var(--muted)}
+a{color:inherit;text-decoration:none}
+[hidden]{display:none!important}
+svg{flex:none}
+.app{position:fixed;inset:0;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+/* The tabs along the top: each chat's and the user's own, the current one with its title. */
+.strip{flex:none;display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--space-2) 0;overflow-x:auto;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.strip>*{flex:none;width:var(--size-control-touch);height:var(--size-control-touch);box-sizing:border-box;border-radius:var(--radius-md);border:1.5px solid transparent;color:var(--ink);display:grid;place-items:center}
+.strip .cur{flex:1 1 0;min-width:6rem;width:auto;height:auto;min-height:var(--size-control-touch);padding:0 var(--space-3) 0 10px;background:var(--tile);border-color:var(--line-strong);display:flex;align-items:center;gap:var(--space-2);font-size:0.875rem;font-weight:600}
+.strip .cur>span:last-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav{position:relative;flex:none;display:grid}
+.fav b{width:22px;height:22px;border-radius:50%;background:var(--sunken);color:var(--ink);display:grid;place-items:center;font-size:0.75rem;font-weight:700;line-height:1}
+.fav i{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:var(--success);border:2px solid var(--tile)}
+.icon{flex:none;width:22px;height:22px;display:grid;place-items:center}
+/* The address bar (the site, with a lock and Reload) and, on a new tab's home, the search field. */
+.bar{flex:none;padding:var(--space-2) var(--space-3) 10px}
+.field{width:100%;min-height:var(--size-primary);padding:0 var(--space-4);border-radius:var(--radius-pill);background:var(--tile);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);display:flex;align-items:center;gap:10px;font-size:1rem}
+.field:focus-within{box-shadow:inset 0 0 0 var(--size-focus) var(--accent)}
+.field input{flex:1;min-width:0;min-height:var(--size-control-touch);border:0;background:none;padding:0;font-size:1rem}
+.field input:focus-visible{outline:none} /* the field's own ring, above, shows the focus */
+.host{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.in{flex:none;width:var(--size-control-touch);height:var(--size-control-touch);margin-right:-12px;border-radius:50%;display:grid;place-items:center}
+/* The page: its picture, filling the room between the bars, tapped and typed on directly. */
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;background:var(--tile);border-top:1px solid var(--line)}
 #shot{position:absolute;display:block;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;pointer-events:none;background:#fff}
-.mine #stage::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--ink);pointer-events:none}
 #take{position:absolute;inset:0;width:100%;height:100%}
+#take:focus-visible{outline-offset:-3px}
 .tap{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--accent);opacity:.3;pointer-events:none;animation:ripple .4s ease-out forwards}
 @keyframes ripple{from{transform:scale(.4);opacity:.35}to{transform:scale(1.4);opacity:0}}
 @media (prefers-reduced-motion:reduce){.tap{animation:fade .3s forwards}@keyframes fade{to{opacity:0}}}
-.over,.over:focus-visible{position:absolute;margin:0;border:0;outline:2px solid var(--accent);outline-offset:1px;border-radius:var(--radius-xs);background:#fff;color:#111;padding:0 8px;font-size:1rem;box-shadow:var(--shadow-raised)}
-.top{position:fixed;left:0;right:0;top:0;z-index:3;padding:calc(12px + env(safe-area-inset-top,0px)) 12px 0;display:flex;align-items:center;gap:8px;pointer-events:none}.top>*{pointer-events:auto}
-.fb,.tk{flex:none;background:var(--tile);color:var(--ink);display:flex;align-items:center;box-shadow:inset 0 0 0 1px var(--line-strong),var(--shadow-raised)}
-.fb{width:max(var(--control-h),var(--target));height:max(var(--control-h),var(--target));border-radius:50%;justify-content:center}
-.where{flex:1;min-width:0;margin:0;min-height:40px;padding:0 14px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);display:flex;align-items:center;gap:8px;font-size:0.8125rem;font-weight:600;line-height:1.5}
-.where .u{min-width:0;font-family:var(--font-mono);font-weight:400;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bdot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--success)}.mine .bdot{background:var(--ink)}
-.tk{min-height:var(--control-h);padding:0 16px;border-radius:var(--radius-pill);font-size:1rem;font-weight:600}
-.upd{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);font-size:0.8125rem;font-weight:500;line-height:1.4;white-space:nowrap}
+.over,.over:focus-visible{position:absolute;margin:0;border:0;outline:3px solid var(--accent);outline-offset:1px;border-radius:var(--radius-xs);background:#fff;color:#111;padding:0 8px;font-size:1rem;box-shadow:var(--shadow-raised)}
+/* A new tab's home: where to, Your sites, and suggestions while typing. */
+.home{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.hero{padding:40px var(--space-5) var(--space-6);display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.hero>span{width:56px;height:56px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
+.hero h1{margin:var(--space-2) 0 0;font:600 1.5rem/1.3 var(--font-display)}
+.hero p{margin:0;font-size:1rem;line-height:1.5}
+.sites{padding:var(--space-2) var(--space-5) var(--space-6);display:flex;flex-direction:column;gap:14px}
+.sites h2{margin:0;font-size:1rem;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(4.5rem,1fr));gap:var(--space-5) var(--space-3)}
+.site{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);min-width:0;text-align:center;color:var(--ink)}
+.site>b{width:56px;height:56px;border-radius:var(--radius-lg);background:var(--tile);border:1px solid var(--tile-edge);box-shadow:var(--shadow-tile);display:grid;place-items:center;font:700 1.25rem var(--font-display)}
+.site>span{max-width:100%;font-size:0.875rem;line-height:1.3;overflow-wrap:anywhere}
+.suggest{margin:0;padding:0;list-style:none;background:var(--tile);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.suggest li+li{border-top:1px solid var(--line)}
+.suggest button{width:100%;min-height:var(--size-row-touch);padding:var(--space-2) var(--space-5);display:flex;align-items:center;gap:14px;color:var(--ink);text-align:left}
+.suggest button>span:last-child{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.suggest b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
+.suggest small{font-size:0.8125rem}
+.suggest button:focus-visible{outline-offset:-3px}
+/* Who holds a chat's tab, above the bottom bar: the agent, with Take over, or the user, with Hand back. */
+.holdbar{flex:none;display:flex;align-items:center;gap:10px;padding:var(--space-2) var(--space-3) var(--space-2) var(--space-4);background:var(--tile);border-top:1px solid var(--line)}
+.holdbar>span{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);font-size:1rem;line-height:1.4}
+.dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--success)}
+/* Back, Forward, Logins and More, where a thumb reaches. */
+.navbar{flex:none;display:flex;padding:var(--space-1) var(--space-2) calc(var(--space-3) + env(safe-area-inset-bottom,0px));background:var(--ground);border-top:1px solid var(--line)}
+.navbar>*{flex:1;min-width:0;min-height:var(--size-row-touch);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:0.8125rem;line-height:1.2;color:var(--ink);text-align:center}
+.navbar>:disabled{color:var(--muted);cursor:default}
+/* While a request or an offer is up, it rises in place of the bars; they keep their room, so the tab's screen stays as it is.
+   Reload stays above a request (it takes the tab over in the request's place), not above an offer. */
+.carded .holdbar,.carded .navbar{visibility:hidden}
+.carded .app{background:var(--tile)}
+.offered #reload{visibility:hidden}
+.holdbar .hu-button{flex:none}
+.row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.row>.hu-button{flex:1 1 0;min-width:fit-content}
+/* The request and the offer: a card at the bottom, over the page. */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:3;padding:0 max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-4) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;pointer-events:none}
+.dock>*{pointer-events:auto}
+.card{width:100%;max-width:30rem;margin:0 auto;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-raised);padding:18px var(--space-5);display:flex;flex-direction:column;gap:10px}
+.card>*{flex:none} /* a card taller than its room scrolls, its rows kept whole */
+.head{display:flex;flex-direction:column;gap:var(--space-1)}
+.head b,.offer b{font-size:1rem;font-weight:600;line-height:1.5;overflow-wrap:break-word}
+.head span,.say{margin:0;font-size:1rem;line-height:1.5;color:var(--ink);overflow-wrap:break-word}
+.offer small{display:block;font-family:var(--font-mono);font-size:0.8125rem;color:var(--ink);overflow-wrap:anywhere}
+.ff{display:flex;flex-direction:column;gap:6px}
+.ff label{padding:0 var(--space-2);font-size:0.8125rem;color:var(--ink)}
+.fld{min-height:var(--size-primary);width:100%;box-sizing:border-box;padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem}
+.fld:focus-visible{outline-offset:-3px}
+.pw{position:relative}.pw .fld{padding-right:72px}
+.pwshow{position:absolute;right:4px;top:2px;min-height:var(--size-control-touch);min-width:56px;padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.8125rem;font-weight:600}
+.tgl{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--size-control-touch);font-size:1rem}
+.sw{width:52px;height:var(--size-control-touch);flex:none;display:flex;align-items:center;justify-content:center}
+.sw span{position:relative;width:38px;height:22px;border-radius:var(--radius-pill);background:var(--line);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
+.sw span::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--tile);transition:left var(--duration-quick) var(--ease-out)}
+.sw[aria-checked="true"] span{background:var(--accent);box-shadow:none}
+.sw[aria-checked="true"] span::after{left:18px}
+.left{display:flex;align-items:center;gap:var(--space-2);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums}
+.left>span:first-child{flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+/* More: a sheet from the bottom. */
+.scrim{position:fixed;inset:0;z-index:4;background:var(--scrim)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:5;max-height:calc(100% - var(--space-12));overflow-y:auto;background:var(--tile);border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:var(--shadow-sheet);border:1px solid var(--tile-edge);border-bottom:0;display:flex;flex-direction:column}
+.sheet>span{align-self:center;width:40px;height:4px;margin-top:10px;border-radius:var(--radius-pill);background:var(--line)}
+.sheet>div{padding:var(--space-2) var(--space-6) calc(var(--space-7) + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column}
+.sheet button{width:100%;min-height:var(--size-row-touch);display:flex;align-items:center;gap:14px;font-size:1rem;text-align:left;color:var(--ink)}
+.sheet button+button{border-top:1px solid var(--line)}
+.sheet button:focus-visible{outline-offset:-3px}
+/* Lines from the skill and the page: a toast near the bottom, ink on ground. */
+.upd{position:fixed;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:var(--space-2);min-height:36px;max-width:calc(100% - var(--space-8));padding:0 14px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);font-size:0.8125rem;font-weight:500;line-height:1.4;white-space:nowrap}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.live{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.live{animation:none}}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:3;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:stretch;gap:10px;pointer-events:none}.dock>*{pointer-events:auto}
-.sheet{padding:16px 18px;border-radius:var(--radius-lg);background:var(--tile);border:1px solid var(--tile-edge);box-shadow:var(--shadow-raised);display:flex;flex-direction:column;gap:10px}.sheet>div:first-child{display:flex;flex-direction:column;gap:2px}.sheet b{font-size:1rem;line-height:1.5}.sheet small{display:block;font-family:var(--font-mono);font-size:0.8125rem;color:var(--muted)}
-.row{display:flex;gap:12px}
-.btn{position:relative;flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:var(--control-h);padding:0 16px;border-radius:var(--radius-md);background:var(--tile);border:1px solid var(--line-strong);color:var(--ink);font:600 1rem/1.25 var(--font-sans);text-align:center;transition:transform var(--duration-quick) var(--ease-out)}.btn::after{content:"";position:absolute;inset:calc((var(--control-h) - var(--target)) / 2) -2px;min-height:var(--target)}.btn:active{transform:scale(.97)}
-.pri{min-height:var(--primary-h);padding:0 24px;border-radius:var(--radius-pill);background:var(--accent);border-color:transparent;color:var(--on-accent);box-shadow:var(--shadow-glow)}
-.plain{flex:none;background:none;border-color:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
-.give{padding:0 12px;background:var(--ink);border-color:var(--ink);color:var(--ground)}
-@media (prefers-reduced-motion:reduce){.btn:active{transform:none}}
-.hint{align-self:center;min-height:48px;display:flex;align-items:center;padding:0 16px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);font-size:0.8125rem;color:var(--ink)}
-.wait{display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--ink);font-variant-numeric:tabular-nums}
-.full{position:fixed;inset:0;z-index:2;background:var(--ground);overflow:auto;padding:76px 16px 24px;display:flex;flex-direction:column;gap:16px}
-.cap{margin:0;padding:0 8px;font-size:0.8125rem;line-height:1.4;color:var(--ink)}
-.card{background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-raised);padding:0 20px;display:flex;flex-direction:column}
-.form{padding:18px 20px;gap:10px}.form>b{margin-bottom:-6px;font-size:1rem;font-weight:600;line-height:1.5}.form>.cap{padding:0}.thumb{display:flex;flex-direction:column;gap:6px;margin:0 0 4px}.thumb img{display:block;width:100%;height:96px;object-fit:cover;object-position:top;border-radius:var(--radius-md);border:1px solid var(--line);background:#fff}.ff{display:flex;flex-direction:column;gap:6px}.ff span{padding:0 8px;font-size:0.8125rem;line-height:1.4;color:var(--ink)}
-.fld{min-height:48px;padding:0 16px;border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem;width:100%}.fld.ro{font-family:var(--font-mono);font-size:0.9375rem;color:var(--muted);border-color:transparent}
-.pw{position:relative}.pw .fld{padding-right:72px}.pwshow{position:absolute;right:4px;bottom:2px;min-height:var(--control-h);min-width:56px;padding:0 12px;border:0;border-radius:var(--radius-sm);background:none;color:var(--accent);font-size:0.8125rem;font-weight:600}
-.tgl{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:var(--control-h);font-size:1rem}
-.sw{width:52px;height:max(var(--control-h),var(--target));flex:none;display:flex;align-items:center;justify-content:center}.sw span{position:relative;width:38px;height:22px;border-radius:var(--radius-pill);background:var(--line);box-shadow:inset 0 0 0 1.5px var(--line-strong)}.sw span::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--tile)}.sw[aria-checked="true"] span{background:var(--accent);box-shadow:none}.sw[aria-checked="true"] span::after{left:18px}
-@media (hover:hover){.fb:hover,.tk:hover,.plain:hover{background:var(--sunken)}}
-.toast{position:fixed;left:20px;right:20px;bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:5;padding:12px 16px;border-radius:var(--radius-md);background:var(--ink);color:var(--ground);font-size:0.8125rem;line-height:1.4;text-align:center}
-.gone{position:fixed;inset:0;z-index:6;background:var(--ground);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center}.gone b{font:600 1.25rem/1.3 var(--font-display)}.gone p{margin:0;max-width:32ch;color:var(--muted)}
-.side #upd{display:none!important}
-.side .dock{visibility:hidden} /* laid out still, so the tab's room stays as it is */
+.toast{position:fixed;left:var(--space-5);right:var(--space-5);max-width:28rem;margin:0 auto;z-index:6;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--ink);color:var(--ground);font-size:0.8125rem;line-height:1.4;text-align:center;overflow-wrap:anywhere}
+.gone{position:fixed;inset:0;z-index:7;background:var(--ground);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);padding:var(--space-6);text-align:center}
+.gone b{font:600 1.25rem/1.3 var(--font-display)}
+.gone p{margin:0;max-width:32ch;color:var(--ink)}
+@media (hover:hover){.strip>a:not(.cur):hover,.strip>button:hover,.in:hover,.navbar>:not(:disabled):hover,.suggest button:hover,.sheet button:hover,.site:hover>b,.pwshow:hover,.hu-button--secondary:hover{background:var(--sunken)}}
 </style>
 </head>
-<body class="hu-root">
-<main id="stage" aria-label="The browser tab"><img id="shot" alt=""><button id="take" aria-label="Take the tab over"></button></main>
-<header class="top" id="top">
-  <button class="fb" id="back" aria-label="Close"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
-  <h1 class="where" id="where"><span class="bdot" aria-hidden="true"></span><span id="who">Agent</span><span class="u" id="addr"></span></h1>
-  <button class="tk" id="tk" aria-label="Vault: saved logins, keys and sign-ins" hidden>Vault</button>
-</header>
-<div class="upd" id="upd" role="status" hidden><span class="live" aria-hidden="true"></span>Updating the page…</div>
-<section class="full" id="needform" hidden></section>
-<footer class="dock">
-  <div class="sheet" id="offer" hidden><div><b id="offerwhat">Save this login?</b><small id="offerwho"></small></div><div class="row"><button class="btn" id="offerno">Not now</button><button class="btn pri" id="offeryes">Save</button></div></div>
-  <span class="hint" id="hint">Tap the page to take it over</span>
-  <div class="row" id="mine" hidden><button class="btn" id="navback">Back</button><button class="btn" id="reload">Reload</button><button class="btn give" id="give">Hand back</button></div>
-</footer>
+<body class="hu-root" data-density="touch">
+<div class="app" id="app">
+  <nav class="strip" id="strip" aria-label="Tabs"></nav>
+  <div class="bar" id="addrbar">
+    <div class="field"><span id="lock"></span><span class="host" id="addr"></span><button class="in" id="reload" type="button" aria-label="Reload"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button></div>
+  </div>
+  <form class="bar" id="searchbar" role="search" hidden>
+    <div class="field"><i data-icon="search" data-size="18"></i><input id="q" type="text" aria-label="Search or type an address" placeholder="Search or type an address" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="in" id="clear" type="button" aria-label="Clear" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  </form>
+  <main id="stage" aria-label="The page"><img id="shot" alt=""><button id="take" type="button" aria-label="Take the tab over"></button></main>
+  <section class="home" id="home" aria-label="New tab" hidden>
+    <ul class="suggest" id="suggest" aria-label="Suggestions" hidden></ul>
+    <div class="hero" id="hero"><span aria-hidden="true"><i data-icon="globe" data-size="28"></i></span><h1>Where to?</h1><p>Browse yourself, or ask the agent in the chat.</p></div>
+    <section class="sites" id="mysites" aria-labelledby="h-sites" hidden><h2 id="h-sites">Your sites</h2><div class="grid" id="grid"></div></section>
+  </section>
+  <div class="holdbar" id="holdbar" role="status" hidden><span><span class="dot" id="holddot" aria-hidden="true"></span><span id="holdtext"></span></span><button class="hu-button hu-button--secondary" id="hold" type="button"></button></div>
+  <nav class="navbar" id="navbar" aria-label="Browser">
+    <button type="button" id="navback" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Back</span></button>
+    <button type="button" id="navfwd" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span>Forward</span></button>
+    <a id="logins" class="nl" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg><span>Logins</span></a>
+    <button type="button" id="morebtn" aria-haspopup="dialog"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span>More</span></button>
+  </nav>
+</div>
+<div class="upd" id="upd" role="status" hidden><span class="live" aria-hidden="true"></span><span id="updtext">Updating the page…</span></div>
+<div class="dock" id="dock">
+  <form class="card" id="need" hidden></form>
+  <section class="card offer" id="offer" aria-labelledby="offerwhat" hidden><div><b id="offerwhat">Save this login?</b><small id="offerwho"></small></div><div class="row"><button class="hu-button hu-button--secondary" id="offerno" type="button">Not now</button><button class="hu-button hu-button--primary" id="offeryes" type="button">Save</button></div></section>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="more" role="dialog" aria-modal="true" aria-label="More" hidden><span aria-hidden="true"></span><div>
+  <button type="button" id="morenew"><i data-icon="plus" data-size="20"></i>New tab</button>
+  <button type="button" id="moreclose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Close this tab</button>
+</div></section>
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="gone" id="gone" hidden><b>This tab closed</b><p>Ask the agent to open the page again.</p></div>
 <script>
@@ -845,20 +962,36 @@ input{font:inherit;color:var(--ink)}
   if (/^(light|dark)(-hc)?$/.test(theme ?? "")) document.documentElement.dataset.theme = theme; // House UI's four themes
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
-  const field = (label, input) => el("label", { className: "ff" }, el("span", { textContent: label }), input);
+  // Icons drawn here, as the canvas has them: fixed markup, never text from the state.
+  const SVG = {
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    open: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  };
+  const svg = (name, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]}</svg>`;
+  /** An icon in a box of a favicon's size. */
+  const icon = (name, size = 18) => { const s = el("span", { className: "icon" }); s.innerHTML = svg(name, size); return s; };
+  // The page's own icons from the map too, where it marks them (data-icon, at data-size).
+  for (const n of document.querySelectorAll("[data-icon]")) n.outerHTML = svg(n.dataset.icon, n.dataset.size);
   // AnywhereLLM Lite's channel, when this page shows inside it: told who has the tab and when it was
-  // handed back; it draws the bar under the page that hands the tab back.
+  // handed back; it draws its own bar for handing the tab back, so the bar saying who holds it isn't drawn here.
   const host = window.AnywhereLLMBrowser || null;
-  if (host) document.body.classList.add("hosted");
-  let st = null, size = { w: 430, h: 932 }, scale = 1, left = 0, top = 68, bottom = 0, over = null, shot = 0, swiped = false;
+  let st = null, size = { w: 430, h: 932 }, scale = 1, left = 0, over = null, shot = 0, swiped = false;
   let formFor = 0, dismissed = 0, skew = 0, lastText = "", shown = 0;
+  // A new tab's home is a view of this page: + and More › New tab show it, and a search or an address
+  // typed there opens a tab of the user's own, which this page then goes to. `awaiting` is what this
+  // page asked for and waits to see, until `until` or a line said meanwhile (past `shown`): a tab
+  // opened (`made`, its id along the tabs) or this one closed (then on to `next`).
+  let homeView = location.hash === "#new", awaiting = null;
   // A step posted from here: "Updating" until a newer picture than `from` comes (or a few seconds,
   // for a step that changed nothing), showing `who` as this page set it until then.
   let pending = null, pendingTimer = 0;
   function settled() {
     clearTimeout(pendingTimer);
     pending = null;
-    $("upd").hidden = true;
+    if (!awaiting?.made) $("upd").hidden = true;
   }
 
   // ---- Posting: each step is an event, posted in order through AnythingLLM's upload.
@@ -866,7 +999,7 @@ input{font:inherit;color:var(--ink)}
   function post(ev, fields = {}) {
     const event = { browser_lean_event: 1, workspace: cfg.workspace, tab: cfg.tab, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
     pending = { from: shot, who: pending?.who };
-    $("upd").hidden = false;
+    updating("Updating the page…");
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(settled, 4000);
     queue = queue.then(async () => {
@@ -876,13 +1009,17 @@ input{font:inherit;color:var(--ink)}
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
           body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "browser-lean page" } }),
         });
-        if (!r.ok) toast(r.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + r.status);
+        if (!r.ok) toast(r.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in its Settings › Browser Extension, then paste it into a suite skill’s PAGE_KEY." : "AnythingLLM answered " + r.status + ". Try again in a moment.");
       } catch (e) {
-        toast("Can’t reach AnythingLLM");
+        toast("Can’t reach AnythingLLM. Try again in a moment.");
       }
       soon(); // the step's picture comes within a second: look for it now
     });
     return queue;
+  }
+  function updating(text) {
+    $("updtext").textContent = text;
+    $("upd").hidden = homeView && !awaiting?.made;
   }
 
   // RSA-OAEP seals at most 190 bytes; a longer value is sealed with a new AES-GCM key, itself
@@ -890,7 +1027,7 @@ input{font:inherit;color:var(--ink)}
   const b64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   let pubKey = null;
   async function seal(text) {
-    if (!window.crypto || !crypto.subtle) throw new Error("Open this page over https to send a password");
+    if (!window.crypto || !crypto.subtle) throw new Error("Open this page over https to send a password. Over plain http it can’t be sealed.");
     pubKey ||= await crypto.subtle.importKey("spki", Uint8Array.from(atob(cfg.pub), (c) => c.charCodeAt(0)), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
     const bytes = new TextEncoder().encode(text);
     if (bytes.length <= 190) return b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, bytes));
@@ -905,48 +1042,59 @@ input{font:inherit;color:var(--ink)}
   function toast(text) {
     $("toast").textContent = text;
     $("toast").hidden = false;
+    placeToast();
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => ($("toast").hidden = true), 2600);
+    toastTimer = setTimeout(() => ($("toast").hidden = true), 4000);
+  }
+  // Above the card while one is up, else above the bottom bar.
+  function placeToast() {
+    const card = [$("need"), $("offer")].find((c) => !c.hidden);
+    const above = card ? card.getBoundingClientRect().top : $("navbar").getBoundingClientRect().top;
+    $("toast").style.bottom = Math.max(16, Math.round(innerHeight - above) + 10) + "px";
   }
 
-  // ---- The picture, fitted between the controls, measured on each resize.
+  // ---- The picture, fitted to the room between the bars, measured on each resize.
   function reserve() {
-    top = Math.round($("top").getBoundingClientRect().bottom) + 8;
-    const row = [$("hint"), $("mine")].find((b) => !b.hidden);
-    bottom = !host && row ? Math.round(innerHeight - row.getBoundingClientRect().top) + 8 : 0;
-    $("upd").style.top = top + "px";
-    $("toast").style.bottom = bottom + 16 + "px";
+    const bar = homeView ? $("searchbar") : $("addrbar");
+    $("upd").style.top = Math.round(bar.getBoundingClientRect().bottom) + 8 + "px";
+    const room = Math.max(160, innerHeight - Math.round($("strip").getBoundingClientRect().bottom) - 24) + "px";
+    $("need").style.maxHeight = $("offer").style.maxHeight = room; // a card taller than the room scrolls
+    if (!$("toast").hidden) placeToast();
   }
   function layout() {
-    if (!st) return;
-    const W = innerWidth, H = Math.max(1, innerHeight - top - bottom);
+    if (!st || homeView) return;
+    const W = Math.max(1, $("stage").clientWidth), H = Math.max(1, $("stage").clientHeight);
     scale = Math.min(W / size.w, H / size.h);
     left = (W - size.w * scale) / 2;
-    Object.assign($("shot").style, { width: size.w * scale + "px", height: size.h * scale + "px", left: left + "px", top: top + "px" });
+    Object.assign($("shot").style, { width: size.w * scale + "px", height: size.h * scale + "px", left: left + "px", top: "0px" });
     if (over) place(over.input, over.field);
   }
   addEventListener("resize", () => (reserve(), layout(), askSize()));
 
-  // ---- The tab's screen: this window's room between the controls, asked for once it settles; the
-  // skill keeps it within the screens it draws.
+  // ---- The tab's screen: the page's room, asked for once it settles; the skill keeps it within the
+  // screens it draws. Not while a field or the request is being typed in: a keyboard took the room.
   let sizeTimer = 0, asked = null;
   function askSize() {
     clearTimeout(sizeTimer);
     sizeTimer = setTimeout(() => {
-      if (!st) return;
-      const want = { w: innerWidth, h: innerHeight - top - bottom, dpr: devicePixelRatio || 1 };
+      if (!st || homeView || over || asking() || document.activeElement?.tagName === "INPUT") return;
+      const want = { w: $("stage").clientWidth, h: $("stage").clientHeight, dpr: devicePixelRatio || 1 };
+      if (want.w < 1 || want.h < 1) return;
       const have = asked || size;
       if (Math.abs(want.w - have.w) <= 8 && Math.abs(want.h - have.h) <= 8 && (!asked || want.dpr === asked.dpr)) return;
       asked = want;
       post("size", want);
     }, 500);
   }
-  const toPage = (e) => ({ x: Math.round((e.clientX - left) / scale), y: Math.round((e.clientY - top) / scale) });
+  const toPage = (e) => {
+    const r = $("stage").getBoundingClientRect();
+    return { x: Math.round((e.clientX - r.left - left) / scale), y: Math.round((e.clientY - r.top) / scale) };
+  };
   const inside = (p, f) => p.x >= f.x && p.x <= f.x + f.w && p.y >= f.y && p.y <= f.y + f.h;
 
   // ---- Typing: a real input over the field the user tapped, so this device's keyboard opens.
   function place(input, f) {
-    Object.assign(input.style, { left: left + f.x * scale + "px", top: top + f.y * scale + "px", width: Math.max(f.w * scale, 120) + "px", height: Math.max(f.h * scale, 40) + "px" });
+    Object.assign(input.style, { left: left + f.x * scale + "px", top: f.y * scale + "px", width: Math.max(f.w * scale, 120) + "px", height: Math.max(f.h * scale, 44) + "px" });
   }
   const KINDS = new Set(["email", "password", "tel", "url", "search", "date", "time", "month", "week", "datetime-local"]);
   function nextField(f) {
@@ -995,8 +1143,9 @@ input{font:inherit;color:var(--ink)}
   const onPicture = (e) => e.target === $("stage") || e.target === $("shot") || e.target === $("take");
   const mine = () => st && st.who === "user";
   function ripple(e) {
+    const r = $("stage").getBoundingClientRect();
     const dot = el("span", { className: "tap" });
-    Object.assign(dot.style, { left: e.clientX + "px", top: e.clientY + "px" });
+    Object.assign(dot.style, { left: e.clientX - r.left + "px", top: e.clientY - r.top + "px" });
     dot.addEventListener("animationend", () => dot.remove());
     $("stage").appendChild(dot);
   }
@@ -1039,20 +1188,24 @@ input{font:inherit;color:var(--ink)}
     if (!mine() || e.target === $("take") || !onPicture(e)) return;
     tapAt(e);
   });
-  // Takes the tab over, shown at once; the state file catches up. The first tap is a tap too.
+  // Takes the tab over, shown at once; the state file catches up.
   function takeOver() {
+    if (!st || mine()) return;
     st.who = "user";
     paint();
     post("take");
     pending.who = "user";
   }
+  // Tapping the page takes the tab over, and the first tap is a tap too; above a request, it takes
+  // the tab over in the request's place (the agent is told).
   $("take").addEventListener("click", (e) => {
     if (!st) return;
+    if (asking()) return void (answered(), post("need-cancel", { reason: "takeover" }), takeOver());
     takeOver();
     tapAt(e);
   });
   function give() {
-    if (!mine()) return Promise.resolve();
+    if (!mine() || st.mine) return Promise.resolve();
     closeField(true);
     st.who = "agent";
     paint();
@@ -1060,29 +1213,156 @@ input{font:inherit;color:var(--ink)}
     pending.who = "agent";
     return done;
   }
-  $("give").addEventListener("click", give);
-  $("navback").addEventListener("click", () => (closeField(true), post("nav", { do: "back" })));
-  $("reload").addEventListener("click", () => (closeField(true), post("nav", { do: "reload" })));
+  $("hold").addEventListener("click", () => (mine() ? give() : takeOver()));
+  // Back, Forward and Reload on a tab the agent has take it over first, as tapping the page does;
+  // Reload above a request takes it over in the request's place, as tapping the page above it does.
+  const nav = (how) => () => {
+    closeField(true);
+    if (asking()) answered(), post("need-cancel", { reason: "takeover" });
+    takeOver();
+    post("nav", { do: how });
+  };
+  $("navback").addEventListener("click", nav("back"));
+  $("navfwd").addEventListener("click", nav("forward"));
+  $("reload").addEventListener("click", nav("reload"));
   // AnywhereLLM Lite's bar hands the tab back through this, before it sends a message to the agent.
   window.browserLean = { give: () => give().then(() => host && host.postMessage('{"gave":true}')) };
   let told = null;
   const tell = (who) => host && who !== told && host.postMessage(JSON.stringify({ who: (told = who) }));
-  $("back").addEventListener("click", () => (history.length > 1 ? history.back() : window.close()));
-  // The saved logins are listed and deleted on the Vault page (library-lean's), on this same host.
-  $("tk").addEventListener("click", () => st && st.vault && (closeField(true), location.assign(st.vault)));
+  // The saved logins are listed and deleted on the Vault page, on this same host.
+  $("logins").addEventListener("click", (e) => {
+    e.preventDefault();
+    if (st && st.vault) closeField(true), location.assign(st.vault);
+  });
+
+  // ---- The tabs along the top: each one's page, gone to in place (the chat stays one step back).
+  const letter = (t) => ((t.title || t.host || "").match(/[\p{L}\p{N}]/u)?.[0] || "?").toUpperCase();
+  function fav(t, agent) {
+    const s = el("span", { className: "fav" }, el("b", { textContent: letter(t), ariaHidden: "true" }));
+    if (agent) s.append(el("i", { ariaHidden: "true" }));
+    return s;
+  }
+  const goTo = (path) => location.replace(path + location.search);
+  // This tab along the top: the one whose page is this one.
+  const isHere = (t) => t.path === cfg.token + ".html";
+  function drawStrip() {
+    const kids = [];
+    for (const t of st.tabs || []) {
+      const here = isHere(t);
+      const agent = here ? !st.mine && st.who !== "user" : t.agent;
+      const name = (t.title || t.host || "Tab") + (agent ? ", the agent is using it" : "");
+      const cur = here && !homeView;
+      const a = el("a", { href: t.path + location.search, className: cur ? "cur" : "", ariaLabel: name }, fav(t, agent));
+      if (cur) a.setAttribute("aria-current", "page"), a.append(el("span", { textContent: t.title || t.host || "Tab" }));
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (here) return homeView && showHome(false);
+        closeField(true);
+        goTo(t.path);
+      });
+      kids.push(a);
+    }
+    if (homeView) kids.push(el("a", { className: "cur", href: "#new", ariaLabel: "New tab", ariaCurrent: "page" }, icon("globe"), el("span", { textContent: "New tab" })));
+    const plus = el("button", { type: "button", ariaLabel: "New tab" }, icon("plus", 20));
+    plus.addEventListener("click", () => showHome(true));
+    kids.push(plus);
+    $("strip").replaceChildren(...kids);
+    $("strip").querySelector('[aria-current="page"]')?.scrollIntoView?.({ inline: "nearest", block: "nearest" });
+  }
+
+  // ---- A new tab's home: one field for a search or an address, Your sites, suggestions while typing.
+  function setHome(on) {
+    homeView = on;
+    history.replaceState(null, "", on ? "#new" : location.pathname + location.search);
+  }
+  function showHome(on) {
+    closeMore();
+    setHome(on);
+    if (on) $("q").value = "", suggest();
+    paint();
+    if (on) $("q").focus();
+  }
+  const ADDRESS = new RegExp(cfg.address, "i"); // what reads as an address: the skill's own (page.ts)
+  function suggest() {
+    const q = $("q").value.trim();
+    $("clear").hidden = !q;
+    $("suggest").hidden = !q;
+    $("hero").hidden = $("mysites").hidden = !!q;
+    if (!q) return void (st && drawSites());
+    const rows = [];
+    const row = (what, kind, words) => {
+      const b = el("button", { type: "button" }, icon(kind === "search" ? "search" : "globe"), el("span", {}, el("b", { textContent: what }), el("small", { textContent: words })));
+      b.addEventListener("click", () => go(what));
+      rows.push(el("li", {}, b));
+    };
+    if (ADDRESS.test(q)) row(q, "address", "Go to this address");
+    row(q, "search", "Search");
+    const low = q.toLowerCase();
+    for (const s of (st && st.sites) || []) if (s.toLowerCase().includes(low) && s.toLowerCase() !== low && rows.length < 5) row(s, "address", "Go to this address");
+    $("suggest").replaceChildren(...rows);
+  }
+  function drawSites() {
+    const list = (st.sites || []).slice(0, 12);
+    $("mysites").hidden = !list.length || !!$("q").value.trim();
+    $("grid").replaceChildren(...list.map((s) => {
+      const b = el("button", { type: "button", className: "site" }, el("b", { textContent: letter({ host: s.replace(/^www\./, "") }), ariaHidden: "true" }), el("span", { textContent: s.replace(/^www\./, "") }));
+      b.addEventListener("click", () => go(s));
+      return b;
+    }));
+  }
+  $("q").addEventListener("input", suggest);
+  $("clear").addEventListener("click", () => (($("q").value = ""), suggest(), $("q").focus()));
+  $("searchbar").addEventListener("submit", (e) => (e.preventDefault(), go($("q").value)));
+  // Opens a tab of the user's own at what was typed; this page goes there once it's listed.
+  function go(q) {
+    q = String(q || "").trim();
+    if (!q || awaiting?.made) return;
+    awaiting = { made: Math.random().toString(36).slice(2, 12), until: Date.now() + 20000, shown };
+    $("q").blur();
+    post("new", { q, made: awaiting.made });
+    updating("Opening the tab…");
+  }
+
+  // ---- More: New tab, Close this tab; none on a new tab's home. No Back to the chat: the page opens
+  // in a sheet whose toolbar has a Close (AnywhereLLM Lite's Custom Tab), or in a browser tab with its own Back.
+  function openMore() {
+    $("scrim").hidden = $("more").hidden = false;
+    $("more").querySelector("button").focus();
+  }
+  function closeMore() {
+    if ($("more").hidden) return;
+    $("scrim").hidden = $("more").hidden = true;
+    $("morebtn").focus();
+  }
+  $("morebtn").addEventListener("click", openMore);
+  $("scrim").addEventListener("click", closeMore);
+  addEventListener("keydown", (e) => e.key === "Escape" && closeMore());
+  $("morenew").addEventListener("click", () => showHome(true));
+  // Closes this tab, then goes to the one before it along the top (or after it); the chat's tab
+  // isn't closed while its agent is in the middle of a step, and the page says so.
+  $("moreclose").addEventListener("click", () => {
+    closeMore();
+    closeField(true);
+    const tabs = st.tabs || [];
+    const i = tabs.findIndex(isHere);
+    awaiting = { next: tabs[i - 1] || tabs[i + 1] || null, until: Date.now() + 10000, shown };
+    post("close");
+  });
 
   // ---- What the agent asked for: a login or a code, entered here and typed into the page for it.
-  // While it's asked, the page opens on its form; `formFor` is the request the form was made for
-  // (its `until`), so a new one, or one asked again, gets a form of its own.
+  // It rises as a card at the bottom over the page; `formFor` is the request the card was made for
+  // (its `until`), so a new one, or one asked again, gets a card of its own.
   const remaining = () => (st && st.need ? Math.round((st.need.until - (Date.now() + skew)) / 1000) : 0);
   const asking = () => !!(st && st.need) && st.need.until !== dismissed && remaining() > 0;
+  // Answered, turned down or taken over: this request is done here, and doesn't come back.
+  const answered = () => (dismissed = st.need ? st.need.until : dismissed);
   let ticker = 0;
   function tick() {
     if (!asking()) return paint();
     const s = remaining(), m = Math.round(s / 60);
-    $("needleft").textContent = "The agent is waiting · " + (s < 60 ? "Less than a minute" : m === 1 ? "About a minute" : "About " + m + " minutes") + " left";
+    $("needleft").textContent = s < 60 ? "Less than a minute left" : m === 1 ? "1 minute left" : m + " minutes left";
   }
-  /** Builds the form for the request now asked; returns its first field. */
+  /** Builds the card for the request now asked; returns its first field. */
   function needForm() {
     const need = st.need;
     formFor = need.until;
@@ -1090,56 +1370,49 @@ input{font:inherit;color:var(--ink)}
     // The words for what's asked: a new account's password (the user chooses it), a login, a code.
     const says = login && need.confirm ? { title: "Choose a password for " + need.host, secret: "New password", go: "Create" }
       : login ? { title: "Sign in to " + need.host, secret: "Password", go: "Sign in" }
-      : { title: need.label || "Enter the code", secret: need.label || "Code", go: "Send" };
-    let keep = true;
-    const user = login && need.hasUser ? el("input", { className: "fld", autocapitalize: "off", autocomplete: "off", spellcheck: false }) : null;
-    const secret = el("input", { className: "fld", type: login ? "password" : "text", autocomplete: login ? "new-password" : "one-time-code", autocapitalize: "off" });
-    // A password can be shown while it's typed; the form is made again for each request, so it starts hidden.
-    const show = login ? el("button", { className: "pwshow", type: "button", textContent: "Show" }) : null;
-    if (show) {
-      show.setAttribute("aria-pressed", "false");
-      show.setAttribute("aria-label", "Show password");
-      show.onclick = () => {
-        const on = secret.type === "password";
-        secret.type = on ? "text" : "password";
-        show.setAttribute("aria-pressed", String(on));
-        secret.focus();
-      };
-    }
-    const sw = el("button", { className: "sw", role: "switch" }, el("span"));
-    sw.setAttribute("aria-checked", "true");
-    sw.setAttribute("aria-label", "Save this login for next time");
+      : { title: need.label || "Enter the code", secret: "Code", go: "Send" };
+    let keep = false; // the save switch starts off
+    const input = (id, props) => el("input", { id, className: "fld", autocapitalize: "off", spellcheck: false, ...props });
+    const user = login && need.hasUser ? input("n-user", { type: "text", autocomplete: "off" }) : null;
+    const secret = input("n-secret", { type: login ? "password" : "text", autocomplete: login ? "new-password" : "one-time-code" });
+    const field = (label, inp, extra) => el("div", { className: "ff" }, el("label", { textContent: label, htmlFor: inp.id }), extra ? el("div", { className: "pw" }, inp, extra) : inp);
+    // A password can be shown while it's typed; the card is made again for each request, so it starts hidden.
+    const show = login ? el("button", { className: "pwshow", type: "button", textContent: "Show", ariaPressed: "false", ariaLabel: "Show password" }) : null;
+    if (show) show.onclick = () => {
+      const on = secret.type === "password";
+      secret.type = on ? "text" : "password";
+      show.setAttribute("aria-pressed", String(on));
+      secret.focus();
+    };
+    const sw = el("button", { className: "sw", type: "button", role: "switch", ariaChecked: "false", ariaLabel: "Save this login" }, el("span"));
     sw.onclick = () => sw.setAttribute("aria-checked", String((keep = !keep)));
-    // Answered, turned down or taken over: this request is done here, and doesn't come back.
-    const done = () => (dismissed = need.until);
-    const no = el("button", { className: "btn", textContent: "Cancel", onclick: () => (done(), post("need-cancel", { reason: "later" }), paint()) });
-    const take = el("button", { className: "btn plain", id: "needtake", textContent: "Take over instead", onclick: () => (done(), post("need-cancel", { reason: "takeover" }), takeOver()) });
-    const go = el("button", { className: "btn pri", textContent: says.go });
-    go.onclick = async () => {
+    const no = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Cancel", onclick: () => (answered(), post("need-cancel", { reason: "later" }), paint()) });
+    const go = el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: says.go });
+    const form = $("need");
+    form.onsubmit = async (e) => {
+      e.preventDefault();
       if (user && !user.value.trim()) return toast("Give the username");
       if (!secret.value.trim()) return toast(login ? "Give the password" : "Give the code");
       let fields;
       try {
         fields = login ? { user: user ? user.value.trim() : "", sealed: await seal(secret.value), save: keep && !!user } : { text: secret.value.trim() };
-      } catch (e) {
-        return toast(e.message);
+      } catch (err) {
+        return toast(err.message);
       }
-      done();
+      answered();
       post("need-answer", fields);
       paint();
     };
-    // The tab, small: for a code, the site often says there where it sent it.
-    const thumb = el("figure", { className: "thumb" }, el("img", { id: "needshot", alt: "" }), el("figcaption", { className: "cap", textContent: "The tab" }));
-    const live = el("span", { className: "live" });
-    live.setAttribute("aria-hidden", "true");
-    $("needform").replaceChildren(el("div", { className: "card form" }, thumb, el("b", { textContent: says.title }), el("p", { className: "cap", textContent: need.text }),
-      field("Site", el("input", { className: "fld ro", value: need.host, readOnly: true })),
+    form.setAttribute("aria-labelledby", "needtitle");
+    form.replaceChildren(
+      el("div", { className: "head" }, el("b", { id: "needtitle", textContent: says.title }), ...(need.text ? [el("span", { textContent: need.text })] : [])),
       ...(user ? [field("Username or email", user)] : []),
-      show ? el("div", { className: "pw" }, field(says.secret, secret), show) : field(says.secret, secret),
-      ...(user ? [el("div", { className: "tgl" }, el("span", { textContent: "Save this login for next time" }), sw)] : []),
-      el("p", { className: "cap", textContent: login ? "Sealed on this device before it’s sent, and typed into the page for the agent, which never sees it." : "Typed into the page for the agent, which never sees it." }),
-      el("div", { className: "wait" }, live, el("span", { id: "needleft" })),
-      el("div", { className: "row" }, no, go), take));
+      field(says.secret, secret, show),
+      ...(user ? [el("div", { className: "tgl" }, el("span", { textContent: "Save this login" }), sw)] : []),
+      el("p", { className: "say", textContent: "The agent never sees it." }),
+      el("div", { className: "left" }, el("span", { ariaHidden: "true" }), el("span", { id: "needleft" })),
+      el("div", { className: "row" }, no, go),
+    );
     return user || secret;
   }
   $("offerno").addEventListener("click", () => (($("offer").hidden = true), post("offer", { save: false })));
@@ -1149,38 +1422,57 @@ input{font:inherit;color:var(--ink)}
   function paint() {
     if (!st) return;
     const held = mine();
-    document.body.classList.toggle("mine", held);
-    // The request's form, over the page view.
+    // The request's card, over the page.
     if (formFor && !asking()) {
-      if (formFor !== dismissed) toast("That request is over");
+      if (formFor !== dismissed) toast("That sign-in request has ended");
       formFor = 0;
     }
-    const ask = asking();
-    $("needform").hidden = !ask;
+    if (asking() && formFor !== st.need.until && homeView) setHome(false); // a new request: back to the tab
+    const ask = asking() && !homeView;
+    $("need").hidden = !ask;
+    let first = null;
     if (ask) {
-      const first = formFor !== st.need.until && needForm();
-      $("needshot").src = $("shot").src;
+      first = formFor !== st.need.until && needForm();
       tick();
-      if (first) first.focus();
     }
     if (ask !== !!ticker) ticker = ask ? setInterval(tick, 1000) : (clearInterval(ticker), 0);
-    document.body.classList.toggle("side", ask);
-    $("who").textContent = held ? "You" : "Agent";
-    $("addr").textContent = (st.url || "").replace(/^https?:\/\//, "");
-    $("where").setAttribute("aria-label", (held ? "You have the tab" : "The agent has the tab") + ": " + (st.title || st.url));
-    $("take").hidden = held;
-    $("mine").hidden = !held;
-    $("hint").hidden = held;
-    tell(st.who);
-    $("offer").hidden = !st.offer || ask;
-    if (st.offer) {
+    // A login or passkey to save: a card of its own, while no request is up. Back, Reload and Hand
+    // back are out of reach meanwhile; above a request, only Reload is in reach.
+    const offer = !!st.offer && !ask && !homeView;
+    $("offer").hidden = !offer;
+    if (offer) {
       const passkey = st.offer.kind === "passkey";
       $("offerwhat").textContent = passkey ? "Save this passkey?" : "Save this login?";
       $("offerwho").textContent = st.offer.site + (st.offer.user ? " · " + st.offer.user : passkey ? " · passkey" : "");
     }
-    $("tk").hidden = !st.vault;
+    document.body.classList.toggle("carded", ask || offer);
+    document.body.classList.toggle("offered", offer);
+    // The tab, or a new tab's home.
+    $("addrbar").hidden = $("stage").hidden = homeView;
+    $("searchbar").hidden = $("home").hidden = !homeView;
+    drawStrip();
+    if (homeView) drawSites();
+    const secure = /^https:/i.test(st.url || "");
+    $("lock").replaceChildren(icon(secure ? "lock" : "open"));
+    $("lock").setAttribute("aria-label", secure ? "Secure" : "Not secure");
+    $("lock").setAttribute("role", "img");
+    $("addr").textContent = st.host || (st.url || "").replace(/^[a-z]+:(\/\/)?/i, "") || "New tab";
+    document.title = homeView ? "New tab" : st.title || st.host || "Browser"; // what the sheet's toolbar shows
+    // Who holds a chat's tab; a tab the user opened is theirs, with no such bar.
+    $("holdbar").hidden = homeView || st.mine || !!host;
+    $("holddot").hidden = held;
+    $("holdtext").textContent = held ? "You have this tab" : "The agent is using this tab";
+    $("hold").textContent = held ? "Hand back" : "Take over";
+    $("navback").disabled = homeView || !st.back;
+    $("navfwd").disabled = homeView || !st.forward;
+    $("morebtn").disabled = homeView;
+    $("logins").hidden = !st.vault;
+    if (st.vault) $("logins").href = st.vault;
+    $("take").hidden = held || homeView;
+    tell(st.who);
     reserve();
     layout();
+    if (first) first.focus();
   }
 
   // The state file, asked for often while a step is pending and less when idle.
@@ -1198,6 +1490,7 @@ input{font:inherit;color:var(--ink)}
     }
     // Closed, or its browser's time ran out: AnythingLLM restarted under it, which writes no "closed".
     if (next.closed || !(next.until > Date.now() + skew)) {
+      if (awaiting?.next) return goTo(awaiting.next.path); // closed from here: on to the next tab
       $("gone").hidden = false;
       return tell("agent");
     }
@@ -1217,9 +1510,19 @@ input{font:inherit;color:var(--ink)}
       }
       if (first) askSize(); // the first state: ask for this window's room
     }
+    // A tab asked for from here: gone to once it's listed. A line said meanwhile is the answer (why it
+    // didn't open, or why this one didn't close).
+    const made = awaiting?.made && (st.tabs || []).find((t) => t.made === awaiting.made);
+    if (made) return goTo(made.path);
+    if (awaiting && (shown !== awaiting.shown || Date.now() > awaiting.until)) {
+      const opening = !!awaiting.made;
+      if (opening && shown === awaiting.shown) toast("The tab didn’t open. Try again in a moment.");
+      awaiting = null;
+      if (opening) settled();
+    }
     const was = st.who;
     if (pending && pending.who) st.who = pending.who; // taken or handed back here; the state file catches up
-    // What a field being typed into would lose is drawn once it closes; the request's form is kept
+    // What a field being typed into would lose is drawn once it closes; the request's card is kept
     // while its request is.
     if ((!same || st.who !== was) && !over) (lastText = text), paint();
   }
@@ -1227,7 +1530,7 @@ input{font:inherit;color:var(--ink)}
   function loop() {
     poll().finally(() => {
       clearTimeout(pollTimer);
-      pollTimer = setTimeout(loop, pending ? 250 : 2000);
+      pollTimer = setTimeout(loop, pending || awaiting ? 250 : 2000);
     });
   }
   function soon() {

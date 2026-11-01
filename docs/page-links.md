@@ -2,6 +2,8 @@
 
 Where the Library page, the Vault and the apps manager are, for whoever shows them to the user: AnywhereLLM's bridge (`GET /pages`) and `anywherellm-suite pages`; and, for AnywhereLLM Lite's shelf, the browser's open tabs and the Library's and the apps' status. The skills write the file (`packages/shared/page-links.mts`: `noteLink`, `noteTabs`, `noteStatus`) and the bridge only reads it; it is the one file the two repositories share. A change to anything here is made in the suite and the bridge together.
 
+The pages draw no title or Close of their own: whoever shows one gives it a Close and its name, as AnywhereLLM Lite's Custom Tab does with the page's `<title>` (Vault, Library, Artifacts; a browser tab's title, or New tab).
+
 ## `<storage>/anywherellm-suite/page-links.json`
 
 ```json
@@ -39,16 +41,30 @@ The file is mode `0600`, written to a temporary file and renamed over the old on
 
 ## The card in an answer
 
-While the links are given to the agent, the library's answers hand it the Vault's and the Library page's links as a card to put in its reply as written: a quote whose first line is the page's name as a bold link, then a line on what the page is for.
+While the links are given to the agent, the library's answers hand it the Vault's and the Library page's links as a card to put in its reply as written: a quote whose first line is the page's name as a bold link, titled with its glyph's name, then a line on what the page is for.
 
 ```
-> **[The Vault](/vault-lean/<token>.html)**
+> **[The Vault](/vault-lean/<token>.html "vault")**
 >
 > Every key and browser login, by name.
 
-> **[The Library](/library-lean/<token>.html)**
+> **[The Library](/library-lean/<token>.html "library")**
 >
 > The toolkits, their runs and the machines.
 ```
 
-The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link; a client that draws app cards can draw these the same way, by the link's page (`/vault-lean/` or `/library-lean/`). The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.
+The link may be absolute (`ANYTHINGLLM_URL`). Any Markdown client shows a quote with a link, the title only as a tooltip (a phone never shows it), so the card needs no setting and no HTML. AnywhereLLM Lite (1.22.0) draws a card from a quote whose first paragraph is one link, bold or not, to the server it is connected to, titled with a glyph it knows (`vault`, `library`): the glyph, the link's text and the rest of the quote, in one tile that opens the page in its sheet. Anything else stays a quote. The text is the library's (`pageCard`, `packages/skills/library/src/handler.ts`); with the links kept from the agent no card is given.
+
+An artifact's card (the Artifacts skill's answers, `card`, `packages/skills/apps/src/card.ts`) has the same shape: a quote whose first paragraph is the artifact's title as a bold link to its page, titled with its icon's name when app.json has one of the 24 (`packages/skills/apps/src/icons.ts`: `cart`, `check`, `timer`, `flame`, `book`, `calendar`, `bars`, `target`, `cards`, `note`, `heart`, `star`, `dumbbell`, `drop`, `moon`, `wallet`, `plane`, `home`, `mail`, `pin`, `bell`, `music`, `sun`, `bulb`), then the change line: what the call changed (`add: Oat milk`, `took back add: Oat milk`), if it changed something, and the card's summary. A list's items follow the quote, outside it, so they stay out of Lite's tile and AnythingLLM's own chat still shows them. Several artifacts are one quote each.
+
+```
+> **[Groceries](/apps-lean/<token>.html "cart")**
+>
+> add: Oat milk · 5 of 8 left
+
+- ☐ Oat milk
+- ☑ ~~Eggs~~
+- …and 2 more
+```
+
+With no icon the link has no title; where the page can't be published there is no link, only the bold title, and Lite leaves the quote as it is. Until 2026-10-31 the card was a table whose header was the link and the summary (`| | **[Groceries](…)** · 5 of 8 left |`), with a row per item.

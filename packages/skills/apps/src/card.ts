@@ -1,6 +1,6 @@
-// An app's card: its title, a summary line and up to ROWS rows, as Markdown the agent puts in its
+// An app's card: its title, a line under it and up to ROWS rows, as Markdown the agent puts in its
 // reply. app.json's card names what to show:
-//   summary  text for the line beside the title
+//   summary  text for the line under the title, after what the call changed
 //   lines    a list of texts, or one pointer to a list in the data
 //   items    a pointer to a list in the data: one row each, with a tick when the item has a `done`
 //            key; `text` and `done` name the keys (default "text" and "done"); `where` keeps only
@@ -9,6 +9,7 @@
 // what the pointer finds, and a pointer ending in /length on a list is its length. A missing value
 // reads as empty, so a card never fails to draw.
 
+import { iconOf } from "./icons.ts";
 import { get, type Json } from "./patch.ts";
 
 export const ROWS = 6;
@@ -59,7 +60,8 @@ function summaryOf(card: Json, data: Json, items: Json[] | null): string {
   return `${items.length} item${items.length === 1 ? "" : "s"}`;
 }
 
-const cell = (s: string): string => s.replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
+/** Text on one line, as a quote's or a list's line must be. */
+const flat = (s: string): string => s.replace(/\s*\r?\n\s*/g, " ");
 
 /** The card's summary line, as text: what the headline says beside the title. */
 export function summary(app: Json): string {
@@ -67,17 +69,31 @@ export function summary(app: Json): string {
   return summaryOf(spec, app.data, itemsOf(spec, app.data));
 }
 
-/** The card's first line: its title and summary; with an address the title is the link to the app's page. */
-export function headline(app: Json, url?: string | null): string {
-  const line = summary(app);
-  const title = url ? `[${cell(app.title).replace(/[[\]]/g, "\\$&")}](${url})` : cell(app.title);
-  return `**${title}**${line ? ` · ${cell(line)}` : ""}`;
+/** The app's title as the card's bold name: with an address, the link to its page, titled with its
+ *  icon's name when it has one of the set (a Markdown client shows the title only as a tooltip). */
+function named(app: Json, url?: string | null): string {
+  const icon = iconOf(app);
+  return `**${url ? `[${flat(app.title).replace(/[[\]]/g, "\\$&")}](${url}${icon ? ` "${icon}"` : ""})` : flat(app.title)}**`;
 }
 
-/** The card's Markdown lines. Items with a tick are a table of ☑ and ☐ (AnythingLLM's chat draws no
- *  Markdown checkboxes) under the headline as its header row, a ticked one struck through; other
- *  items are a bulleted list under the headline. */
-export function card(app: Json, url?: string | null): string[] {
+/** An app as one line, as list gives each: its name (linked, as on the card) and its summary. */
+export function headline(app: Json, url?: string | null): string {
+  const line = summary(app);
+  return `${named(app, url)}${line ? ` · ${flat(line)}` : ""}`;
+}
+
+/** What one change did, as the card and the apps manager say it: "add: Oat milk". */
+export const changeText = (h: Json): string => `${h.ev}${typeof h?.fields?.text === "string" ? `: ${short(flat(h.fields.text))}` : ""}`;
+
+/** The card's Markdown lines: a quote whose first paragraph is the app's name, bold, as the link to its
+ *  page titled with its glyph, then the change line: what this call changed (`change`), if anything,
+ *  and the summary. The library's cards for the Vault and the Library are quotes of the same shape, so
+ *  AnywhereLLM Lite has one rule for a card (docs/page-links.md, the card in an answer); any other
+ *  client shows the quote. Its items follow the quote as a list, ☐ and ☑ (AnythingLLM's chat draws no
+ *  Markdown checkboxes), a ticked one struck through, at most ROWS of them. */
+export function card(app: Json, url?: string | null, change?: string | null): string[] {
+  const line = [change, summary(app)].filter(Boolean).map((t) => flat(t as string)).join(" · ");
+  const quote = [`> ${named(app, url)}`, ...(line ? [">", `> ${line}`] : [])];
   const spec = app.card || {};
   const found = itemsOf(spec, app.data);
   const items = found && found.length ? found : null;
@@ -85,23 +101,15 @@ export function card(app: Json, url?: string | null): string[] {
     // A pointer's list is data, shown as it is; a list in the card is texts that may point.
     const fromData = typeof spec.lines === "string";
     const listed = fromData ? lookup(app.data, spec.lines) : spec.lines;
-    const lines: string[] = Array.isArray(listed) ? listed.slice(0, ROWS).map((l) => cell(short(fromData ? plain(l) : textOf(app.data, l)))).filter(Boolean) : [];
-    return lines.length ? [headline(app, url), "", ...lines.map((l) => `- ${l}`)] : [headline(app, url)];
+    const lines: string[] = Array.isArray(listed) ? listed.slice(0, ROWS).map((l) => flat(short(fromData ? plain(l) : textOf(app.data, l)))).filter(Boolean) : [];
+    return lines.length ? [...quote, "", ...lines.map((l) => `- ${l}`)] : quote;
   }
   const textKey = spec.text || "text", doneKey = spec.done || "done";
   const rows = items.slice(0, ROWS).map((item) => {
     const isObject = item && typeof item === "object" && !Array.isArray(item);
-    const text = cell(short(plain(isObject ? item[textKey] : item)) || "(empty)");
-    return { text, done: isObject && typeof item[doneKey] === "boolean" ? (item[doneKey] as boolean) : null };
+    const text = flat(short(plain(isObject ? item[textKey] : item)) || "(empty)");
+    const done = isObject && typeof item[doneKey] === "boolean" ? (item[doneKey] as boolean) : null;
+    return done === null ? `- ${text}` : done ? `- ☑ ~~${text}~~` : `- ☐ ${text}`;
   });
-  const more = items.length > ROWS ? `…and ${items.length - ROWS} more` : null;
-  if (rows.some((r) => r.done !== null)) {
-    return [
-      `| | ${headline(app, url)} |`,
-      "|---|---|",
-      ...rows.map((r) => (r.done === null ? `| | ${r.text} |` : r.done ? `| ☑ | ~~${r.text}~~ |` : `| ☐ | ${r.text} |`)),
-      ...(more ? [`| | ${more} |`] : []),
-    ];
-  }
-  return [headline(app, url), "", ...rows.map((r) => `- ${r.text}`), ...(more ? [`- ${more}`] : [])];
+  return [...quote, "", ...rows, ...(items.length > ROWS ? [`- …and ${items.length - ROWS} more`] : [])];
 }

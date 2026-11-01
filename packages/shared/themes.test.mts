@@ -1,7 +1,8 @@
 // The pages' look is House UI, as the design canvas draws them: every page carries the same House UI
-// block (its tokens with the indigo scheme only, then its root, density and focus rules), which follows
-// the device's light or dark and contrast, and ?theme forces one. A page that drifted from the others,
-// set colours of its own or used a token House UI doesn't have would show it only in one theme.
+// block (its tokens with the indigo scheme only, then its root, density, focus and button rules), which
+// follows the device's light or dark and contrast, and ?theme forces one. A page that drifted from the
+// others, set colours of its own, used a token House UI doesn't have or drew House UI's buttons its own
+// way would show it only in one theme, or on one page.
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -24,6 +25,7 @@ test("the House UI block: indigo, light and dark with their higher-contrast them
   assert.match(first, /@media \(prefers-contrast: more\)/);
   assert.match(first, /\[data-theme="dark"\]\[data-contrast="more"\] \{/);
   assert.match(first, /@media \(pointer: fine\) and \(hover: hover\) and \(not \(any-pointer: coarse\)\) \{\s*\.hu-root:not\(\[data-density="touch"\]\) \{\s*--control-h:/);
+  for (const kind of ["primary", "secondary", "danger", "ghost"]) assert.match(first, new RegExp(`\\.hu-button--${kind} \\{`), `House UI's ${kind} button`);
 });
 
 for (const page of PAGES) {
@@ -35,9 +37,12 @@ for (const page of PAGES) {
     // The tab's screenshot, its thumbnail and the field laid over it stand for the remote page, whose white they keep.
     const styles = styleOf(html).replace(/(#shot|\.over,\.over:focus-visible|\.thumb img)\{[^}]*\}/g, "");
     assert.doesNotMatch(styles, /prefers-color-scheme|#[0-9a-f]{3,8}\b|oklch\(|rgba?\(/i, "no colours of its own");
-    const used = [...own(html).matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(used.filter((t) => !defined.has(t)))], [], "only House UI’s tokens");
+    // A property the page declares in its own styles is its own (a scale its script sets), not a token.
+    const used = [...own(html).matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]), declared = new Set(styles.match(/--[a-z0-9-]+(?=:)/g));
+    assert.deepEqual([...new Set(used.filter((t) => !defined.has(t) && !declared.has(t)))], [], "only House UI’s tokens, and the page’s own");
     assert.doesNotMatch(own(html), /min-height:44px/, "controls sized from --control-h, not the fixed touch size");
+    assert.doesNotMatch(styles, /(^|[}\n])\.hu-button(--[a-z]+)?(:[a-z]+)?\{/, "House UI's buttons from the block, not a copy of the page's own");
+    assert.doesNotMatch(own(html), /class(Name)?[=:] ?["`]btn\b/, "House UI's hu-button, not a button class of the page's own");
     assert.doesNotMatch(own(html).replace(/@media \(hover:hover\)\{[^{}]*\{[^}]*\}\}/g, ""), /:hover/, "every :hover inside @media (hover:hover)");
   });
 

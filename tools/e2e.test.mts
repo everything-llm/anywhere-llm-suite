@@ -106,8 +106,8 @@ async function upload(key: string): Promise<number> {
 /** The browser-extension keys AnythingLLM lists in Settings › Browser Extension. */
 const extensionKeys = async (): Promise<{ id: number; key: string }[]> => ((await api("GET", "/browser-extension/api-keys")).json as { apiKeys: { id: number; key: string }[] }).apiKeys;
 
-/** The Vault page's path in an answer that gives its card. */
-const vaultPath = (answer: string): string => answer.match(/\((\/vault-lean\/[\w-]+\.html)\)/)![1];
+/** The Vault page's path in an answer that gives its card, its link titled with its glyph. */
+const vaultPath = (answer: string): string => answer.match(/\((\/vault-lean\/[\w-]+\.html)(?: "[\w-]+")?\)/)![1];
 
 test("with no key from install, the chat gives the user's two steps; a key given in PAGE_KEY is kept, the upload takes it, and a revoked one is dropped", run, async () => {
   const first = skillCall("library-lean", { action: "library" });

@@ -7,6 +7,7 @@ import { beforeEach, test } from "node:test";
 import { linksFile } from "#shared/page-links";
 import { postEvent, setLinksHidden } from "#shared/test-helpers";
 import { call, definitionFor, publicDir, reset, root, skillDir, storage } from "./harness.mts";
+import { ICONS } from "../src/icons.ts";
 import { compose, template } from "../src/parts.ts";
 import * as store from "../src/store.ts";
 
@@ -167,4 +168,29 @@ test("every event the page posts is one the skill applies, and every field it re
   const shapes: Record<string, object> = { now: s, w: s.workspaces[0], a: app, app, x: s.trash[0], c: app.changes[0], v: app.versions[0] };
   const script = html.slice(html.lastIndexOf("<script"));
   for (const [, name, field] of script.matchAll(/\b(now|w|a|app|x|c|v)\.(\w+)/g)) assert.ok(Object.hasOwn(shapes[name], field), `${name}.${field}`);
+});
+
+test("each app's page is drawn as a picture, its HTML in a frame sandboxed with scripts only, where it reads and posts nothing", () => {
+  const html = fs.readFileSync(path.join(skillDir, "static", "pages", "manager.html"), "utf8");
+  const script = html.slice(html.lastIndexOf("<script"));
+  assert.match(script, /\["sandbox", "allow-scripts"\]/);
+  assert.doesNotMatch(html, /allow-same-origin|allow-top-navigation|allow-popups|allow-forms/, "nothing more than scripts: the page has an origin of its own");
+  assert.match(script, /frame\.srcdoc = /, "AnythingLLM forbids framing what it serves, so the page is the frame's document");
+  assert.match(script, /<html data-picture/, "and it says it's a picture");
+  assert.match(script, /pic\.inert = true/, "it takes no tap or focus");
+  assert.match(script, /e\.data !== "apps-lean:drawn"/);
+  const runtime = fs.readFileSync(path.join(skillDir, "static", "runtime-lean.js"), "utf8");
+  assert.match(runtime, /hasAttribute\("data-picture"\)/, "a page is a picture only when the manager says so");
+  assert.match(runtime, /postMessage\("apps-lean:drawn", "\*"\)/, "the page says what the manager waits for");
+});
+
+test("an app's icon is in the state when it's one of the set, and the page draws every one of the set", async () => {
+  await store.create("home", "shop", { ...definitionFor("list", { title: "Shop" }), icon: "cart", data: { items: [] } });
+  await settled();
+  const apps = Object.fromEntries(state().workspaces[0].apps.map((a: { name: string; icon: string | null }) => [a.name, a.icon]));
+  assert.equal(apps.shop, "cart");
+  assert.equal(apps.groceries, null, "none: the page draws the grid");
+  const html = fs.readFileSync(path.join(skillDir, "static", "pages", "manager.html"), "utf8");
+  const glyphs = html.slice(html.indexOf("GLYPHS = {"), html.indexOf("};", html.indexOf("GLYPHS = {")));
+  assert.deepEqual([...glyphs.matchAll(/^\s+([a-z]+): '/gm)].map((m) => m[1]), ICONS);
 });

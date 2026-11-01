@@ -278,7 +278,7 @@ export async function save(given: Given): Promise<string> {
   const fingerprint = String(given.fingerprint ?? "").match(FINGERPRINT)?.[0];
   if (!fingerprint) throw new Refused("That line has no SHA256 fingerprint. Paste the whole line the command printed, like 256 SHA256:… root@pi (ED25519).", "fingerprint");
   // Without a record of this machine (the installer writes it) nothing can be told from it: no target.
-  if (!thisHostUsable().ok) throw new Refused("No machine can be added yet: this AnythingLLM’s own machine isn’t recorded, so no other can be told from it. Run the installer on the host, as its README says.", null);
+  if (!thisHostUsable().ok) throw new Refused("The page can’t yet tell this machine from others. Run the installer on the AnythingLLM host, as the README says.", null);
   if (thisHostKeyRefusal(fingerprint)) throw new Refused("That’s the machine AnythingLLM runs on. Add a different machine.", "fingerprint");
   if (await thisMachine(host)) throw new Refused(net.isIP(host) ? "That’s an address of the machine AnythingLLM runs on. Add a different machine." : `${host} leads to the machine AnythingLLM runs on. Add a different machine.`, "host");
   const was = found(label);
@@ -406,9 +406,10 @@ const hostPort = (url: string): string => {
   return `${u.hostname}:${portOf(u)}`;
 };
 
-/** Why the machine is this one's own, or what it can see of its storage; null when neither shows. A
- *  marker file in the vault's folder is looked for over SFTP at the storage's path here and in the
- *  container image, and the machine's hostname and user are compared with this one's. */
+/** Why the machine is barred for what it holds: it reads this one's storage, or is the account
+ *  AnythingLLM runs as; null when neither shows. A marker file in the vault's folder is looked for over
+ *  SFTP at the storage's path here and in the container image, and the machine's hostname and user are
+ *  compared with this one's. */
 async function ownsStorage(client: Client, until: number, signal?: AbortSignal): Promise<string | null> {
   const marker = `.reach-marker-${crypto.randomBytes(8).toString("hex")}`;
   const here = path.join(vault.vaultDir(), marker);
@@ -416,14 +417,14 @@ async function ownsStorage(client: Client, until: number, signal?: AbortSignal):
   try {
     const sftp = await asked<SFTPWrapper>("start SFTP", (cb) => client.sftp(cb)).catch(() => null);
     for (const at of new Set([here, path.posix.join("/app/server/storage/vault-lean", marker)])) {
-      if (sftp && (await asked(`stat ${at}`, (cb) => sftp.stat(at, cb)).then(() => true, () => false))) return `it can see AnythingLLM's storage (${path.dirname(at)})`;
+      if (sftp && (await asked(`stat ${at}`, (cb) => sftp.stat(at, cb)).then(() => true, () => false))) return "it can read AnythingLLM's storage, where the Vault keeps its secrets";
     }
   } finally {
     fs.rmSync(here, { force: true });
   }
   const who = await run(client, "hostname; id -u", "", 1024, until, signal);
   const [host, uid] = who.stdout.trim().split("\n");
-  if (host === os.hostname() && typeof process.getuid === "function" && Number(uid) === process.getuid()) return `it is this machine's own account (hostname ${host}, user ${uid})`;
+  if (host === os.hostname() && typeof process.getuid === "function" && Number(uid) === process.getuid()) return `it is the account AnythingLLM runs as (hostname ${host}, user ${uid}), which can read the Vault's secrets`;
   return null;
 }
 
@@ -447,14 +448,14 @@ async function looked(client: Client, base: string | null, until: number, signal
     found.notes.push(`couldn't tell whether it sees AnythingLLM's storage or is this account: ${e.message}`);
     return null;
   });
-  if (own) found.barred = `${own}, which holds the vault and the pages' secrets. Use another machine or account`;
+  if (own) found.barred = `${own}. Use another machine or account`;
   const known = Boolean(base && ADDRESS.test(base));
   found.probed = known;
   const reach = await reaches(client, known ? base : null, until, signal);
   if ("why" in reach) found.notes.push(`couldn't tell whether it reaches this AnythingLLM: ${reach.why}`);
   else if (reach.hits.length) {
     const where = [...new Set(reach.hits.map(hostPort))].join(", ");
-    found.barred ??= `it can fetch this AnythingLLM's pages (at ${where}), which carry the page secret. Change the machine's firewall (or the tailnet's access rules) so it can't reach ${where}, then try it again`;
+    found.barred ??= `it can reach this AnythingLLM's pages at ${where}. Block that address in its firewall, then try again`;
   }
   if (!known) found.notes.push("this AnythingLLM's own address isn't known here (ANYTHINGLLM_URL): the machine was tried only at this host's recorded addresses");
   else if (await openToAll(base!)) found.notes.push("this AnythingLLM has no password: whoever reaches it is its administrator");

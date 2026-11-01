@@ -104,11 +104,12 @@ async function library(args: Args, self: HandlerContext): Promise<string> {
 }
 
 /** A page as a card the agent gives the user as it is: a quote whose first line is the page's name as
- *  a bold link, then a line on what it is for. Any client shows a quote with a link; AnywhereLLM Lite
- *  draws a tile from it (docs/page-links.md, the card in an answer). */
-const pageCard = (name: string, about: string, url: string): string => `> **[${name}](${url})**\n>\n> ${about}`;
-const vaultCard = (url: string): string => pageCard("The Vault", "Every key and browser login, by name.", url);
-const libraryCard = (url: string): string => pageCard("The Library", "The toolkits, their runs and the machines.", url);
+ *  a bold link titled with its glyph's name, then a line on what it is for. Any client shows a quote with
+ *  a link, the title only as a tooltip; AnywhereLLM Lite draws a card from it with that glyph
+ *  (docs/page-links.md, the card in an answer). */
+const pageCard = (name: string, glyph: string, about: string, url: string): string => `> **[${name}](${url} "${glyph}")**\n>\n> ${about}`;
+const vaultCard = (url: string): string => pageCard("The Vault", "vault", "Every key and browser login, by name.", url);
+const libraryCard = (url: string): string => pageCard("The Library", "library", "The toolkits, their runs and the machines.", url);
 const giveCard = (card: string): string => `Give them this card as it is, in its own quote:\n\n${card}`;
 
 /** The pages' links to give the user, or why there are none where AnythingLLM runs. With the links
@@ -351,8 +352,13 @@ export const runtime = {
     if (!act) return `The library's action is ${Object.keys(ACTIONS).join(", ")}, not "${clean(args.action)}".`;
     // The pages' key, found or made (#shared/pagekey), before anything shows a page; then a key in the
     // slot, whatever the call (slot.ts): it's in plain text until it's taken.
-    const said = await pageKeys.find(SKILL, this.runtimeArgs?.PAGE_KEY, (m) => this.logger?.(m));
-    const took = await slot.collect(this).catch((e) => void this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`));
+    const said = await pageKeys.find(SKILL, this.runtimeArgs, (m) => this.logger?.(m));
+    const took = await slot.collect().catch((e) => {
+      this.logger?.(`library-lean couldn't take the key in NEW_KEY: ${page.plain((e as Error)?.message || String(e))}`);
+      // In the answer too: the agent can't read the log, and a key it believes saved isn't.
+      said.push(`The key in NEW_KEY (${slot.SETTINGS}) couldn't be taken (${(e as NodeJS.ErrnoException)?.code ?? "an error"}): it may still be there. Tell the user it wasn't saved; AnythingLLM's log has the detail.`);
+      return null;
+    });
     if (took) said.push(took.text);
     try {
       const base = baseOf(this);

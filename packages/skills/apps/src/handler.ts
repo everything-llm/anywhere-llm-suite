@@ -6,7 +6,7 @@
 import { baseUrlOf } from "#shared/anythingllm";
 import { Told } from "#shared/errors";
 import { ahead, find } from "#shared/pagekey";
-import { card, headline } from "./card.ts";
+import { card, changeText, headline } from "./card.ts";
 import type { HandlerContext } from "./host.ts";
 import * as manager from "./manager.ts";
 import { caughtUp, keepWatching, news, pageUrl, publish, refresh, unpublish, upgrade } from "./page.ts";
@@ -41,11 +41,12 @@ function baseOf(self: HandlerContext): string | null {
 
 // A sentence leads into the card rather than a label: a model copies a label line ("Card:") into
 // its reply along with the card.
-const cardBlock = (app: Json, url: string | null): string[] => ["", "Put the card below in your reply exactly as given, with no label or heading.", ...card(app, url)];
+// `change`: what the call changed, which the card's line starts with.
+const cardBlock = (app: Json, url: string | null, change?: string): string[] => ["", "Put the card below in your reply exactly as given, with no label or heading.", ...card(app, url, change)];
 /** The address of an app's page once it has one: under AnythingLLM's address when it's set, else
  *  relative, which AnythingLLM's own chat opens. */
 const urlOf = (self: HandlerContext, app: Json): string | null => pageUrl(app.pageToken, baseOf(self));
-const cardOf = (self: HandlerContext, app: Json): string[] => cardBlock(app, urlOf(self, app));
+const cardOf = (self: HandlerContext, app: Json, change?: string): string[] => cardBlock(app, urlOf(self, app), change);
 
 /** What the agent should still fix about an app's page, as lines; none when nothing. */
 const advice = (app: Json): string[] => [parts.colourNote(app.page, app.rules)].filter(Boolean);
@@ -168,7 +169,8 @@ const ACTIONS = {
     const patch = asJson(p.patch, "patch");
     const fields = asJson(p.fields, "fields");
     const app = await store.change(workspace, p.name, { patch, ev: p.ev, fields, by: job ? "job" : undefined, jobsOnly: named });
-    return [`Done: ${app.history[app.history.length - 1].ev} on ${app.name}.`, ...cardOf(self, app)].join("\n");
+    const done = app.history[app.history.length - 1];
+    return [`Done: ${done.ev} on ${app.name}.`, ...cardOf(self, app, changeText(done))].join("\n");
   },
   read: ({ workspace }, p, self) => {
     if (p.file) {
@@ -207,8 +209,8 @@ const ACTIONS = {
   },
   undo: async ({ workspace }, p, self) => {
     const { app: next, undone, reverted }: Awaited<ReturnType<typeof store.undo>> = p.file ? await store.revert(workspace, p.name, p.file) : await store.undo(workspace, p.name);
-    if (reverted) return [`Put back ${next.name}'s ${reverted.file} as it was before its change at ${reverted.t}.`, ...cardOf(self, next)].join("\n");
-    return [`Took back ${undone.ev} (${undone.t}) on ${next.name}.`, ...cardOf(self, next)].join("\n");
+    if (reverted) return [`Put back ${next.name}'s ${reverted.file} as it was before its change at ${reverted.t}.`, ...cardOf(self, next, `put back ${reverted.file}`)].join("\n");
+    return [`Took back ${undone.ev} (${undone.t}) on ${next.name}.`, ...cardOf(self, next, `took back ${changeText(undone)}`)].join("\n");
   },
   edit: async ({ workspace }, p, self) => {
     const whole = p.find === undefined || p.find === "";
@@ -332,7 +334,7 @@ const SKILL = { hubId: "apps-lean", name: "Artifacts" };
 export const runtime = {
   handler: async function (this: HandlerContext, params: Args = {}): Promise<string> {
     // The pages' key, found or made (#shared/pagekey), before anything writes a page.
-    const said = await find(SKILL, this?.runtimeArgs?.PAGE_KEY, (m) => this?.logger?.(m));
+    const said = await find(SKILL, this?.runtimeArgs, (m) => this?.logger?.(m));
     try {
       // Models fill parameters they don't mean with null: one left out.
       return ahead(said, await run(this, Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== null))));

@@ -5,7 +5,8 @@
 // the password given on the tab's page (sealed with the vault's key, posted as AnythingLLM's
 // collector writes it), take the tab over and sign in by tapping and typing, make a passkey while
 // holding the tab and sign in with it from another tab (the site checking its signature and count),
-// search and look at a stand-in search page, and stay signed in (the site's cookie, kept in the
+// open tabs of the user's own from a tab's page (their own cookies), search and look at a stand-in
+// search page, and stay signed in (the site's cookie, kept in the
 // vault) after the browser closes and starts again.
 // Prints "ok" or throws.
 const assert = require("assert");
@@ -96,6 +97,7 @@ const server = http.createServer((req, res) => {
       const sid = /(?:^|; )sid=(\w+)/.exec(req.headers.cookie || "");
       return res.end(page("Me", sid ? "<p>Signed in.</p>" : "<p>Not signed in.</p>"));
     }
+    if (url.pathname === "/who") return res.end(page(/(?:^|; )sid=\w+/.test(req.headers.cookie || "") ? "Signed in" : "Not signed in", "<p>Who</p>"));
     if (url.pathname === "/login") return res.end(page("Sign in", loginForm()));
     if (url.pathname === "/shadow") return res.end(page("Sign in", `<sign-in></sign-in><script>customElements.define("sign-in", class extends HTMLElement { connectedCallback() { this.attachShadow({ mode: "open" }).innerHTML = ${JSON.stringify(loginForm())}; } });</script>`));
     if (url.pathname === "/show") return res.end(page("Sign in", loginForm(`<label><input type="checkbox" onchange="p.type = this.checked ? 'text' : 'password'"> Show password</label>`)));
@@ -124,7 +126,13 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise((r) => server.listen(PORT, r));
   assert.ok(ImportedPlugin.validateImportedPluginHandler(HUB_ID), "the handler is where AnythingLLM looks");
-  const plugin = ImportedPlugin.loadPluginByHubId(HUB_ID).plugin({ SEARCH_URL: `${SITE}/search?q={q}` });
+  // SEARCH_URL as Settings › Agent Skills saves it, in the skill's plugin.json (which the skill reads
+  // it from), and in the runtimeArgs AnythingLLM reads from there.
+  const pluginJson = path.join(process.env.STORAGE_DIR || `${APP}/storage`, "plugins", "agent-skills", HUB_ID, "plugin.json");
+  const config = JSON.parse(fs.readFileSync(pluginJson, "utf8"));
+  config.setup_args.SEARCH_URL.value = `${SITE}/search?q={q}`;
+  fs.writeFileSync(pluginJson, JSON.stringify(config, null, 2));
+  const plugin = ImportedPlugin.loadPluginByHubId(HUB_ID).plugin({ SEARCH_URL: config.setup_args.SEARCH_URL.value });
   const call = async (args, thread = 7, workspace = "e2e") => {
     let fn;
     const agent = { handlerProps: { invocation: { workspace: { slug: workspace }, thread_id: thread }, log: (m) => console.error(m) }, introspect: () => {}, function: (def) => (fn = def) };
@@ -244,6 +252,39 @@ const server = http.createServer((req, res) => {
   assert.match(await read10(), /Passkey refused: NotAllowedError/, "deleted on the Vault, it signs in no more");
   assert.deepEqual(passkeys.log, ["registered", "registered", "signed in", "signed in"]);
 
+  // ---- The Vault itself, in a real Chrome (the collector's) at a phone's width: the tab's link opens
+  // it on its Logins tab (another tab when the link names it), and a Delete asks first in a sheet over
+  // the inert page, which Esc closes, giving the focus back to the Delete.
+  const puppeteer = require("/app/collector/node_modules/puppeteer");
+  const viewer = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+  try {
+    const vaultAt = `http://127.0.0.1:${process.env.INNER_PORT || 3001}${tabPage(10).state().vault}`;
+    assert.match(vaultAt, /\.html#logins$/);
+    const open = async (url) => {
+      const shown = await viewer.newPage();
+      await shown.setViewport({ width: 390, height: 844 });
+      const errors = [];
+      shown.on("pageerror", (e) => errors.push(e.message));
+      await shown.goto(url, { waitUntil: "load" });
+      await shown.waitForFunction(() => document.querySelector("#logins .row") && [...document.querySelectorAll("nav button")].some((b) => b.getAttribute("aria-selected") === "true"), { timeout: 10_000 });
+      const tabs = await shown.evaluate(() => [...document.querySelectorAll("nav button")].filter((b) => !b.hidden).map((b) => `${b.textContent}${b.getAttribute("aria-selected") === "true" ? " (shown)" : ""}`));
+      return { shown, errors, tabs };
+    };
+    assert.deepEqual((await open(vaultAt.replace(/#logins$/, "#addresses"))).tabs, ["Logins", "Addresses (shown)"], "the tab the link names");
+    const { shown, errors, tabs } = await open(vaultAt);
+    assert.deepEqual(tabs, ["Logins (shown)", "Addresses"], "the tab's link opens it on Logins");
+    await shown.click("#logins .hu-button--danger");
+    const asked = await shown.evaluate(() => [document.querySelector(".sheet h2")?.textContent, document.querySelector("main").inert, document.activeElement.textContent]);
+    assert.match(asked[0] ?? "", /^Delete this (login|passkey)\?$/, "asked first");
+    assert.deepEqual(asked.slice(1), [true, "Keep"], "over the inert page, Keep focused");
+    await shown.keyboard.press("Escape");
+    const closed = await shown.evaluate(() => [!!document.querySelector(".sheet"), document.querySelector("main").inert, document.activeElement.matches("#logins .hu-button--danger")]);
+    assert.deepEqual(closed, [false, false, true], "Esc closes it and gives the focus back");
+    assert.deepEqual(errors, [], "no error on the page");
+  } finally {
+    await viewer.close();
+  }
+
   // ---- Fields in a shadow root, "Show password", a form that needs more than the login, and a new
   // account's "Confirm password".
   const refIn = (text, label) => text.match(new RegExp(`\\[(e\\d+)\\] ${label}`))[1];
@@ -296,6 +337,27 @@ const server = http.createServer((req, res) => {
   assert.match(taken, /Page: Account/, taken);
   assert.doesNotMatch(taken, /still asks for the code/, `${codeRef} on the new page is a link, not the code field`);
   assert.equal(tab17.state().need, null);
+
+  // ---- A tab of the user's own, opened from the chat's tab's page: in a browser context of its own,
+  // so the chat's sign-in isn't there; a search through SEARCH_URL; an address the fence refuses opens
+  // nothing; nothing of it reaches the agent's answers; closed from its page.
+  assert.match(await call({ action: "open", url: `${SITE}/who` }), /Page: Signed in/, "the chat's tab is signed in");
+  const read7 = await seven.post({ ev: "new", q: `${SITE}/who`, made: "e2e-own" });
+  const own = seven.state().tabs.find((t) => t.made === "e2e-own");
+  assert.ok(own && !own.agent, `the user's tab along the top: ${JSON.stringify(seven.state().tabs)}`);
+  const ownTab = tabPage("you-1");
+  assert.equal(ownTab.state().title, "Not signed in", "its own cookies: the chat's sign-in isn't there");
+  assert.equal(ownTab.state().who, "user");
+  assert.ok(!read7.includes(own.path.replace(".html", "")) && !read7.includes("you-1"), "the agent's answer carries nothing of it");
+  await seven.post({ ev: "new", q: "export", made: "e2e-search" });
+  const searched = seven.state().tabs.find((t) => t.made === "e2e-search");
+  assert.equal(JSON.parse(fs.readFileSync(`${APP}/public/browser-lean/${searched.path.replace(".html", ".json")}`, "utf8")).title, "Search", "searched through SEARCH_URL");
+  const fenced = await seven.post({ ev: "new", q: "http://10.1.2.3/", made: "e2e-fenced" });
+  assert.ok(seven.state().msg, `said on the page: ${JSON.stringify({ ...seven.state(), fields: undefined })}\n${fenced.slice(0, 600)}`);
+  assert.match(seven.state().msg.text, /^http:\/\/10\.1\.2\.3 isn’t let through\. Allow it in the Vault, under Addresses/);
+  assert.ok(!seven.state().tabs.some((t) => t.made === "e2e-fenced"), "nothing opened");
+  await ownTab.post({ ev: "close" });
+  assert.ok(!seven.state().tabs.some((t) => t.made === "e2e-own"), "closed, and gone from the top of the chat's tab");
 
   const found = await call({ action: "search", query: "export" });
   assert.match(found, /1\. Docs for export\n {3}http:\/\/localhost:\d+\/docs/, found);

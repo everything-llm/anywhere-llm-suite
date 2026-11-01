@@ -55,18 +55,59 @@ export function render(app: Json, workspace: string, key: string, version = vers
     log: logOf(app),
   };
   const libs = libraries();
+  const page = houseRoot(app.page);
   const inline: Record<string, string> = {
     [RUNTIME_TAG]: `<script id="apps-lean" type="application/json">${embed(lean)}</script>` + HOST_SCRIPTS.map((name) => inlineScript(file(name))).join("") + inlineScript(libs["app.js"]),
-    [tag("app.css")]: inlineStyle(libs["app.css"]),
+    [tag("app.css")]: inlineStyle(libs["house.css"]) + inlineStyle(schemesFor(page, libs["schemes.css"])) + inlineStyle(libs["app.css"]),
     [tag("parts.js")]: inlineScript(libs["parts.js"]),
     [tag("motion.js")]: inlineScript(libs["motion.js"]),
     [tag("motion.css")]: inlineStyle(libs["motion.css"]),
   };
   // The app first: the runtime's own comments mention the placeholder. The libraries go in last,
   // in one pass, so no library's text is read for another's tag.
-  const withApp = app.page.replace(PLACEHOLDER, "AppsLean.app()");
+  const withApp = page.replace(PLACEHOLDER, "AppsLean.app()");
   const named = new RegExp(Object.keys(inline).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
   return withApp.replace(named, (found: string) => inline[found]);
+}
+
+/** House UI's nine schemes: indigo is in the block every page carries, schemes.css has the others. */
+export const SCHEMES = ["indigo", "blue", "teal", "green", "amber", "coral", "rose", "violet", "graphite"];
+/** Each scheme's hue, its accent's in OKLCH (graphite, nearly grey, has none), for a page written
+ *  when app.css took a hue (--accent-h, 272 by default: indigo's) rather than a scheme. */
+const HUES: Record<string, number> = { indigo: 272, blue: 250, teal: 200, green: 150, amber: 69, coral: 32, rose: 355, violet: 302 };
+/** The scheme whose accent is nearest the hue `h` (0 to 360). */
+export const schemeOfHue = (h: number): string => {
+  const off = (s: string) => Math.min(Math.abs(HUES[s] - h) % 360, 360 - (Math.abs(HUES[s] - h) % 360));
+  return Object.keys(HUES).reduce((best, s) => (off(s) < off(best) ? s : best));
+};
+
+/** The page with House UI's root on its <html> (hu-root: House UI's type, ground and sizes, and the
+ *  density by the pointer) and a scheme: the one it names, else the one nearest the --accent-h its
+ *  styles last set (a page written before the schemes), else none, which is indigo. */
+export function houseRoot(page: string): string {
+  return page.replace(/<html\b([^>]*)>/i, (whole, attrs: string) => {
+    let out = attrs;
+    if (!/\sdata-scheme=/i.test(out)) {
+      const styles = [...page.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
+      const hues = [...styles.matchAll(/--accent-h\s*:\s*(-?\d+(?:\.\d+)?)/g)].map((m) => ((Number(m[1]) % 360) + 360) % 360);
+      if (hues.length) out += ` data-scheme="${schemeOfHue(hues[hues.length - 1])}"`;
+    }
+    const cls = /\sclass=(["'])(.*?)\1/i.exec(out);
+    if (!cls) out += ' class="hu-root"';
+    else if (!cls[2].split(/\s+/).includes("hu-root")) out = out.replace(cls[0], ` class=${cls[1]}${cls[2]} hu-root${cls[1]}`);
+    return `<html${out}>`;
+  });
+}
+
+/** schemes.css with only the schemes `page` names in a data-scheme, so a page carries none it doesn't use. */
+export function schemesFor(page: string, css: string): string {
+  const named = new Set([...page.matchAll(/data-scheme=["']?([a-z]+)/g)].map((m) => m[1]));
+  const left = SCHEMES.filter((s) => s !== "indigo" && !named.has(s));
+  const unused = new RegExp(`--(${left.join("|")})-|data-scheme="(${left.join("|")})"`);
+  let out = left.length ? css.split("\n").filter((line) => !unused.test(line)).join("\n") : css;
+  // the layers left with no declarations
+  for (let before = ""; before !== out; ) out = (before = out).replace(/\n[ ]*[^\n{}]+\{\s*\n[ ]*\}/g, "");
+  return out;
 }
 
 const pageFile = (token: string): string => `${HUB_ID}/${token}.html`;

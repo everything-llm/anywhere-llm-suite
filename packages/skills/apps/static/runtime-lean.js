@@ -13,8 +13,29 @@
 // A change sent but not recorded stays applied over newer data, in this browser's storage, until
 // the app lists its id (patched with App.apply, the page's one patch engine). App.log gives the
 // newest changes the page was written with.
+// A page whose <html> has data-picture is a picture: the apps manager draws it small, its HTML the
+// document of a sandboxed frame, and says so. It shows the data it was written with, reads and posts
+// nothing, has no Comment, and tells the frame's parent once it's drawn ("apps-lean:drawn"), so the
+// manager shows it in place of the icon. Any other page, framed or not, is a page.
 var AppsLean = (() => {
   const cfg = JSON.parse(document.getElementById("apps-lean").textContent);
+  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  const native = window.fetch.bind(window);
+  // app.js's two addresses answered by `append` and `sync`; any other, as the browser would.
+  const serve = (append, sync) => {
+    window.fetch = (url, opts) => (url === "lean:append" ? append(JSON.parse(opts.body)) : url === "lean:sync" ? sync(JSON.parse(opts.body)) : native(url, opts));
+  };
+  const app = (data, line) => ({ title: cfg.title, card: cfg.card, data, line, append: "lean:append", sync: "lean:sync" });
+  // App.log asks without waiting: the newest changes, as the page was written with them.
+  const log = (since, line) => answer(200, { line, lines: cfg.log.filter((l) => l.n > (since || 0)) });
+
+  if (document.documentElement.hasAttribute("data-picture")) {
+    serve(() => answer(409, { error: "A picture of the page saves nothing." }), (body) => (body.wait === false ? log(body.since, cfg.line) : new Promise(() => {})));
+    // Drawn: app.js and the parts draw as the page loads, so a moment after it the picture is ready.
+    window.addEventListener("load", () => setTimeout(() => window.parent.postMessage("apps-lean:drawn", "*"), 100));
+    return { app: () => app(cfg.data, cfg.line) };
+  }
+
   const KEY = "apps-lean:" + cfg.workspace + "/" + cfg.app;
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   const keep = () => { try { localStorage.setItem(KEY, JSON.stringify({ pending })); } catch (e) {} };
@@ -31,9 +52,7 @@ var AppsLean = (() => {
     keep();
     return data;
   }
-  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   const uuid = () => (self.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(16).slice(2));
-  const native = window.fetch.bind(window);
 
   /** Posts the change as an event of this app's page, with its secret, as a document AnythingLLM only
    *  stores; relative, as the page is served by AnythingLLM itself at whatever address the user
@@ -71,7 +90,8 @@ var AppsLean = (() => {
     if (!barEl) {
       barEl = document.createElement("div");
       barEl.setAttribute("role", "status");
-      barEl.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:9;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:12px;background:var(--ink,#222);color:var(--panel,#fff);font:15px/1.4 system-ui,sans-serif";
+      barEl.dataset.surface = "inverse"; // House UI's focus ring in the ground's colour
+      barEl.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:9;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:12px;background:var(--ink,#222);color:var(--ground,#fff);font:400 .9375rem/1.4 var(--font-sans,system-ui,sans-serif)";
     }
     if (barEl.dataset.said === text) return;
     barEl.dataset.said = text;
@@ -80,7 +100,7 @@ var AppsLean = (() => {
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = label;
-      b.style.cssText = "min-height:44px;padding:0 14px;border-radius:10px;border:0;font:inherit;font-weight:600";
+      b.style.cssText = "flex:none;min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--accent-soft,#dee5fe);color:var(--ink,#222);box-shadow:none;font:inherit;font-weight:600";
       b.addEventListener("click", act);
       barEl.append(b);
     }
@@ -90,8 +110,7 @@ var AppsLean = (() => {
   const typing = () => { let a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || !!(a && a.isContentEditable); };
   let gone = false;
   async function sync(body) {
-    // App.log asks without waiting: the newest changes, as the page was written with them.
-    if (body.wait === false) return answer(200, { line, lines: cfg.log.filter((l) => l.n > (body.since || 0)) });
+    if (body.wait === false) return log(body.since, line);
     if (gone) return new Promise(() => {}); // nothing more will come
     await pause();
     if (!/^https?:$/.test(location.protocol)) return answer(200, { line: body.since, lines: [] });
@@ -149,40 +168,59 @@ var AppsLean = (() => {
     };
   }
   const outline = (el, on) => { el.style.outline = on ? "3px solid var(--accent, #6a5cff)" : ""; el.style.outlineOffset = on ? "2px" : ""; };
-  // The shut button is a 44 px round icon in the page's top right corner, level with the top of
-  // its content and over it, scrolling away with the page. The page's first block keeps clear of
-  // the corner's 60 px, whatever the app put there.
-  const CORNER = 60;
+  // The shut button is a 44 px round icon in the page's top right corner, 16 px in, level with the top
+  // of its content and over it, scrolling away with the page. The page's first block keeps clear of the
+  // corner's 76 px (the button and 16 px either side of it), whatever the app put there.
+  const CORNER = 76, SIDE = "(var(--pad,20px) - 4px)", MARGIN = "max(0px,(100vw - 40rem) / 2)";
   const clear = document.createElement("style");
   // Wide enough to reach past the button's left edge, and tall enough that what follows starts
   // under it.
-  clear.textContent = `main>:first-child{padding-right:max(0px,calc(${CORNER}px - var(--pad,20px) - max(0px,(100vw - 640px) / 2)));min-height:max(0px,calc(44px - var(--gap,14px)))}` +
-    `main.center>:first-child{padding-left:max(0px,calc(${CORNER}px - var(--pad,20px) - max(0px,(100vw - 640px) / 2)))}`;
+  clear.textContent = `main>:first-child{padding-right:max(0px,calc(${CORNER}px - ${SIDE} - ${MARGIN}));min-height:max(0px,calc(40px - var(--gap,14px)))}` +
+    `main.center>:first-child{padding-left:max(0px,calc(${CORNER}px - ${SIDE} - ${MARGIN}))}`;
   function place() {
     // Open, the tray is on the body too, out of the page's layout. Put back if the page took either out.
     if (host.parentNode !== document.body) document.body.append(host);
     if (!clear.isConnected) (document.head || document.body).append(clear);
   }
+  // The tray's buttons are House UI's: its block, which the page has inline, given to the shadow root
+  // too, where the page's own styles don't reach (its tokens reach it, as inherited values).
+  let adopted = false;
+  function adopt() {
+    if (adopted || !("adoptedStyleSheets" in ui) || typeof CSSStyleSheet !== "function") return;
+    adopted = true;
+    const house = [...document.querySelectorAll("style")].find((s) => s.textContent.startsWith("/* house ui:"));
+    if (!house) return;
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(house.textContent);
+      ui.adoptedStyleSheets = [sheet];
+    } catch (e) {}
+  }
+  const BUTTON = (kind, act, label, on = true) => `<button class="hu-button hu-button--${kind}" data-a="${act}" type="button"${on ? "" : " disabled"}>${label}</button>`;
   function tray() {
     if (!document.body) return;
     place();
+    adopt();
     const open = picking || picks.length;
     ui.innerHTML = `<style>
-      :host{all:initial;display:block}
-      :host{--tile:var(--bg,#fff);--tile-edge:transparent;--shadow-tile:var(--lift,none)}
-      @media (prefers-contrast:more){:host{--tile-edge:var(--edge,#666);--shadow-tile:none}}
-      .b{position:absolute;right:16px;top:var(--pad,20px);z-index:2147483646;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--tile-edge);background:var(--tile);color:var(--ink,#222);box-shadow:var(--shadow-tile);display:flex;align-items:center;justify-content:center}
-      .b:focus-visible{outline:3px solid var(--accent,#6a5cff);outline-offset:3px}
-      .c{padding:6px 12px;border-radius:99px;background:var(--soft,#eef);font-size:14px;font-weight:600}
-      .t{position:fixed;left:0;right:0;bottom:0;z-index:2147483647;max-height:70vh;overflow:auto;padding:14px 16px 18px;border-radius:18px 18px 0 0;background:var(--panel,#fff);color:var(--ink,#222);box-shadow:0 -8px 28px rgba(0,0,0,.18);font:15px/1.45 system-ui,sans-serif;display:flex;flex-direction:column;gap:10px}
+      :host{all:initial;display:block;font-family:var(--font-sans,system-ui,sans-serif);color:var(--ink,#222)}
+      :focus-visible{outline:var(--size-focus,3px) solid var(--focus,var(--accent,#4758d5));outline-offset:3px}
+      .b{position:absolute;right:16px;top:calc(var(--pad,20px) + 12px);z-index:2147483646;box-sizing:border-box;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--tile-edge,transparent);background:var(--tile,#fff);color:var(--ink,#222);box-shadow:var(--shadow-tile,none);display:flex;align-items:center;justify-content:center;cursor:pointer}
+      .t{position:fixed;left:0;right:0;bottom:0;z-index:2147483647;box-sizing:border-box;max-height:70vh;overflow:auto;padding:14px 16px 18px;border:1px solid var(--tile-edge,transparent);border-bottom:0;border-radius:18px 18px 0 0;background:var(--tile,#fff);color:var(--ink,#222);box-shadow:var(--shadow-raised,0 -8px 28px #0002);font-size:.9375rem;line-height:1.45;display:flex;flex-direction:column;gap:10px}
+      .t b{font-weight:600}
       .r{display:flex;gap:8px;justify-content:space-between;align-items:center}
-      button{min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line,#ccc);background:var(--panel,#fff);color:inherit;font:inherit;font-weight:600}
-      .p{background:var(--accent,#6a5cff);color:var(--on-accent,#fff);border:0}
-      textarea{width:100%;box-sizing:border-box;min-height:64px;padding:10px;border-radius:12px;border:1px solid var(--line,#ccc);font:inherit;color:inherit;background:var(--bg,#fff)}
-      small{color:var(--muted,#666)}
+      .cs{display:flex;flex-wrap:wrap;gap:8px}
+      .c{padding:6px 12px;border-radius:var(--radius-pill,999px);background:var(--accent-soft,#dee5fe);color:var(--ink,#222);font-size:.875rem;font-weight:600}
+      label{display:flex;flex-direction:column;gap:6px}
+      small{font-size:.8125rem;color:var(--muted,#555)}
+      small.bad{color:var(--danger,#920810)}
+      .n{font-variant-numeric:tabular-nums}
+      textarea{width:100%;box-sizing:border-box;min-height:64px;padding:10px;border-radius:12px;border:1px solid var(--line-strong,#7f8390);background:var(--ground,#fff);color:var(--ink,#222);font:inherit;resize:vertical}
+      textarea:focus-visible{outline-offset:-3px}
+      textarea::placeholder{color:var(--muted,#555)}
     </style>` + (!open ? `<button class="b" data-a="start" type="button" aria-label="Comment" title="Comment"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5H7.5L4.5 13.5V11h-1A1.5 1.5 0 0 1 2 9.5V4a1.5 1.5 0 0 1 1.5-1.5Z"/></svg></button>` : picking
-      ? `<div class="t" role="dialog" aria-label="Pick what to comment on"><div class="r"><b>Tap what you want to comment on</b><small>${picks.length} of ${PICKS}</small></div><div class="r"><button data-a="cancel" type="button">Cancel</button><button class="p" data-a="describe" type="button"${picks.length ? "" : " disabled"}>${picks.length ? "Comment on " + picks.length + (picks.length === 1 ? " pick" : " picks") : "Pick something first"}</button></div></div>`
-      : `<div class="t" role="dialog" aria-label="Write your comment"><b>${picks.length} picked</b><div class="r" style="flex-wrap:wrap;justify-content:flex-start">${picks.map((p, i) => `<span class="c">${i + 1}. ${esc(p.where.part || p.where.ref || p.where.tag)}${p.where.shown ? ": " + esc(p.where.shown) : ""}</span>`).join("")}</div><label><small>What do you want to say about these?</small><textarea data-text maxlength="${WORDS}" placeholder="A question or a change">${esc(text)}</textarea></label><small>${failed ? esc(failed) : "It goes to the chat as your message, and the agent answers there."}</small><div class="r"><button data-a="back" type="button">Back</button><button class="p" data-a="send" type="button"${text.trim() ? "" : " disabled"}>Send to the chat</button></div></div>`);
+      ? `<div class="t" role="dialog" aria-label="Pick what to comment on"><div class="r"><b>Tap what you want to comment on</b><small class="n">${picks.length} of ${PICKS}</small></div><div class="r">${BUTTON("secondary", "cancel", "Cancel")}${BUTTON("primary", "describe", picks.length ? "Comment on " + picks.length + (picks.length === 1 ? " pick" : " picks") : "Pick something first", picks.length > 0)}</div></div>`
+      : `<div class="t" role="dialog" aria-label="Write your comment"><b>${picks.length} picked</b><div class="cs" role="list" aria-label="Picked on the page">${picks.map((p, i) => `<span class="c" role="listitem">${i + 1}. ${esc(p.where.part || p.where.ref || p.where.tag)}${p.where.shown ? ": " + esc(p.where.shown) : ""}</span>`).join("")}</div><label><small>What do you want to say about these?</small><textarea data-text maxlength="${WORDS}" placeholder="A question or a change">${esc(text)}</textarea></label><small role="status"${failed ? ' class="bad"' : ""}>${failed ? esc(failed) : "It goes to the chat as your message, and the agent answers there."}</small><div class="r">${BUTTON("secondary", "back", "Back")}${BUTTON("primary", "send", "Send to the chat", !!text.trim())}</div></div>`);
   }
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   /** The comment as the user's message: which app and what they picked, by what marks each in
@@ -263,13 +301,9 @@ var AppsLean = (() => {
       new MutationObserver(() => (host.isConnected && clear.isConnected) || !document.body || place()).observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  window.fetch = (url, opts) => {
-    if (url === "lean:append") return append(JSON.parse(opts.body));
-    if (url === "lean:sync") return sync(JSON.parse(opts.body));
-    return native(url, opts);
-  };
+  serve(append, sync);
   return {
     /** The app as app.js's App.start takes it. */
-    app: () => ({ title: cfg.title, card: cfg.card, data: over(cfg.data), line, append: "lean:append", sync: "lean:sync" }),
+    app: () => app(over(cfg.data), line),
   };
 })();

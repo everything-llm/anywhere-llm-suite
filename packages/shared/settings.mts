@@ -11,7 +11,9 @@
 // The file is read at each call, never the call's runtimeArgs: AnythingLLM reads the settings into
 // runtimeArgs once, as it loads the skill for an agent run, and a chat's agent session (its
 // websocket) keeps that run, and those values, until it ends. A value saved meanwhile is in the file
-// only, and a slot emptied by an earlier call is still in the runtimeArgs.
+// only, and a slot emptied by an earlier call is still in the runtimeArgs. Each call's runtimeArgs
+// are kept all the same (keepArgs, by the skill's hubId), for a bundle run where there's no
+// plugin.json (a test): there they're what a setting holds, between calls too (a page's event).
 //
 // AnythingLLM's settings page saves the whole plugin.json as it showed it, so a page left open and
 // saved again puts a slot's old value back. What a slot last gave is kept as a digest in the vault
@@ -26,7 +28,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { storageDir } from "./anythingllm.mts";
+import { perProcess, storageDir } from "./anythingllm.mts";
 import { writeAtomic } from "./atomic.mts";
 import * as vault from "./vault.mts";
 
@@ -60,14 +62,21 @@ function readConfig(hubId: string): Config | null {
   }
 }
 
+/** Each skill's settings as its last call was given them (its runtimeArgs), by hubId. */
+const given = () => perProcess("settings.given", () => new Map<string, Record<string, unknown>>());
+
+/** Keeps the settings a call of the skill `hubId` was given (its runtimeArgs), in place of the last
+ *  call's: #shared/pagekey find does, at the start of every call of every skill. */
+export const keepArgs = (hubId: string, runtimeArgs: Record<string, unknown> | undefined): void => void given().set(hubId, { ...runtimeArgs });
+
 /** What the setting `name` holds now in the skill's plugin.json, trimmed ("" when empty); with no
- *  plugin.json where AnythingLLM keeps the skill (a bundle run elsewhere), what the call was given
- *  (`given`, from its runtimeArgs). Read from the file, not the call: a value saved while an agent
- *  run goes on, or emptied by an earlier call of the same run, is as the file says (see above). */
-export function setting(hubId: string, name: string, given?: string): string {
+ *  plugin.json where AnythingLLM keeps the skill (a bundle run elsewhere), what the skill's last call
+ *  was given (keepArgs), in a call or between calls. Read from the file, not the call: a value saved
+ *  while an agent run goes on, or emptied by an earlier call of the same run, is as the file says (see
+ *  above), and an emptied one stays empty. */
+export function setting(hubId: string, name: string): string {
   const config = readConfig(hubId);
-  if (!config) return String(given ?? "").trim();
-  return String(config.setup_args?.[name]?.value ?? "").trim();
+  return String((config ? config.setup_args?.[name]?.value : given().get(hubId)?.[name]) ?? "").trim();
 }
 
 /** Changes the skill's plugin.json: `change` gets it as it is now, changes it in place and answers

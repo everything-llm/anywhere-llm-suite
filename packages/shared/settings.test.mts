@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
-import { pluginFile, remember, repeated, setSettings, setting } from "./settings.mts";
+import { keepArgs, pluginFile, remember, repeated, setSettings, setting } from "./settings.mts";
 import { bundle } from "./test-helpers.mts";
 import { update } from "./vault.mts";
 
@@ -22,11 +22,30 @@ function installed(hubId: string, args: Record<string, unknown>): string {
   return file;
 }
 
-test("a setting is read from plugin.json as it is now; with no plugin.json, from what the call was given", () => {
-  assert.equal(setting("none-lean", "NEW_KEY", " given "), "given");
+test("a setting is read from plugin.json as it is now; with no plugin.json, from what the skill's last call was given", () => {
+  keepArgs("none-lean", { NEW_KEY: " given " });
+  assert.equal(setting("none-lean", "NEW_KEY"), "given");
+  assert.equal(setting("other-lean", "NEW_KEY"), "", "each skill's own");
   installed("one-lean", { NEW_KEY: arg("password", " k-1 "), KEY_FOR: arg("text") });
-  assert.equal(setting("one-lean", "NEW_KEY", "stale"), "k-1", "the file wins over the call's runtimeArgs");
-  assert.equal(setting("one-lean", "KEY_FOR", "stale"), "", "no value is empty");
+  keepArgs("one-lean", { NEW_KEY: "stale", KEY_FOR: "stale" });
+  assert.equal(setting("one-lean", "NEW_KEY"), "k-1", "the file wins over the call's runtimeArgs");
+  assert.equal(setting("one-lean", "KEY_FOR"), "", "no value is empty");
+});
+
+test("an emptied setting stays empty, whatever an earlier call was given", () => {
+  // In plugin.json: emptied there while a call's runtimeArgs still have it.
+  const file = installed("emptied-lean", { SEARCH_URL: arg("text", "https://search.example/?q={q}") });
+  keepArgs("emptied-lean", { SEARCH_URL: "https://search.example/?q={q}" });
+  assert.equal(setting("emptied-lean", "SEARCH_URL"), "https://search.example/?q={q}");
+  assert.equal(setSettings("emptied-lean", { SEARCH_URL: "" }), true);
+  assert.equal(setting("emptied-lean", "SEARCH_URL"), "", "as the file says, not the runtimeArgs");
+  fs.rmSync(file);
+  // With no plugin.json: the next call's runtimeArgs, emptied, in place of the last's.
+  keepArgs("emptied-lean", { SEARCH_URL: "https://search.example/?q={q}" });
+  keepArgs("emptied-lean", { SEARCH_URL: "" });
+  assert.equal(setting("emptied-lean", "SEARCH_URL"), "");
+  keepArgs("emptied-lean", {});
+  assert.equal(setting("emptied-lean", "SEARCH_URL"), "", "one the call wasn't given is empty too");
 });
 
 test("settings are set in place of their values, only those declared, atomically and with the file's mode", () => {
@@ -55,7 +74,8 @@ test("a skill imported from the Hub, in the folder the Hub's id for it names, fi
   fs.writeFileSync(file, JSON.stringify({ hubId: "e2e0hubitem0id", active: true, setup_args: { NEW_KEY: arg("password", "k-hub") } }));
   const loaded: typeof import("./settings.mts") = createRequire(import.meta.url)(path.join(folder, "handler.js"));
   assert.equal(loaded.pluginFile("hub-lean"), file);
-  assert.equal(loaded.setting("hub-lean", "NEW_KEY", "stale"), "k-hub", "the file beside it, not the call's runtimeArgs");
+  loaded.keepArgs("hub-lean", { NEW_KEY: "stale" });
+  assert.equal(loaded.setting("hub-lean", "NEW_KEY"), "k-hub", "the file beside it, not the call's runtimeArgs");
   assert.equal(loaded.setSettings("hub-lean", { NEW_KEY: "" }), true);
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).setup_args.NEW_KEY.value, "", "emptied there");
   assert.ok(!fs.existsSync(pluginFile("hub-lean")), "nothing by its hubId");

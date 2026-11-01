@@ -351,13 +351,13 @@ test("the Vault lets through no public address, no loopback one and none of Anyt
   const base = { base: "http://192.168.50.2:3001" };
   await call({ action: "library" }, base);
   for (const [origin, why] of [
-    ["http://93.184.216.34", /it's on the public web/],
-    ["http://localhost:8888", /that's a loopback address/],
-    ["http://127.0.0.2:80", /that's a loopback address/],
-    ["http://[::1]:5000", /that's a loopback address/],
+    ["http://93.184.216.34", /is on the public web/],
+    ["http://localhost:8888", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
+    ["http://127.0.0.2:80", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
+    ["http://[::1]:5000", /is AnythingLLM’s own machine\. Use a name or address on your network\./],
     ["https://192.168.50.2", /port 443 of this machine/],
-    ["http://192.168.50.2:3001", /that's AnythingLLM itself/],
-    ["muse-vm:8463", /isn't an address: write its scheme, host and port/],
+    ["http://192.168.50.2:3001", /is AnythingLLM itself/],
+    ["muse-vm:8463", /isn’t an address\. Write its scheme, host and port/],
   ] as const) {
     postVault({ ev: "address-allow", origin }, "addresses");
     await call({ action: "library" }, base);

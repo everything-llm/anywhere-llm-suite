@@ -10,6 +10,7 @@
 import vm from "node:vm";
 import { staticFiles, type StaticFiles } from "#shared/static";
 import { overrides } from "./dirs.ts";
+import { ICONS } from "./icons.ts";
 import { undeclared } from "./names.ts";
 import type { Json } from "./patch.ts";
 
@@ -62,11 +63,13 @@ export function file(name: string): string {
 
 /** A template's page: its own <main> in the shell every template shares (templates/shell.html,
  *  which has no header, so it is no part). A header's `cover` asks the viewport to reach under a
- *  phone's notch, and `untitled` leaves out the h1 the page's title goes into. */
+ *  phone's notch, and `untitled` leaves out the h1 the page's title goes into, and the line under it
+ *  that says the card's summary. */
 const inShell = (header: Json, main: string): string =>
   file("parts/templates/shell.html")
     .replace("@VIEWPORT@", () => (header.cover ? ",viewport-fit=cover" : ""))
     .replace("@TITLE@", () => (header.untitled ? "" : '$("title").textContent = '))
+    .replace("@SUB@", () => (header.untitled ? "" : 'App.onchange(() => ($("sub").textContent = App.summary));\n$("sub").textContent = App.summary;\n'))
     .replace("@MAIN@\n", () => main);
 
 let byName: Record<string, Part> | null = null;
@@ -130,7 +133,7 @@ In this edition (apps-lean), the page has no server of its own: a change is save
 function starterTopic(name: string): string {
   const { line, template: from, parts: used, definition, data } = starter(name)!;
   return `${name} starter: ${line}
-create with {"action": "create", "name": "...", "title": "...", "starter": "${name}"}: the ${from} template with ${partsText(used)}, working as it is. data replaces the keys it names; text (app.json) replaces about, rules, card or schema.
+create with {"action": "create", "name": "...", "title": "...", "starter": "${name}"}: the ${from} template with ${partsText(used)}, working as it is. data replaces the keys it names; text (app.json) replaces about, rules, card, icon or schema.
 app.json: ${JSON.stringify(definition)}
 data: ${JSON.stringify(data)}
 `;
@@ -144,8 +147,9 @@ function topicText(topic: string): string | null {
   // What each class and element looks like: nothing shows the agent the page in a browser; the
   // stylesheet itself is the only way to know that .done strikes text through.
   if (topic === "styles") return file("app.css");
-  // The design rules name icons, but this edition has no icon set.
-  if (topic === "icons") return "This edition has no icon set: leave icon out of app.json.\n";
+  // The names only: AnywhereLLM Lite and the apps manager draw the glyphs.
+  if (topic === "icons")
+    return `icon in app.json is one of these names: ${ICONS.join(", ")}. AnywhereLLM Lite draws its glyph on the card, the apps manager too; pick the one closest to what the artifact is for, or leave it out for the grid.\n`;
   if (topic === "check")
     return "This edition has no browser check: nothing loads the page before the user sees it. Read page.html once against the design rules (guide design) and the finish topic (guide finish) instead, and test what you can by reasoning through the page's script.\n";
   if (topicNames().includes(topic)) return file(`topics/${topic}.md`);
@@ -321,7 +325,7 @@ let libs: Record<string, string> | null = null;
 export function libraries(): Record<string, string> {
   const figures = (): string[] => Object.values(parts()).filter((p) => p.kind === "figure").map((p) => p.body);
   return (libs ??= {
-    "app.js": file("app.js"), "app.css": file("app.css"), "parts.js": [file("parts.js"), ...figures()].join("\n"),
+    "app.js": file("app.js"), "house.css": file("house.css"), "schemes.css": file("schemes.css"), "app.css": file("app.css"), "parts.js": [file("parts.js"), ...figures()].join("\n"),
     "motion.js": file("motion.js"), "motion.css": file("motion.css"),
   });
 }
@@ -344,7 +348,7 @@ export function colourNote(page: unknown, rules: Json = []): string {
   const css = [...page.matchAll(/<style>([\s\S]*?)<\/style>|style="([^"]*)"/g)].map((m) => m[1] ?? m[2]).join("\n").replace(/var\([^()]*(\([^()]*\))?[^()]*\)/g, "");
   const found = [...new Set(css.match(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch)\([^)]*\)|:\s*(white|black)\b/gi) || [])].map((c) => c.replace(/^:\s*/, ""));
   return found.length
-    ? `page.html sets colours of its own (${found.slice(0, 4).join(", ")}), which one of the light and dark themes won't read: use var(--bg), var(--panel), var(--well), var(--line), var(--ink), var(--muted) and var(--accent). If the user asked for a colour, keep it and add a rule tagged [accent] saying so.`
+    ? `page.html sets colours of its own (${found.slice(0, 4).join(", ")}), which one of the light and dark themes won't read: use House UI's roles: var(--ground), var(--tile), var(--sunken), var(--line), var(--ink), var(--muted), var(--accent) and var(--accent-soft), and a scheme on <html data-scheme>. If the user asked for a colour, keep it and add a rule tagged [accent] saying so.`
     : "";
 }
 
