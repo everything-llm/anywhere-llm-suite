@@ -216,11 +216,14 @@ export function live<V extends { until: number }>(map: Map<string, V>, key: stri
 
 /** How long a line for a tab's page stays in its state: past the next few writes, so the page
  *  doesn't miss it. The page shows each line once, by its id. */
-const SAY_MS = 60 * 1000;
+export const SAY_MS = 60 * 1000;
+
+/** A line for a tab's page in place of `before`: an id after its, so the page shows it. */
+export function lineAfter(before: { id: number } | null | undefined, text: string): { text: string; id: number; until: number } {
+  const now = Date.now();
+  return { text, id: Math.max(now, (before?.id ?? 0) + 1), until: now + SAY_MS };
+}
 
 /** Puts `text` on the page of `key`'s tab, in place of the line before. */
-export function say(entry: Entry, key: string, text: string): void {
-  const now = Date.now();
-  entry.msgs.set(key, { text, id: Math.max(now, (entry.msgs.get(key)?.id ?? 0) + 1), until: now + SAY_MS });
-}
+export const say = (entry: Entry, key: string, text: string): void => void entry.msgs.set(key, lineAfter(entry.msgs.get(key), text));
 

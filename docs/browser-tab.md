@@ -55,14 +55,14 @@ The open tabs of every chat (a scheduled job's aren't) are listed in the links f
 
 ### A closed tab's state
 
-A tab that closed (from its page, or with its browser, after its idle time) keeps its page's frame: its pictures are gone, and its state says it closed, with what the frame shows. For two hours its page (`<token>.html`, kept meanwhile) may still ask for a tab of the user's own (`new`, below), and nothing else; the state is written again as the workspace's tabs come and go. After that, or once its chat's thread opens a tab again (the tab's page replaced), the page is gone and the state is `{"closed": true}` alone.
+A tab that closed (from its page, or with its browser, after its idle time) keeps its page's frame: its pictures are gone, and its state says it closed, with what the frame shows. For two hours its page (`<token>.html`, kept meanwhile) may still ask for a tab of the user's own (`new`, below), and nothing else; the state is written again as the workspace's tabs come and go. After that, or once its chat's thread opens a tab again (the tab's page replaced), the page is gone and the state is `{"closed": true}` alone. A scheduled job's tabs have that state as soon as they close.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `closed` | `true` | the tab closed |
 | `until` | number | until when its page may ask for a tab of the user's own, ms since 1970 by AnythingLLM's clock |
 | `tabs` | array | the workspace's open tabs, as an open tab's `tabs` has them (this one isn't among them) |
-| `sites` | array of strings | as an open tab's, with the closed tab's own site after the ones with a saved login |
+| `sites` | array of strings | as an open tab's, with the closed tab's own site first where it isn't there already |
 | `vault` | string or null | as an open tab's |
 | `msg` | `{text, id}` or null | as an open tab's: why a tab it asked for didn't open |
 
@@ -109,7 +109,7 @@ The page's other events (`take`, `give`, `tap`, `scroll`, `type`, `nav` with `do
 
 ## The user's own tabs
 
-From a tab's page the user can open tabs of their own: its + and More › New tab show a new tab's home, where a search or an address (`new`) opens one. Such a tab's key is `you-<n>`, a name no chat's thread has, and it's kept apart from the chats' tabs: in a browser context of its own (its cookies aren't the chats'), in a map the agent's actions never look in, with nothing done in it noted for the agent, and under a token no answer of the agent's carries. Its state has `mine` true and `who` always `"user"`, and never a `need`. It goes through the fence as a chat's tab does; an address the fence refuses is said on the page that asked (`msg`), and noted for the Vault to offer under Allowed addresses.
+From a tab's page the user can open tabs of their own: its + and More › New tab show a new tab's home (where More has New tab alone), where a search or an address (`new`) opens one. Such a tab's key is `you-<n>`, a name no chat's thread has, and it's kept apart from the chats' tabs: in a browser context of its own (its cookies aren't the chats'), in a map the agent's actions never look in, with nothing done in it noted for the agent, and under a token no answer of the agent's carries. Its state has `mine` true and `who` always `"user"`, and never a `need`. It goes through the fence as a chat's tab does; an address the fence refuses is said on the page that asked (`msg`), and noted for the Vault to offer under Allowed addresses.
 
 ## When an answer lands
 

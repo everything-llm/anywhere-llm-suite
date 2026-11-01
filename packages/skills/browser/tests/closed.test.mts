@@ -20,7 +20,7 @@ site("https://mine.example/", { title: "Mine", text: "The user's own page" });
 const HOURS_2 = 2 * 60 * 60 * 1000;
 const file = (token: string, ending: string) => path.join(publicDir, "browser-lean", `${token}${ending}`);
 const stateAt = (token: string): Record<string, any> => JSON.parse(fs.readFileSync(file(token, ".json"), "utf8"));
-const tabsOf = (workspace: string): Record<string, { token: string }> => JSON.parse(fs.readFileSync(path.join(storage, "browser-lean", workspace, "tabs.json"), "utf8"));
+const tabsOf = (workspace: string): Record<string, { token: string; secret: string; closedUntil?: number }> => JSON.parse(fs.readFileSync(path.join(storage, "browser-lean", workspace, "tabs.json"), "utf8"));
 const browsers = () =>
   (globalThis as unknown as Record<symbol, { browsers: Map<string, { yours: Map<string, unknown>; timer: NodeJS.Timeout | null }> }>)[Symbol.for("anywherellm-suite.browser-lean.state")].browsers;
 type Cfg = ReturnType<typeof tabConfig>;
@@ -49,7 +49,7 @@ test("a chat's tab closed from its page keeps its frame, and its page opens a ta
   assert.equal(closed.msg, null);
   assert.ok(fs.existsSync(file(one.token, ".html")), "its page stays, so it opens again with its frame");
   assert.ok(!fs.existsSync(file(one.token, ".jpg")) && !fs.existsSync(file(one.token, "-card.jpg")), "its pictures are gone");
-  assert.equal(tabsOf("shut")["1"], undefined, "its names are dropped: the next tab gets new ones");
+  assert.deepEqual([tabsOf("shut")["1"].token, tabsOf("shut")["1"].closedUntil], [one.token, closed.until], "its names kept in tabs.json, marked closed");
 
   // Nothing but `new`: with another tab's key, the closed page's secret closes nothing.
   postAs({ ...one, tab: "2" }, { ev: "close" });
@@ -95,33 +95,39 @@ test("past its time, a closed tab's page asks for nothing, and its state says on
   const one = tabConfig("shut-late", "1");
   post({ ev: "close" }, { workspace: "shut-late", tab: "1" });
   await call({ action: "guide" });
-  const kept = path.join(storage, "browser-lean", "shut-late", "closed.json");
-  const closed = JSON.parse(fs.readFileSync(kept, "utf8"));
-  assert.deepEqual(Object.keys(closed), [one.token]);
-  assert.equal(closed[one.token].secret, one.secret, "its secret kept in the storage, as tabs.json keeps an open tab's");
-  closed[one.token].until = Date.now() - 1; // two hours on
-  fs.writeFileSync(kept, JSON.stringify(closed));
+  const kept = path.join(storage, "browser-lean", "shut-late", "tabs.json");
+  const tabs = tabsOf("shut-late");
+  assert.equal(tabs["1"].secret, one.secret, "its secret kept, as an open tab's is");
+  tabs["1"].closedUntil = Date.now() - 1; // two hours on
+  fs.writeFileSync(kept, JSON.stringify(tabs));
   postAs(one, asked("mine.example", "l-1"));
   await call({ action: "read" });
   assert.deepEqual(stateAt(one.token), { closed: true });
   assert.ok(!fs.existsSync(file(one.token, ".html")));
-  assert.deepEqual(JSON.parse(fs.readFileSync(kept, "utf8")), {}, "forgotten");
+  assert.equal(tabsOf("shut-late")["1"], undefined, "forgotten");
   assert.equal(browsers().get("shut-late")!.yours.size, 0);
 });
 
 test("a tab whose browser closed, past its idle time or as AnythingLLM restarted, opens one with the browser launched again", async () => {
   await called({ action: "open", url: CHAT }, { workspace: "idle" });
+  post({ ev: "new", q: "mine.example", made: "i-0" }, { workspace: "idle" });
+  await called({ action: "guide" }, { workspace: "idle" });
   const idle = tabConfig("idle", "1");
+  const own = tabConfig("idle", "you-1");
   for (const other of ["idle-2", "idle-3", "idle-4"]) await called({ action: "open", url: OTHER }, { workspace: other }); // past 3 browsers, the oldest closes
   assert.equal(browsers().has("idle"), false, "its browser closed");
   const closed = stateAt(idle.token);
   assert.equal(closed.closed, true);
   assert.deepEqual(closed.tabs, [], "no tab left along the top");
   assert.ok(closed.sites.includes("chat.example"), "its own site, to go back to");
-  postAs(idle, asked("mine.example", "i-1"));
+  postAs(own, asked("mine.example", "i-1"));
   await called({ action: "guide" }, { workspace: "idle-4" });
   assert.equal(browsers().get("idle")?.yours.size, 1, "the browser launched again, with the user's tab");
-  assert.deepEqual(made(stateAt(idle.token)), ["i-1"]);
+  assert.deepEqual(made(stateAt(own.token)), ["i-1"], "asked from the user's own closed tab's page");
+  assert.ok(tabsOf("idle")["you-2"] && tabsOf("idle")["you-1"].token === own.token, "named past the closed you-1, whose page may still ask");
+  postAs(idle, asked("mine.example", "i-2"));
+  await called({ action: "guide" }, { workspace: "idle-4" });
+  assert.deepEqual(made(stateAt(idle.token)), ["i-1", "i-2"], "and from the chat's");
 
   // AnythingLLM restarted: no browser, nothing written, the names still kept and the state as it was.
   await called({ action: "open", url: CHAT }, { workspace: "restart" });
@@ -136,6 +142,7 @@ test("a tab whose browser closed, past its idle time or as AnythingLLM restarted
   postAs(gone, asked("mine.example", "r-early"));
   await called({ action: "guide" }, { workspace: "idle-4" });
   assert.equal(tabsOf("restart")["1"].token, gone.token, "its names kept");
+  assert.equal(tabsOf("restart")["1"].closedUntil, undefined, "and not marked closed");
   assert.equal(stateAt(gone.token).closed, undefined);
   assert.equal(browsers().has("restart"), false, "no browser launched");
   // Its time out, as a restart leaves it: taken for closed then, and its page opens a tab.
@@ -147,5 +154,22 @@ test("a tab whose browser closed, past its idle time or as AnythingLLM restarted
   assert.equal(now.closed, true);
   assert.equal(now.until, until + HOURS_2, "two hours from when its browser would have closed");
   assert.deepEqual(made(now), ["r-1"]);
-  assert.equal(tabsOf("restart")["1"], undefined, "its names dropped");
+  assert.equal(tabsOf("restart")["1"].closedUntil, until + HOURS_2, "marked closed in tabs.json");
+});
+
+test("at most 16 closed tabs' pages of a workspace may ask: the ones that closed last", async () => {
+  const call = (args: Record<string, unknown>, thread: number) => called(args, { workspace: "shut-many", thread });
+  const cfgs: Cfg[] = [];
+  for (let thread = 1; thread <= 17; thread++) {
+    await call({ action: "open", url: CHAT }, thread);
+    cfgs.push(tabConfig("shut-many", String(thread)));
+    post({ ev: "close" }, { workspace: "shut-many", tab: String(thread) });
+    await call({ action: "guide" }, thread);
+    await new Promise((r) => setTimeout(r, 2)); // each closed after the one before
+  }
+  const closed = Object.values(tabsOf("shut-many")).filter((n) => n.closedUntil);
+  assert.equal(closed.length, 16);
+  assert.deepEqual(stateAt(cfgs[0].token), { closed: true }, "the first to close is dead");
+  assert.equal(stateAt(cfgs[16].token).closed, true);
+  assert.ok(stateAt(cfgs[16].token).until, "the last may still ask");
 });
