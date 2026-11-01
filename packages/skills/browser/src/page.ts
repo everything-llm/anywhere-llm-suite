@@ -76,6 +76,9 @@ type Read = { snap: Snap; title: string };
 type Names = { token: string; secret: string; closedUntil?: number; host?: string; vault?: string; msg?: Line };
 type Line = ReturnType<typeof lineAfter>;
 
+/** A line as the page reads it: its words, its id (shown once by), and `done` when it says what was done. */
+const shownLine = (line: Line) => ({ text: line.text, id: line.id, ...(line.done ? { done: true } : {}) });
+
 const tabsFile = (workspace: string) => path.join(workspaceDir(workspace), "tabs.json");
 /** A tab's file in the public folder, by its ending: a picture's (PICTURES), ".json" or ".html". */
 const pub = (token: string, ending: string) => `browser-lean/${token}${ending}`;
@@ -146,7 +149,7 @@ const stamped = () => perProcess("browser-lean.stamped", () => new Map<string, s
  *  workspace's open tabs along the top (`tabs`), Your sites (`shown`) with its own first, the Vault's
  *  link (none while the links are kept from the agent) and the skill's line while it lasts. */
 function closedState(n: Names, tabs: StripTab[], shown: string[]) {
-  const msg = n.msg && n.msg.until > Date.now() ? { text: n.msg.text, id: n.msg.id } : null;
+  const msg = n.msg && n.msg.until > Date.now() ? shownLine(n.msg) : null;
   const sites = n.host && !shown.includes(n.host) ? [n.host, ...shown].slice(0, 12) : shown;
   return { closed: true, until: n.closedUntil, tabs, sites, vault: linksHidden() ? null : (n.vault ?? null), msg };
 }
@@ -179,7 +182,7 @@ function sayClosed(workspace: string, key: string, text: string): void {
   try {
     saveTabs(workspace, tabs);
     const st = JSON.parse(readPublic(pub(n.token, ".json")) ?? "null");
-    if (st?.closed) writePublic(pub(n.token, ".json"), JSON.stringify({ ...st, msg: { text: n.msg.text, id: n.msg.id } }));
+    if (st?.closed) writePublic(pub(n.token, ".json"), JSON.stringify({ ...st, msg: shownLine(n.msg) }));
   } catch {
     // no folder to write in
   }
@@ -404,7 +407,7 @@ function tabState(at: Tab, names: Names, title: string, url: string, snap: Snap,
     fields: held ? snap.fields : [],
     need: need ? { kind: need.kind, host: need.host, text: need.text, label: need.label ?? null, hasUser: !!need.userRef, confirm: !!need.confirmRef, until: need.until } : null,
     offer: takeover.shownOffer(at.entry, at.key),
-    msg: msg && { text: msg.text, id: msg.id },
+    msg: msg && shownLine(msg),
     vault: vaultLink,
   };
 }

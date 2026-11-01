@@ -59,7 +59,7 @@ async function step(e: Record<string, unknown>, at: Tab): Promise<boolean> {
       if (!hold || at.owner === "user") return false; // a tab the user opened is never the agent's
       entry.holds.delete(key);
       note(at, "the user had the tab and handed it back to you; what they typed stays hidden. Read the page before going on");
-      say(at.entry, at.key, "Handed back to the agent");
+      say(at.entry, at.key, "Handed back to the agent", true);
       return true;
     case "tap": {
       const { width, height } = page.viewport() ?? { width: 1, height: 1 };
@@ -127,7 +127,7 @@ async function answerOffer(at: Tab, save: boolean): Promise<boolean> {
     await passkey.spread(offer.credential, at.page);
     note(at, `the user saved the passkey ${offer.site} made; the next time its sign-in asks for a passkey, it signs in by itself`);
   } else if (save) await logins.save(offer.site, offer.user, offer.pass);
-  say(at.entry, at.key, save ? `Saved for ${offer.site}` : "Not saved");
+  say(at.entry, at.key, save ? `Saved for ${offer.site}` : "Not saved", true);
   return true;
 }
 

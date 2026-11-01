@@ -807,9 +807,12 @@ input{font:inherit;color:var(--ink)}
 [hidden]{display:none!important}
 main{max-width:640px;margin:0 auto;padding:calc(var(--space-4) + env(safe-area-inset-top,0px)) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-8) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:var(--space-4)}
 .lead,.cap{margin:0;padding:0 var(--space-2);font-size:.8125rem;line-height:1.4;color:var(--ink)}
-.seg{display:flex;padding:3px;border-radius:var(--radius-md);background:var(--sunken)}
-.seg button{flex:1;min-height:var(--control-h);padding:0 var(--space-1);border-radius:var(--radius-sm);font-size:.8125rem;line-height:1.2;text-align:center;white-space:nowrap;color:var(--ink)}
-.seg [aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1.5px var(--line-strong);font-weight:600}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:3px;border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--sunken)}
+.seg button{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);min-width:44px;min-height:var(--control-h);padding:0 var(--space-2);border-radius:calc(var(--radius-md) - 3px);font:600 1rem/1.25 var(--font-sans);text-align:center;overflow-wrap:break-word;color:var(--ink)}
+.seg button svg{flex:none}
+.seg button:not([aria-selected="true"]) svg{display:none}
+.seg [aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+@media (forced-colors:active){.seg [aria-selected="true"]:not(:focus-visible){outline:2px solid Highlight;outline-offset:-2px}}
 section{display:flex;flex-direction:column;gap:var(--space-4)}
 .grp{display:flex;flex-direction:column;gap:var(--space-4)}
 .grp:empty{display:none}
@@ -817,25 +820,29 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 .card{background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);padding:0 var(--space-5);display:flex;flex-direction:column;box-shadow:var(--shadow-tile)}
 .card>*+*{border-top:1px solid var(--line)}
 .need{border-color:var(--accent);box-shadow:none}
-.row{min-height:calc(var(--row-h) + var(--space-3));display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) 0}
-.who{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row{min-height:calc(var(--row-h) + var(--space-3));display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);padding:var(--space-2) 0}
+.who{flex:1 1 10rem;min-width:0;display:flex;flex-direction:column;gap:2px}
 .who b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
-.who small{font-family:var(--font-mono);font-size:.8125rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.addr .who b{font-family:var(--font-mono);font-size:.9375rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-family:var(--font-mono);font-size:.8125rem;color:var(--ink);overflow-wrap:anywhere}
+.addr .who b{font-family:var(--font-mono);font-size:.9375rem;font-weight:500}
+.row.stack{flex-direction:column;align-items:stretch;gap:var(--space-2);padding:var(--space-3) 0}
+.row.stack>.who{flex:none}
+.ends{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .addr .who small{font-family:var(--font-sans);color:var(--ink)}
 .row .hu-button{flex:none}
-.tag{flex:none;padding:2px var(--space-2);border-radius:var(--radius-xs);font-size:.8125rem;background:var(--warning-soft);color:var(--warning)}
-.tag.ok{background:var(--success-soft);color:var(--success)}
+.tag{flex:none;display:inline-flex;align-items:center;gap:var(--space-1);padding:2px var(--space-2);border-radius:var(--radius-xs);font-size:.8125rem;background:var(--sunken);color:var(--ink)}
+.tag.bad{background:var(--warning-soft)}
+.tag.bad svg{color:var(--warning)}
 summary{list-style:none;cursor:pointer}
 summary::-webkit-details-marker{display:none}
 summary .chev{flex:none;color:var(--muted);transition:transform var(--duration-done) var(--ease-out)}
 details[open] summary .chev{transform:rotate(180deg)}
 @media (prefers-reduced-motion:reduce){summary .chev{transition:none}}
 .body{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-1) 0 var(--space-5)}
-.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px var(--space-4);margin:0;font-size:.8125rem}
-.kv dt{color:var(--ink);align-self:center}
-.kv dd{margin:0;font-family:var(--font-mono);font-size:.9375rem;color:var(--ink);overflow-wrap:anywhere;align-self:center}
-.kv dd.line{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{display:flex;flex-direction:column;gap:2px;margin:0;font-size:.8125rem}
+.kv dt{color:var(--ink)}
+.kv dd+dt{margin-top:var(--space-2)}
+.kv dd{margin:0;font-family:var(--font-mono);font-size:.9375rem;color:var(--ink);overflow-wrap:anywhere}
 .say{margin:0;font-size:.8125rem;line-height:1.4;color:var(--ink)}
 form{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
 .card>form{padding:var(--space-4) 0 var(--space-5)}
@@ -843,6 +850,10 @@ form{display:flex;flex-direction:column;gap:var(--space-3);margin:0}
 .ff>span,.ff>label{padding:0 var(--space-2);font-size:.8125rem;color:var(--ink)}
 .fld{width:100%;min-height:calc(var(--control-h) + var(--space-2));padding:0 var(--space-4);border-radius:var(--radius-md);border:1px solid var(--line-strong);background:var(--ground);color:var(--ink);font-size:1rem}
 .fld.mono{font-family:var(--font-mono);font-size:.9375rem}
+.fld[aria-invalid="true"]{border-color:var(--danger)}
+.err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
+.err svg{flex:none;margin-top:1px}
+.err:empty{display:none}
 input::placeholder{color:var(--muted);opacity:1}
 .peek{position:relative}
 .peek .fld{padding-right:76px}
@@ -859,34 +870,48 @@ input::placeholder{color:var(--muted);opacity:1}
 .q h2{margin:0 0 6px;font:600 1.25rem/1.3 var(--font-display)}
 .q p{margin:0;font-size:1rem;line-height:1.5;color:var(--ink)}
 .two{display:flex;gap:var(--space-3)}
-.two button{flex:1;min-height:calc(var(--control-h) + var(--space-2));padding:0 var(--space-3);border-radius:var(--radius-md);background:var(--tile);font:600 1rem/1.25 var(--font-sans)}
+.two button{flex:1;min-width:0;min-height:calc(var(--control-h) + var(--space-2));padding:var(--space-1) var(--space-3);border-radius:var(--radius-md);background:var(--tile);font:600 1rem/1.25 var(--font-sans);overflow-wrap:anywhere}
 .two .keep{border:2px solid var(--accent);color:var(--ink)}
 .two .go{border:1px solid var(--danger);padding:0 var(--space-4);color:var(--danger)}
 @keyframes rise{from{transform:translateY(100%)}}
 @keyframes fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
 @media (hover:hover){.hu-button:not(.hu-button--primary):hover,.peek button:hover,.two button:hover{background:var(--sunken)}}
-#toast{position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:5;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
-#toast:not([hidden]){display:flex;align-items:center;gap:var(--space-2)}
-#toast>span{flex:1;min-width:0}
-#toast>button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:var(--ground);font:700 1rem/1 var(--font-sans);cursor:pointer}
-#toast>button[hidden]{display:none}
+/* page messages: the toast and the banners, as the script's block of that name writes them; the same
+   in every suite page (shared/messages.test.mts). An empty toast draws nothing and stays in the page. */
+#toast{--focus:var(--ground);position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:var(--space-2);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
+#toast:empty{opacity:0;pointer-events:none}
+#toast>span{flex:1;min-width:0;overflow-wrap:anywhere}
+#toast>button,#banners .shut{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:inherit;font:700 1rem/1 var(--font-sans);cursor:pointer}
 #toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
+#banners{display:flex;flex-direction:column;gap:var(--space-2)}
+#banners:empty{display:none}
+#banners>div{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-1) var(--space-3) var(--space-4);border:1px solid var(--tile-edge);border-radius:var(--radius-md);background:var(--danger-soft);color:var(--ink);font:400 1rem/1.5 var(--font-sans);text-align:start}
+#banners>div>svg{flex:none;margin-top:2px;color:var(--danger)}
+#banners>.warning{background:var(--warning-soft)}
+#banners>.warning>svg{color:var(--warning)}
+#banners>.info{background:var(--info-soft)}
+#banners>.info>svg{color:var(--info)}
+#banners p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+#banners .shut{margin:calc(-1 * var(--space-2)) 0;padding:0}
+@media (forced-colors:active){#toast,#banners>div{border-color:CanvasText}}
+/* end of page messages */
 </style>
 </head>
 <body class="hu-root">
 <main>
+  <div id="banners"></div>
   <p class="lead">Encrypted on your server. The agent never sees these.</p>
   <nav class="seg" role="tablist" aria-label="Show">
-    <button role="tab" data-tab="keys" hidden>Keys</button>
-    <button role="tab" data-tab="logins" hidden>Logins</button>
-    <button role="tab" data-tab="addresses" hidden>Addresses</button>
+    <button role="tab" data-tab="keys" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Keys</button>
+    <button role="tab" data-tab="logins" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Logins</button>
+    <button role="tab" data-tab="addresses" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Addresses</button>
   </nav>
   <section id="keys" hidden><div class="grp" id="apikeys"></div><div class="grp" id="signing"></div></section>
   <section id="logins" hidden></section>
   <section id="addresses" hidden></section>
 </main>
-<div id="toast" role="status" hidden><span></span><button type="button" class="undo" hidden>Undo</button><button type="button" class="shut" aria-label="Close" hidden></button></div>
+<div id="toast" role="status"></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -895,27 +920,75 @@ input::placeholder{color:var(--muted);opacity:1}
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...kids) => { const node = Object.assign(document.createElement(tag), props); node.append(...kids.filter((kid) => kid !== null && kid !== undefined && kid !== false)); return node; };
   const icon = (d, size = 18) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("width", size); s.setAttribute("height", size); s.setAttribute("viewBox", "0 0 16 16"); s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "1.6"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round"); s.setAttribute("aria-hidden", "true"); s.innerHTML = `<path d="${d}"/>`; return s; };
-  // ---- The toast: what was sent or done, or a refusal, for 4 s. One with `undo` ({ undo, send })
-  // holds what it undoes, unsent, and stays with Undo and Close until one is pressed, another toast
-  // takes its place, or the page is left: then what it holds is sent. Undo has no timer to beat.
-  let toastTimer = 0, held = null;
-  const toastBox = $("toast"), [toastText, undoButton, shutButton] = toastBox.children;
-  shutButton.append(icon("M4 4l8 8M12 4l-8 8", 20));
-  const hideToast = () => { toastBox.hidden = true; clearTimeout(toastTimer); };
-  const sendHeld = () => { const was = held; held = null; was?.send(); };
-  function toast(text, undo = null) {
-    sendHeld();
-    toastText.textContent = text;
-    undoButton.hidden = shutButton.hidden = !undo;
-    toastBox.hidden = false;
-    clearTimeout(toastTimer);
-    if (undo) held = undo;
-    else toastTimer = setTimeout(hideToast, 4000);
-  }
-  undoButton.onclick = () => { const was = held; held = null; hideToast(); was?.undo(); };
-  shutButton.onclick = () => { hideToast(); sendHeld(); };
-  addEventListener("pagehide", () => { hideToast(); sendHeld(); });
-  document.addEventListener("visibilitychange", () => document.hidden && held && (hideToast(), sendHeld()));
+
+  /* page messages: the toast and the banners. toast(text) says what was just done ("Sent", "Copied")
+     for 6 s, or 2 s and 0.7 s a word when that is longer. toast(text, { undo, send }) holds what it
+     undoes, unsent, and stays with Undo and Close, with no timer, until one is pressed, another toast
+     takes its place, or the page is left: then what it holds is sent. It answers its Undo, to focus.
+     The toast (#toast, role="status") is in the page from the start, empty, and is never hidden: a
+     toast is written into it and emptied out of it. banner(text, { kind, key }) is an error, or what to
+     do about one: it stays near the top (#banners), with its icon and a Close, until it is closed. One
+     of the same `key` takes the place of the one before (the same words are said once), and
+     unbanner(key) takes it away once it no longer holds. The same block in every suite page, as
+     shared/vault.html has it (shared/messages.test.mts keeps them the same). */
+  const { toast, banner, unbanner } = (() => {
+    const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+    const CLOSE = svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+    // House UI's status shapes: danger a square with a cross, warning a triangle, info a circle with an i.
+    const SIGN = {
+      danger: svg('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+      warning: svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+      info: svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    };
+    const button = (className, label, drawn = "") => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className });
+      if (drawn) (b.innerHTML = drawn), b.setAttribute("aria-label", label);
+      else b.textContent = label;
+      return b;
+    };
+    const box = document.getElementById("toast"), list = document.getElementById("banners");
+    let timer = 0, held = null;
+    const empty = () => { clearTimeout(timer); box.replaceChildren(); };
+    const send = () => { const was = held; held = null; was?.send(); };
+    const lasts = (text) => Math.max(6000, 2000 + 700 * String(text).trim().split(/\s+/).length);
+    function toast(text, undo = null) {
+      send();
+      empty();
+      const line = Object.assign(document.createElement("span"), { textContent: text });
+      if (!undo) return box.append(line), (timer = setTimeout(empty, lasts(text))), null;
+      held = undo;
+      const again = button("undo", "Undo"), shut = button("shut", "Close", CLOSE);
+      again.onclick = () => { const was = held; held = null; empty(); was?.undo(); };
+      shut.onclick = () => { empty(); send(); };
+      box.append(line, again, shut);
+      return again;
+    }
+    addEventListener("pagehide", () => { empty(); send(); });
+    document.addEventListener("visibilitychange", () => document.hidden && held && (empty(), send()));
+    const find = (key) => [...list.children].find((b) => b.dataset.key === key);
+    // Closed, the focus goes to the next banner's Close, else to the first control after the banners.
+    const after = () => [...document.querySelectorAll("button, a[href], input, textarea, [tabindex]")].find((control) => list.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING && !control.disabled && control.getClientRects().length);
+    function banner(text, { kind = "danger", key = text } = {}) {
+      const was = find(key);
+      if (was?.dataset.text === text) return was;
+      const node = Object.assign(document.createElement("div"), { className: kind, innerHTML: SIGN[kind] ?? SIGN.danger });
+      Object.assign(node.dataset, { key, text });
+      node.setAttribute("role", kind === "info" ? "status" : "alert");
+      const shut = button("shut", "Close", CLOSE);
+      shut.onclick = () => {
+        const next = [...list.children].find((b) => b !== node);
+        node.remove();
+        (next?.querySelector(".shut") ?? after())?.focus();
+      };
+      node.append(Object.assign(document.createElement("p"), { textContent: text }), shut);
+      if (was) was.replaceWith(node);
+      else list.prepend(node);
+      return node;
+    }
+    const unbanner = (key) => void find(key)?.remove();
+    return { toast, banner, unbanner };
+  })();
+  /* end of page messages */
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -982,12 +1055,13 @@ input::placeholder{color:var(--muted);opacity:1}
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: "vault-lean-" + section, docSource: "vault-lean page" } }),
       });
       // Not the canvas's install --page-key: the pages' key is the user's, pasted into a skill's PAGE_KEY.
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`), false;
+      if (!res.ok) return banner(res.status === 403 ? "AnythingLLM refused this page’s key. Make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page." : `AnythingLLM answered ${res.status}. Try again in a moment.`, { key: "post" }), false;
+      unbanner("post"), unbanner("reach");
       if (!quiet) toast("Sent");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Try again in a moment.");
+      banner("Can’t reach AnythingLLM. Try again in a moment.", { key: "reach" });
       return false;
     }
   }
@@ -1008,13 +1082,16 @@ input::placeholder{color:var(--muted);opacity:1}
     return ["h1", b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, aes)), b64(iv), b64(sealed)].join(".");
   }
 
-  // A labelled field. Not a login form: a password field asks for a new value (so the browser fills
+  // A labelled field, with its message slot under it (`said[name]`, empty until the field is wrong). Not a login form: a password field asks for a new value (so the browser fills
   // in no saved password, nor a user name beside it), and names hold nothing a browser reads as one.
   // A password field has Show at its end, which shows what was typed until Hide; it is heard with
   // the first word of the label ("Show key").
-  const field = (inputs, name, label, type = "text", mono = false, placeholder = "") => {
+  const field = (inputs, said, name, label, type = "text", mono = false, placeholder = "") => {
     const input = (inputs[name] = el("input", { type, name: `vault-${name}-${Math.random().toString(36).slice(2, 8)}`, autocomplete: type === "password" ? "new-password" : "off", autocapitalize: "off", spellcheck: false, placeholder, className: mono ? "fld mono" : "fld" }));
-    if (type !== "password") return el("label", { className: "ff" }, el("span", { textContent: label }), input);
+    const slot = (said[name] = el("span", { className: "err", id: input.name + "-err" }));
+    slot.setAttribute("role", "alert");
+    input.setAttribute("aria-describedby", slot.id);
+    if (type !== "password") return el("label", { className: "ff" }, el("span", { textContent: label }), input, slot);
     input.id = input.name;
     const what = label.split(/[\s,]/)[0].toLowerCase();
     const show = el("button", { type: "button" });
@@ -1026,27 +1103,43 @@ input::placeholder{color:var(--muted);opacity:1}
     };
     show.onclick = () => reveal(input.type === "password");
     reveal(false);
-    return el("div", { className: "ff" }, el("label", { htmlFor: input.id, textContent: label }), el("div", { className: "peek" }, input, show));
+    return el("div", { className: "ff" }, el("label", { htmlFor: input.id, textContent: label }), el("div", { className: "peek" }, input, show), slot);
   };
 
   /** A form of `fields` ([name, label, type?, mono?, placeholder?]) that sends with `submit`;
-   *  `onsubmit` answers whether it went, which clears it and hides any field shown. A label is a
+   *  `onsubmit(values, fail)` answers whether it went, which clears it and hides any field shown.
+   *  `fail(name, text)` says what's wrong under that field and marks it invalid (it answers false);
+   *  the first field marked is focused, as the Library's add form does. A label is a
    *  word or two; its example is the placeholder. `values` are what its fields start with; with
    *  `kept` (a draft), what's typed in its fields but a password field's stays on this device until
    *  it went. */
   function form(fields, submit, onsubmit, { values = {}, kept = null } = {}) {
-    const inputs = {};
-    const node = el("form", {}, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, name, label, type, mono, placeholder)), el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
+    const inputs = {}, said = {};
+    const node = el("form", { noValidate: true }, ...fields.map(([name, label, type, mono, placeholder]) => field(inputs, said, name, label, type, mono, placeholder)), el("button", { className: "hu-button hu-button--primary", type: "submit", textContent: submit }));
     for (const [name, value] of Object.entries(values)) inputs[name].value = value;
     if (kept) for (const [name, , type] of fields) if (type !== "password") kept.keep(inputs[name], name);
     node.addEventListener("reset", () => { for (const b of node.querySelectorAll('.peek [aria-pressed="true"]')) b.click(); });
+    const clear = () => {
+      for (const slot of Object.values(said)) slot.replaceChildren();
+      for (const input of Object.values(inputs)) input.removeAttribute("aria-invalid");
+    };
+    const bad = [];
+    const fail = (name, text) => {
+      said[name].replaceChildren(icon("M8 2.5l6.5 11h-13zM8 6.5v3M8 11.5v.01", 16), el("span", { textContent: text }));
+      inputs[name].setAttribute("aria-invalid", "true");
+      bad.push(inputs[name]);
+      return false;
+    };
     node.onsubmit = async (e) => {
       e.preventDefault();
+      clear();
+      bad.length = 0;
       const v = Object.fromEntries(Object.entries(inputs).map(([k, i]) => [k, i.value.trim()]));
       try {
-        if (await onsubmit(v)) node.reset(), kept?.clear();
+        if (await onsubmit(v, fail)) node.reset(), kept?.clear();
+        else bad[0]?.focus();
       } catch (err) {
-        toast(err.message);
+        banner(err.message, { key: "form" });
       }
     };
     return node;
@@ -1102,8 +1195,11 @@ input::placeholder{color:var(--muted);opacity:1}
     return del;
   }
 
-  /** A row of a card: its name over its detail (mono), then `end`, a Delete or a tag. */
+  /** A row of a card: its name over its detail (mono), then `end`, a tag. */
   const row = (name, detail, ...end) => el("div", { className: "row" }, el("div", { className: "who" }, el("b", { textContent: name }), el("small", { textContent: detail })), ...end);
+  /** A row whose buttons act on its name: they go under it, so the name and its detail have the row's
+   *  whole width and show in full, a mono value broken anywhere. */
+  const stacked = (name, detail, ...buttons) => el("div", { className: "row stack" }, el("div", { className: "who" }, el("b", { textContent: name }), el("small", { textContent: detail })), el("div", { className: "ends" }, ...buttons));
 
   // ---- Keys and signing keys: the library's section, a group each on the Keys tab. A form left
   // with a draft (the page was reloaded) is open again, its text in it.
@@ -1162,16 +1258,15 @@ input::placeholder{color:var(--muted);opacity:1}
       },
       // Not sent: the request stands, and shows again.
       send: () => post("keys", "need-drop", { id: n.id, label: n.label }, { quiet: true }).then((sent) => sent || (dropped.delete(n.id), again())),
-    });
-    undoButton.focus();
+    })?.focus();
   }
 
   function drawKeys(ks) {
     const keys = $("apikeys");
     if (!reopened) (reopened = true), (renaming ??= [...ks.secrets, ...(ks.signing ?? [])].find((k) => renameDraft(k).has())?.label ?? null);
     const needs = ks.needs.filter((n) => !dropped.has(n.id) && Date.now() - n.at < DAY).map((n) => {
-      const f = form([["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
-        if (!v.value) return toast("Paste the key first"), false;
+      const f = form([["value", "Key", "password", false, "Paste the key"]], "Save key", async (v, fail) => {
+        if (!v.value) return fail("value", "Paste the key.");
         return post("keys", "key-save", { label: n.label, site: n.site, sealed: await seal(v.value) });
       });
       // The headline names the site, so the request needs no Name or Site row; under it, the chat
@@ -1186,13 +1281,16 @@ input::placeholder{color:var(--muted);opacity:1}
     });
     const saved = ks.secrets.map((k) => {
       if (renaming === k.label) return renameForm(k, ks);
-      const del = remove([`Delete the key ${shownAs(k)}?`, `The agent can’t call ${k.site} with it after.`], `Delete the key ${shownAs(k)}`, () => post("keys", "key-delete", { label: k.label }));
-      return row(shownAs(k), ownName(k, k.site), renameButton(k, ks), del);
+      const del = remove([`Delete the key ${shownAs(k)}?`, `The agent can’t call ${k.site} with it after. This can’t be undone.`], `Delete the key ${shownAs(k)}`, () => post("keys", "key-delete", { label: k.label }), { yes: `Delete ${shownAs(k)}` });
+      return stacked(shownAs(k), ownName(k, k.site), renameButton(k, ks), del);
     });
-    const addForm = form([["label", "Name", "text", false, "github"], ["site", "Site", "text", true, "api.github.com"], ["value", "Key", "password", false, "Paste the key"]], "Save key", async (v) => {
-      if (!v.value || !v.label || !v.site) return toast("Fill in every field"), false;
+    const addForm = form([["label", "Name", "text", false, "github"], ["site", "Site", "text", true, "api.github.com"], ["value", "Key", "password", false, "Paste the key"]], "Save key", async (v, fail) => {
+      if (!v.label) fail("label", "Give the key a name, like github.");
+      if (!v.site) fail("site", "Give the site it’s for, like api.github.com.");
+      if (!v.value) fail("value", "Paste the key.");
+      if (!v.value || !v.label || !v.site) return false;
       const taken = named(ks, v.label);
-      if (taken?.kind === "signing") return toast("A signing key has that name. Use another."), false;
+      if (taken?.kind === "signing") return fail("label", "A signing key has that name. Use another.");
       const went = await post("keys", "key-save", { label: v.label, site: v.site, sealed: await seal(v.value) });
       if (went) (adding = false), drawKeys(ks);
       return went;
@@ -1216,30 +1314,33 @@ input::placeholder{color:var(--muted);opacity:1}
   function drawSigning(ks) {
     const list = ks.signing ?? [];
     const items = list.map((g) => {
-      const del = remove([`Delete the signing key ${g.label}?`, "It can’t be made again. Anything that checks its signatures will need a new public key."], `Delete the signing key ${g.label}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key" });
+      const del = remove([`Delete the signing key ${shownAs(g)}?`, "It can’t be made again. Anything that checks its signatures will need a new public key. This can’t be undone."], `Delete the signing key ${shownAs(g)}`, () => post("keys", "signing-delete", { label: g.label }), { text: "Delete signing key", yes: `Delete ${shownAs(g)}` });
       // The open row shows the fingerprint, and the public key itself only where it can't be copied:
       // the clipboard needs https, and a refusal shows it too.
       const canCopy = !!(window.isSecureContext && navigator.clipboard);
       const pub = [el("dt", { textContent: "Public key", hidden: canCopy }), el("dd", { textContent: g.public, hidden: canCopy })];
-      const facts = el("dl", { className: "kv" }, ...(g.fingerprint ? [el("dt", { textContent: "Fingerprint" }), el("dd", { className: "line", title: g.fingerprint, textContent: g.fingerprint })] : []), ...pub);
+      const facts = el("dl", { className: "kv" }, ...(g.fingerprint ? [el("dt", { textContent: "Fingerprint" }), el("dd", { textContent: g.fingerprint })] : []), ...pub);
       const copy = g.public && canCopy && el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Copy public key", onclick: async () => {
         try { await navigator.clipboard.writeText(g.public); toast("Copied"); } catch (e) {
           for (const x of pub) x.hidden = false;
           copy.hidden = true; // the public key shows in its place, to select by hand
-          toast("Can’t copy here. Select the public key and copy it.");
+          banner("Can’t copy here. Select the public key and copy it.", { kind: "info" });
         }
       } });
       const jobs = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: g.unattended ? "Stop it signing in scheduled jobs" : "Let it sign in scheduled jobs", onclick: () => post("keys", "signing-unattended", { label: g.label, on: !g.unattended }) });
-      const tag = el("span", { className: "tag" + (g.public ? " ok" : ""), textContent: !g.public ? "Damaged" : g.unattended ? "Chats and jobs" : "Chats" });
+      // Where it signs is a plain tag; Damaged is a state, House UI's status tag: its icon and the word.
+      const tag = g.public ? el("span", { className: "tag", textContent: g.unattended ? "Chats and jobs" : "Chats" }) : el("span", { className: "tag bad" }, icon("M8 2.5l6.5 11h-13zM8 6.5v3M8 11.5v.01", 16), "Damaged");
       return el("details", { open: renaming === g.label },
         el("summary", {}, row(shownAs(g), ownName(g, g.namespace), tag, el("span", { className: "chev" }, icon("M4 6l4 4 4-4", 14)))),
         el("div", { className: "body" },
           g.public ? facts : el("p", { className: "say", textContent: "Damaged: delete it and import it again." }),
           renaming === g.label ? renameForm(g, ks) : el("div", { className: "pair" }, copy, jobs, renameButton(g, ks)), del));
     });
-    const addForm = form([["label", "Name", "text", false, "muse"], ["namespace", "Namespace", "text", true, "muse-coordination"], ["seed", "Seed to import, if you have one", "password", false, "base64"]], "Save signing key", async (v) => {
-      if (!v.label || !v.namespace) return toast("Fill in the name and the namespace"), false;
-      if (named(ks, v.label)) return toast("That name is taken. Use another."), false;
+    const addForm = form([["label", "Name", "text", false, "muse"], ["namespace", "Namespace", "text", true, "muse-coordination"], ["seed", "Seed to import, if you have one", "password", false, "base64"]], "Save signing key", async (v, fail) => {
+      if (!v.label) fail("label", "Give the signing key a name, like muse.");
+      if (!v.namespace) fail("namespace", "Give the namespace, like muse-coordination.");
+      if (!v.label || !v.namespace) return false;
+      if (named(ks, v.label)) return fail("label", "That name is taken. Use another.");
       const fields = { label: v.label, namespace: v.namespace };
       const went = v.seed ? await post("keys", "signing-import", { ...fields, sealed: await seal(v.seed) }) : await post("keys", "signing-new", fields);
       if (went) (addingSigning = false), drawSigning(ks);
@@ -1254,9 +1355,9 @@ input::placeholder{color:var(--muted);opacity:1}
   function drawLogins(ls) {
     const rows = ls.logins.map((l) => {
       const passkey = l.kind === "passkey";
-      const asked = passkey ? ["Delete this passkey?", `The agent can’t sign in to ${l.site} with it after. Remove it in the site’s own settings too.`] : ["Delete this login?", `The agent can’t sign in to ${l.site} with it after.`];
-      const del = remove(asked, `Delete the ${passkey ? "passkey" : "login"} for ${l.site}`, () => post("logins", "login-delete", { id: l.id }));
-      return row(l.site, [l.user, passkey ? "Passkey" : "Password"].filter(Boolean).join(" · "), del);
+      const asked = passkey ? ["Delete this passkey?", `The agent can’t sign in to ${l.site} with it after. Remove it in the site’s own settings too. This can’t be undone.`] : ["Delete this login?", `The agent can’t sign in to ${l.site} with it after. This can’t be undone.`];
+      const del = remove(asked, `Delete the ${passkey ? "passkey" : "login"} for ${l.site}`, () => post("logins", "login-delete", { id: l.id }), { yes: passkey ? "Delete passkey" : "Delete login" });
+      return stacked(l.site, [l.user, passkey ? "Passkey" : "Password"].filter(Boolean).join(" · "), del);
     });
     $("logins").replaceChildren(el("div", { className: "card" }, ...rows, ...(rows.length ? [] : [el("p", { className: "empty", textContent: "No logins yet. The browser offers to save one when you sign in on its tab’s page." })])),
       el("p", { className: "cap", textContent: "To change a password, sign in again on the tab." }));
@@ -1280,17 +1381,17 @@ input::placeholder{color:var(--muted);opacity:1}
   /** An address's row: the origin is set in mono. */
   const addr = (node) => (node.classList.add("addr"), node);
   function drawAddresses(as) {
-    if (as.result && toldAt !== null && as.result.n !== toldAt) toast(as.result.error);
+    if (as.result && toldAt !== null && as.result.n !== toldAt) banner(as.result.error);
     toldAt = as.result ? as.result.n : 0;
     const allowed = as.origins.map((a) => {
-      const del = remove(["Remove this address?", `The skills can’t reach ${a.origin} after.`], `Remove ${a.origin}`, () => post("addresses", "address-remove", { origin: a.origin }), { text: "Remove", yes: "Remove" });
-      return addr(row(a.origin, a.added ? `Added ${day(a.added)}` : "", del));
+      const del = remove(["Remove this address?", `The skills can’t reach ${a.origin} after. This can’t be undone.`], `Remove ${a.origin}`, () => post("addresses", "address-remove", { origin: a.origin }), { text: "Remove", yes: `Remove ${a.origin}` });
+      return addr(stacked(a.origin, a.added ? `Added ${day(a.added)}` : "", del));
     });
     const refused = as.refused.map((r) => {
       const allow = el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Allow", ariaLabel: `Allow ${r.origin}`, onclick: () => post("addresses", "address-allow", { origin: r.origin }) });
-      return addr(row(r.origin, `Refused ${moment(r.at)}`, allow));
+      return addr(stacked(r.origin, `Refused ${moment(r.at)}`, allow));
     });
-    const addForm = form([["origin", "Address", "text", true, "http://muse-vm:8463"]], "Allow", (v) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : (toast("Write the address first"), false)), { kept: draft("address-add", cfg.token) });
+    const addForm = form([["origin", "Address", "text", true, "http://muse-vm:8463"]], "Allow", (v, fail) => (v.origin ? post("addresses", "address-allow", { origin: v.origin }) : fail("origin", "Give the address, like http://muse-vm:8463.")), { kept: draft("address-add", cfg.token) });
     $("addresses").replaceChildren(lab("Allowed addresses", allowed.length),
       el("div", { className: "card" }, ...allowed, ...(allowed.length ? [] : [el("p", { className: "empty", textContent: "None yet. The skills reach the public web only." })]), addForm),
       lab("Recently refused"),
@@ -1310,6 +1411,7 @@ input::placeholder{color:var(--muted);opacity:1}
     for (const section of document.querySelectorAll("main section")) section.hidden = section.id !== b.dataset.tab;
   };
   for (const b of document.querySelectorAll("nav button")) b.onclick = () => select(b);
+  let lost = false; // the last read didn't reach AnythingLLM
   async function load() {
     try {
       const found = await Promise.all(Object.keys(drawn).map(async (section) => {
@@ -1322,7 +1424,8 @@ input::placeholder{color:var(--muted);opacity:1}
         shown.add(section);
         return true;
       }));
-      if (!found.some(Boolean)) return clearInterval(poll), toast("This link was replaced. Open the page again from where you got it: the agent, AnywhereLLM Lite, or anywherellm-suite pages."); // gone for good: said once
+      (lost = false), unbanner("reach");
+      if (!found.some(Boolean)) return clearInterval(poll), banner("This link was replaced. Open the page again from where you got it: the agent, AnywhereLLM Lite, or anywherellm-suite pages.", { kind: "warning", key: "gone" }); // gone for good: said once, and it stays
       const tabs = [...document.querySelectorAll("nav button")];
       for (const b of tabs) b.hidden = !shown.has(b.dataset.tab);
       document.querySelector("nav").hidden = tabs.filter((b) => !b.hidden).length < 2; // one tab says nothing
@@ -1330,7 +1433,9 @@ input::placeholder{color:var(--muted);opacity:1}
       // First the tab the link names (#logins, as the browser's tab page links here), else the first there is.
       if (!tabs.some((b) => !b.hidden && b.getAttribute("aria-selected") === "true")) select(tabs.find((b) => !b.hidden && location.hash === `#${b.dataset.tab}`) ?? tabs.find((b) => !b.hidden));
     } catch (e) {
-      toast("Can’t reach AnythingLLM. Try again in a moment.");
+      // Said once while it lasts: closed, it stays closed until AnythingLLM answers again.
+      if (!lost) banner("Can’t reach AnythingLLM. Try again in a moment.", { key: "reach" });
+      lost = true;
     }
   }
 

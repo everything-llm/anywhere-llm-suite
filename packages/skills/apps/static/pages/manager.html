@@ -883,10 +883,29 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 @keyframes fade{from{opacity:0}}
 @media (prefers-reduced-motion:reduce){.sheet,.scrim{animation:none}}
 @media (hover:hover){.rb:hover,.act:hover,.pill:hover,.more:hover,.hu-button--ghost:hover{background:var(--sunken)}}
-#toast{--focus:var(--ground);position:fixed;left:16px;right:16px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;max-width:600px;margin:0 auto;min-height:56px;padding:0 8px 0 20px;border-radius:var(--radius-md);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font-size:1rem;display:flex;align-items:center;gap:12px}
-#toast span{flex:1;min-width:0;padding:8px 0}
-#toast button{flex:none;min-height:var(--size-control-touch);padding:0 14px;border-radius:var(--radius-pill);color:var(--ground);font-weight:700}
+.err{display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;font-weight:400;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
+.err svg{flex:none;margin-top:1px}
+.err:empty{display:none}
+.fld[aria-invalid="true"]{border-color:var(--danger)}
+/* page messages: the toast and the banners, as the script's block of that name writes them; the same
+   in every suite page (shared/messages.test.mts). An empty toast draws nothing and stays in the page. */
+#toast{--focus:var(--ground);position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:var(--space-2);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
+#toast:empty{opacity:0;pointer-events:none}
+#toast>span{flex:1;min-width:0;overflow-wrap:anywhere}
+#toast>button,#banners .shut{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:var(--size-control-touch);min-height:var(--size-control-touch);padding:0 var(--space-3);border:0;border-radius:var(--radius-pill);background:transparent;color:inherit;font:700 1rem/1 var(--font-sans);cursor:pointer}
 #toast :focus-visible{outline-offset:calc(-1 * var(--size-focus))}
+#banners{display:flex;flex-direction:column;gap:var(--space-2)}
+#banners:empty{display:none}
+#banners>div{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-1) var(--space-3) var(--space-4);border:1px solid var(--tile-edge);border-radius:var(--radius-md);background:var(--danger-soft);color:var(--ink);font:400 1rem/1.5 var(--font-sans);text-align:start}
+#banners>div>svg{flex:none;margin-top:2px;color:var(--danger)}
+#banners>.warning{background:var(--warning-soft)}
+#banners>.warning>svg{color:var(--warning)}
+#banners>.info{background:var(--info-soft)}
+#banners>.info>svg{color:var(--info)}
+#banners p{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
+#banners .shut{margin:calc(-1 * var(--space-2)) 0;padding:0}
+@media (forced-colors:active){#toast,#banners>div{border-color:CanvasText}}
+/* end of page messages */
 </style>
 </head>
 <body class="hu-root" data-density="touch">
@@ -896,12 +915,13 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   <button class="pill" id="bin" type="button" hidden></button>
 </header>
 <main>
+  <div id="banners"></div>
   <section id="apps"></section>
   <button class="hu-button hu-button--ghost" id="rotate" type="button" hidden>Replace link</button>
   <section id="trash" hidden></section>
   <section id="one" hidden></section>
 </main>
-<div id="toast" role="status" hidden><span></span><button type="button" hidden>Undo</button></div>
+<div id="toast" role="status"></div>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -950,17 +970,74 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   const glyph = (name) => (Object.hasOwn(GLYPHS, name ?? "") ? GLYPHS[name] : GRID);
   const initial = (title) => (title.trim()[0] || "?").toUpperCase();
 
-  // ---- The toast: what was sent or done, or a refusal; with `undo`, an Undo button while it shows.
-  let toastTimer = 0;
-  function toast(text, undo = null, ms = 4000) {
-    const box = $("toast"), button = box.querySelector("button");
-    box.querySelector("span").textContent = text;
-    button.hidden = !undo;
-    button.onclick = () => { box.hidden = true; undo?.(); };
-    box.hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (box.hidden = true), ms);
-  }
+  /* page messages: the toast and the banners. toast(text) says what was just done ("Sent", "Copied")
+     for 6 s, or 2 s and 0.7 s a word when that is longer. toast(text, { undo, send }) holds what it
+     undoes, unsent, and stays with Undo and Close, with no timer, until one is pressed, another toast
+     takes its place, or the page is left: then what it holds is sent. It answers its Undo, to focus.
+     The toast (#toast, role="status") is in the page from the start, empty, and is never hidden: a
+     toast is written into it and emptied out of it. banner(text, { kind, key }) is an error, or what to
+     do about one: it stays near the top (#banners), with its icon and a Close, until it is closed. One
+     of the same `key` takes the place of the one before (the same words are said once), and
+     unbanner(key) takes it away once it no longer holds. The same block in every suite page, as
+     shared/vault.html has it (shared/messages.test.mts keeps them the same). */
+  const { toast, banner, unbanner } = (() => {
+    const svg = (paths) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+    const CLOSE = svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+    // House UI's status shapes: danger a square with a cross, warning a triangle, info a circle with an i.
+    const SIGN = {
+      danger: svg('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+      warning: svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+      info: svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    };
+    const button = (className, label, drawn = "") => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className });
+      if (drawn) (b.innerHTML = drawn), b.setAttribute("aria-label", label);
+      else b.textContent = label;
+      return b;
+    };
+    const box = document.getElementById("toast"), list = document.getElementById("banners");
+    let timer = 0, held = null;
+    const empty = () => { clearTimeout(timer); box.replaceChildren(); };
+    const send = () => { const was = held; held = null; was?.send(); };
+    const lasts = (text) => Math.max(6000, 2000 + 700 * String(text).trim().split(/\s+/).length);
+    function toast(text, undo = null) {
+      send();
+      empty();
+      const line = Object.assign(document.createElement("span"), { textContent: text });
+      if (!undo) return box.append(line), (timer = setTimeout(empty, lasts(text))), null;
+      held = undo;
+      const again = button("undo", "Undo"), shut = button("shut", "Close", CLOSE);
+      again.onclick = () => { const was = held; held = null; empty(); was?.undo(); };
+      shut.onclick = () => { empty(); send(); };
+      box.append(line, again, shut);
+      return again;
+    }
+    addEventListener("pagehide", () => { empty(); send(); });
+    document.addEventListener("visibilitychange", () => document.hidden && held && (empty(), send()));
+    const find = (key) => [...list.children].find((b) => b.dataset.key === key);
+    // Closed, the focus goes to the next banner's Close, else to the first control after the banners.
+    const after = () => [...document.querySelectorAll("button, a[href], input, textarea, [tabindex]")].find((control) => list.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING && !control.disabled && control.getClientRects().length);
+    function banner(text, { kind = "danger", key = text } = {}) {
+      const was = find(key);
+      if (was?.dataset.text === text) return was;
+      const node = Object.assign(document.createElement("div"), { className: kind, innerHTML: SIGN[kind] ?? SIGN.danger });
+      Object.assign(node.dataset, { key, text });
+      node.setAttribute("role", kind === "info" ? "status" : "alert");
+      const shut = button("shut", "Close", CLOSE);
+      shut.onclick = () => {
+        const next = [...list.children].find((b) => b !== node);
+        node.remove();
+        (next?.querySelector(".shut") ?? after())?.focus();
+      };
+      node.append(Object.assign(document.createElement("p"), { textContent: text }), shut);
+      if (was) was.replaceWith(node);
+      else list.prepend(node);
+      return node;
+    }
+    const unbanner = (key) => void find(key)?.remove();
+    return { toast, banner, unbanner };
+  })();
+  /* end of page messages */
 
   /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
      that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
@@ -1015,20 +1092,23 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   /* end of page drafts */
 
   // ---- Posting: each thing done here is an event under the manager's title, posted through
-  // AnythingLLM's upload, which the apps skill applies.
-  async function post(ev, fields = {}) {
+  // AnythingLLM's upload, which the apps skill applies. `quiet`: what a toast held, sent as it
+  // closes, kept alive as the page is left.
+  async function post(ev, fields = {}, { quiet = false } = {}) {
     const event = { apps_lean_manage: 1, secret: cfg.secret, ev, ...fields, t: new Date().toISOString() };
     try {
       const res = await fetch("/api/browser-extension/upload-content", {
         method: "POST",
+        keepalive: quiet,
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
         body: JSON.stringify({ textContent: JSON.stringify(event), metadata: { title: cfg.title, docSource: "apps-lean manager" } }),
       });
-      if (!res.ok) return toast(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + res.status), false;
+      if (!res.ok) return banner(res.status === 403 ? "AnythingLLM refused the pages’ key: make a new one in Settings › Browser Extension, paste it into a suite skill’s PAGE_KEY, then reload this page" : "AnythingLLM answered " + res.status, { key: "post" }), false;
+      unbanner("post"), unbanner("reach");
       setTimeout(load, 1500);
       return true;
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      banner("Can’t reach AnythingLLM", { key: "reach" });
       return false;
     }
   }
@@ -1295,22 +1375,18 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     const rows = now.trash.map((x) => {
       const left = daysLeft(x.until);
       return el("div", { className: "row" }, el("div", { className: "who" }, el("b", { textContent: x.title }), el("small", { textContent: `${named(x.workspace)} · ${left} day${left === 1 ? "" : "s"} left` })),
-        el("button", { className: "act", type: "button", textContent: "Restore", ariaLabel: `Restore ${x.title}`, onclick: () => post("restore", { id: x.id, title: x.title }) && toast("Restoring " + x.title) }));
+        el("button", { className: "act", type: "button", textContent: "Restore", ariaLabel: `Restore ${x.title}`, onclick: () => post("restore", { id: x.id, title: x.title }).then((went) => went && toast("Restoring " + x.title)) }));
     });
     $("trash").replaceChildren(el("p", { className: "lead", textContent: `Artifacts moved to the trash, each in its own workspace. Each stays ${now.trashDays} days, then it’s gone.` }),
       el("div", { className: "card" }, ...(rows.length ? rows : [el("p", { className: "empty", textContent: "The trash is empty." })])),
       el("p", { className: "cap", textContent: `The trash holds ${now.trashMax}. When it’s full, a delete is refused until one goes, rather than drop one early.` }));
   }
 
-  /** A take back waits this long before it's posted, so Undo can cancel it with nothing sent. */
-  const HOLD_MS = 5000;
-  let held = null;
+  /** A take back is held, unsent, while its toast shows Undo, with no timer: Undo drops it with
+   *  nothing sent; Close, another toast or leaving the page sends it. */
   function takeBack(one, c) {
-    if (held) clearTimeout(held.timer), held.send();
     const fields = { workspace: one.workspace, app: one.app.name, n: c.n, title: one.app.title };
-    held = { send: () => { held = null; post("take-back", fields); }, timer: 0 };
-    held.timer = setTimeout(held.send, HOLD_MS);
-    toast(`Taken back: ${changeText(c)}`, () => { clearTimeout(held?.timer); held = null; }, HOLD_MS);
+    toast(`Taken back: ${changeText(c)}`, { undo: () => {}, send: () => post("take-back", fields, { quiet: true }) });
   }
 
   const baseOf = ({ workspace, app }) => ({ workspace, app: app.name, title: app.title });
@@ -1318,13 +1394,24 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 
   function rename(one, from) {
     const { app } = one;
+    const said = el("span", { className: "err", id: "rename-err" });
+    said.setAttribute("role", "alert");
     const input = el("input", { className: "fld", type: "text", value: app.title, maxLength: 80, autocomplete: "off" });
+    input.setAttribute("aria-describedby", said.id);
     // What's typed stays on this device until it's sent or the sheet is closed.
     const kept = draft(`rename/${one.workspace}/${app.name}`, cfg.token);
     kept.keep(input, "title");
     ask({ title: `Rename ${app.title}`, yes: "Rename", danger: false, cancel: kept.clear,
-      body: el("div", {}, el("label", {}, "Title", input), el("p", { className: "cap", style: "padding:12px 0 0" }, "Its name, ", el("span", { className: "mono", textContent: app.name }), ", stays: the agent and its scheduled jobs call it by that.")),
-      value: () => { const v = input.value.trim(); if (!v) return toast("Give it a title"), false; return v; } },
+      body: el("div", {}, el("label", {}, "Title", input, said), el("p", { className: "cap", style: "padding:12px 0 0" }, "Its name, ", el("span", { className: "mono", textContent: app.name }), ", stays: the agent and its scheduled jobs call it by that.")),
+      // Empty, it says so under the field, which keeps the focus.
+      value: () => {
+        const v = input.value.trim();
+        if (v) return v;
+        said.replaceChildren(icon('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 16), el("span", { textContent: "Give it a title." }));
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return false;
+      } },
       async (title) => (title === app.title || (await post("rename", { ...baseOf(one), title }))) && kept.clear(), from);
   }
 
@@ -1370,7 +1457,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
       i === 0 ? el("button", { className: "act", type: "button", textContent: "Take back", ariaLabel: `Take back: ${changeText(c)}`, onclick: () => takeBack(one, c) }) : null));
     const versions = app.versions.map((v, made = at(v.t)) => el("div", { className: "row" },
       el("div", { className: "who" }, el("b", { className: "mono", textContent: v.file }), el("small", { textContent: made })),
-      el("button", { className: "act", type: "button", textContent: "Put back", ariaLabel: `Put back ${v.file} from ${made}`, onclick: () => post("put-back", { ...base, file: v.file, at: v.t }) && toast(`Putting back ${v.file}`) })));
+      el("button", { className: "act", type: "button", textContent: "Put back", ariaLabel: `Put back ${v.file} from ${made}`, onclick: () => post("put-back", { ...base, file: v.file, at: v.t }).then((went) => went && toast(`Putting back ${v.file}`)) })));
     const trash = el("button", { className: "hu-button hu-button--danger", type: "button", style: "align-self:flex-start", textContent: "Move to trash" });
     trash.onclick = () => toTrash(one, trash);
     $("one").replaceChildren(top,
@@ -1418,6 +1505,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   // What the skill did with the last event shows once, as a toast.
   let last = null, drawnAt = null, toldAt = null;
   const busy = () => !!asking || document.activeElement?.tagName === "INPUT";
+  let lost = false; // the last read didn't reach AnythingLLM
   async function load() {
     if (replaced) return;
     try {
@@ -1436,6 +1524,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
         return $("apps").replaceChildren(gone);
       }
       if (!res.ok) throw new Error(res.status);
+      (lost = false), unbanner("reach");
       const text = await res.text();
       const minute = Math.floor(Date.now() / 60000); // "2 min ago" moves on with no change
       if ((text === last && minute === drawnAt) || busy()) return;
@@ -1444,12 +1533,15 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
       now = JSON.parse(text);
       if (now.result && toldAt !== null && now.result.n !== toldAt) {
         const { title, error } = now.result;
-        toast(error || title.replace(/^./, (ch) => ch.toUpperCase()));
+        if (error) banner(error);
+        else toast(title.replace(/^./, (ch) => ch.toUpperCase()));
       }
       toldAt = now.result ? now.result.n : 0;
       draw();
     } catch (e) {
-      toast("Can’t reach AnythingLLM");
+      // Said once while it lasts: closed, it stays closed until AnythingLLM answers again.
+      if (!lost) banner("Can’t reach AnythingLLM", { key: "reach" });
+      lost = true;
     }
   }
   const poll = setInterval(load, 5000);

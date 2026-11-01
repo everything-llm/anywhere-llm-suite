@@ -416,13 +416,63 @@ test("a request's card says where and when, with Not needed, a plain secondary, 
   for (const html of [pageSource("library.html"), vaultSource()]) {
     for (const [, script] of html.matchAll(/<script>([^]*?)<\/script>/g)) new vm.Script(script); // compiles: run nowhere
     assert.match(html, /need\.where \? `Asked in \$\{need\.where\} · ` : "Asked by a scheduled job · "|n\.where \? `Asked in \$\{n\.where\} · ` : "Asked by a scheduled job · "/);
-    assert.match(html, /<div id="toast" role="status" hidden><span><\/span><button type="button" class="undo" hidden>Undo<\/button><button type="button" class="shut" aria-label="Close" hidden><\/button><\/div>/);
-    assert.match(html, /if \(undo\) held = undo;\n {4}else toastTimer = setTimeout\(hideToast, 4000\);/, "only a toast without Undo times out");
-    assert.match(html, /addEventListener\("pagehide", \(\) => \{ hideToast\(\); sendHeld\(\); \}\);/);
+    assert.match(html, /<div id="toast" role="status"><\/div>/, "the toast's live region, empty and never hidden (shared/messages.test.mts runs its block)");
+    assert.match(html, /if \(!undo\) return box\.append\(line\), \(timer = setTimeout\(empty, lasts\(text\)\)\), null;\n {6}held = undo;/, "only a toast without Undo times out");
+    assert.match(html, /addEventListener\("pagehide", \(\) => \{ empty\(\); send\(\); \}\);/);
+    assert.match(html, /\}\)\?\.focus\(\);\n {2}\}/, "Undo is focused");
     assert.match(html, /\{ quiet: true \}\)/, "the drop is sent as the toast closes, kept alive as the page is left");
     assert.match(html, /Date\.now\(\) - (need|n)\.at < DAY/, "a day old: not shown");
   }
   assert.match(pageSource("library.html"), /acts\(el\("a", \{ className: "hu-button hu-button--primary", href: `#add\/\$\{encodeURIComponent\(need\.label\)\}`, textContent: `Add \$\{need\.label\}` \}\), no\)/);
   assert.match(pageSource("library.html"), /btn\("Not needed", "secondary", /);
   assert.match(vaultSource(), /el\("button", \{ className: "hu-button hu-button--secondary", type: "button", textContent: "Not needed"/);
+});
+
+// ---- The Vault against the house-style audit of 2026-11-01 (B1, M1, M5, M8, M12).
+
+test("the Vault's values show in full: nothing cut short, no title to hover for, and a row's buttons under its value", () => {
+  const html = vaultSource();
+  const css = html.slice(html.indexOf("/* end of house ui */"), html.indexOf("</style>"));
+  assert.doesNotMatch(css, /text-overflow|white-space:nowrap/, "nothing cut short with an ellipsis");
+  assert.match(css, /\.who small\{font-family:var\(--font-mono\);[^}]*overflow-wrap:anywhere\}/, "a mono value breaks anywhere");
+  assert.match(css, /\.who b\{[^}]*overflow-wrap:anywhere\}/);
+  assert.match(css, /\.kv dd\{[^}]*overflow-wrap:anywhere/);
+  assert.doesNotMatch(html, /title: g\.fingerprint|className: "line"/, "the fingerprint is shown, not kept in a title");
+  assert.match(css, /\.row\.stack\{flex-direction:column;/);
+  for (const [what, call] of [["a key's Rename and Delete", /stacked\(shownAs\(k\), ownName\(k, k\.site\), renameButton\(k, ks\), del\)/], ["a login's Delete", /return stacked\(l\.site, /], ["an address's Remove", /addr\(stacked\(a\.origin, /], ["a refused address's Allow", /addr\(stacked\(r\.origin, /]]) assert.match(html, call as RegExp, `${what}: under the value`);
+});
+
+test("the Vault's field errors are said under their field, marked invalid, the first one focused, as the Library's are", () => {
+  const html = vaultSource();
+  assert.match(html, /const slot = \(said\[name\] = el\("span", \{ className: "err", id: input\.name \+ "-err" \}\)\);\n {4}slot\.setAttribute\("role", "alert"\);\n {4}input\.setAttribute\("aria-describedby", slot\.id\);/);
+  assert.match(html, /inputs\[name\]\.setAttribute\("aria-invalid", "true"\);/);
+  assert.match(html, /if \(await onsubmit\(v, fail\)\) node\.reset\(\), kept\?\.clear\(\);\n {8}else bad\[0\]\?\.focus\(\);/);
+  for (const [field, words] of [["value", "Paste the key."], ["label", "Give the key a name, like github."], ["site", "Give the site it’s for, like api.github.com."], ["label", "A signing key has that name. Use another."], ["label", "Give the signing key a name, like muse."], ["namespace", "Give the namespace, like muse-coordination."], ["label", "That name is taken. Use another."], ["origin", "Give the address, like http://muse-vm:8463."]]) assert.ok(html.includes(`fail("${field}", "${words}")`), `${field}: ${words}`);
+  assert.doesNotMatch(html, /Fill in every field|Write the address first|Paste the key first/);
+});
+
+test("the Vault's and the Library's tabs are House UI's segment: accent-soft, a check and the accent, a Highlight outline under forced colours", () => {
+  for (const [html, sel] of [[vaultSource(), ".seg"], [pageSource("library.html"), "nav"]] as const) {
+    const on = sel === ".seg" ? '.seg [aria-selected="true"]' : 'nav button[aria-selected="true"]';
+    assert.ok(html.includes(`${on}{background:var(--accent-soft);color:var(--accent)}`), `${sel}: accent-soft and the accent`);
+    assert.ok(html.includes(`@media (forced-colors:active){${on}:not(:focus-visible){outline:2px solid Highlight;outline-offset:-2px}}`), `${sel}: Highlight, the focus ring kept`);
+    assert.ok(html.includes(`${sel} button:not([aria-selected="true"]) svg{display:none}`), `${sel}: the check on the selected tab only`);
+    assert.doesNotMatch(html, /box-shadow:inset 0 0 0 1\.5px var\(--line-strong\)/, "no ring");
+    const tabs = [...html.matchAll(/<button role="tab"[^>]*>(<svg[^>]*><path d="M20 6 9 17l-5-5"\/><\/svg>)?[A-Z]/g)];
+    assert.equal(tabs.length, 3);
+    assert.ok(tabs.every((t) => t[1]), "each tab has its check");
+  }
+});
+
+test("a signing key's scope is a plain tag; Damaged is a status tag, its icon and the word", () => {
+  const html = vaultSource();
+  assert.match(html, /\.tag\{[^}]*background:var\(--sunken\);color:var\(--ink\)\}/);
+  assert.doesNotMatch(html.slice(html.indexOf("/* end of house ui */")), /var\(--success/, "no status colour for a scope");
+  assert.match(html, /g\.public \? el\("span", \{ className: "tag", textContent: g\.unattended \? "Chats and jobs" : "Chats" \}\) : el\("span", \{ className: "tag bad" \}, icon\([^)]*\), "Damaged"\)/);
+});
+
+test("the Vault's deletes say they can't be undone, and the button names what goes", () => {
+  const html = vaultSource();
+  assert.equal(html.match(/This can’t be undone\./g)?.length, 5, "a key, a signing key, a passkey, a login, an address");
+  for (const yes of ["yes: `Delete ${shownAs(k)}`", "yes: `Delete ${shownAs(g)}`", 'yes: passkey ? "Delete passkey" : "Delete login"', "yes: `Remove ${a.origin}`"]) assert.ok(html.includes(yes), yes);
 });
