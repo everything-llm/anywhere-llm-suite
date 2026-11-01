@@ -22,17 +22,18 @@
 // A tab that closed (from its page, or with its browser, past its idle time) keeps its page's frame:
 // its state says it closed, with the workspace's tabs and sites still in it, and its page shows a new
 // tab's home in the tab's place. For CLOSED_MS that page may ask for one thing, a tab of the user's
-// own (`new`), with its tab's key and secret, kept for it in closed.json and checked as an open tab's
-// are; nothing else it posts is applied. Its token goes dead for good once that time is up, or once
-// its chat's thread opens a tab again (the page replaced): its state then says only that it closed.
-// A tab whose browser went with AnythingLLM (a restart writes nothing) is taken for closed when its
-// browser would have closed, at the latest, as its page asks.
+// own (`new`), with its tab's key and secret, which stay in tabs.json marked closed (`closedUntil`)
+// and are checked as an open tab's are; nothing else it posts is applied. Its token goes dead for good
+// once that time is up, or once its key gets new names (its chat's thread opens a tab again; a tab of
+// the user's own never takes a kept key): its state then says only that it closed. A tab whose
+// browser went with AnythingLLM (a restart writes nothing) may ask too, once its state's `until` is
+// past, and is marked closed as of then when it does. A scheduled job's tabs close at once, as before.
 
 import fs from "node:fs";
 import path from "node:path";
 import * as addresses from "#shared/addresses";
 import { jobTimeLeft, perProcess } from "#shared/anythingllm";
-import { writeJson } from "#shared/atomic";
+import { readJson as readJsonOr, writeJson } from "#shared/atomic";
 import { Told } from "#shared/errors";
 import { checkUrl, hostOf, makeFence } from "#shared/fence";
 import * as logins from "#shared/logins";
@@ -46,7 +47,7 @@ import * as passkey from "./passkey";
 import { searchAt } from "./research";
 import { JOBS } from "./scope";
 import { type Snap, asksPassword, fieldOf, isPasswordLine, lineOf, readPage } from "./snapshot";
-import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, YOURS, clip, holder, live, note, say, state, statics, tabOf, workspaceDir } from "./state";
+import { type Entry, IDLE_MS, NEED_MS, type Need, OFFER_MS, type Tab, VIEWPORT, clip, holder, lineAfter, live, note, say, state, statics, tabOf, workspaceDir } from "./state";
 import * as takeover from "./takeover";
 
 const TITLE = "browser-lean-event";
@@ -67,7 +68,13 @@ const FRESH_MS = 60 * 1000;
 /** The page as just read, for drawing it: its title, and its elements and fields. */
 type Read = { snap: Snap; title: string };
 
-type Names = { token: string; secret: string };
+/** A thread's tab's names, kept in tabs.json under its key: its token names its files; its secret
+ *  goes with every event its page posts. Once the tab closed, `closedUntil` says until when its page
+ *  may still ask for a tab of the user's own, and what its frame shows meanwhile besides the
+ *  workspace's tabs: its site among Your sites (`host`), the Vault's link (`vault`) and a line from the
+ *  skill (`msg`: why a tab didn't open). */
+type Names = { token: string; secret: string; closedUntil?: number; host?: string; vault?: string; msg?: Line };
+type Line = ReturnType<typeof lineAfter>;
 
 const tabsFile = (workspace: string) => path.join(workspaceDir(workspace), "tabs.json");
 /** A tab's file in the public folder, by its ending: a picture's (PICTURES), ".json" or ".html". */
@@ -75,42 +82,28 @@ const pub = (token: string, ending: string) => `browser-lean/${token}${ending}`;
 
 function readTabs(workspace: string): Record<string, Names> {
   try {
-    return JSON.parse(fs.readFileSync(tabsFile(workspace), "utf8"));
+    return readJsonOr<Record<string, Names>>(tabsFile(workspace), () => ({})) ?? {};
   } catch {
-    return {};
+    return {}; // no such workspace, or a file that isn't one
   }
 }
 
 const saveTabs = (workspace: string, tabs: Record<string, Names>) => writeJson(tabsFile(workspace), tabs);
 
-/** A thread's tab's names, kept in tabs.json: its token names its files; its secret goes with every
- *  event its page posts. Made the first time unless `make` is false (then null). New names for a
- *  chat's thread replace its last closed tab's page, which can then ask for nothing. */
-function namesOf(workspace: string, key: string, make = true): Names | null {
+/** Whether a key has names in tabs.json, an open tab's or a closed one's: a tab of the user's own
+ *  takes another (browser.ts openYours), so it never replaces a closed one's page. */
+export const hasNames = (workspace: string, key: string): boolean => key in readTabs(workspace);
+
+/** A thread's tab's names, made the first time. A closed tab's under the same key are replaced: its
+ *  page goes, and may ask for nothing again. */
+function namesOf(workspace: string, key: string): Names {
   const tabs = readTabs(workspace);
-  if (tabs[key]?.token && tabs[key]?.secret) return tabs[key];
-  if (!make) return null;
+  const was = tabs[key];
+  if (was?.token && was.secret && !was.closedUntil) return was;
+  if (was?.closedUntil) deadPage(was.token);
   tabs[key] = { token: newSecret(), secret: newSecret(24) };
   saveTabs(workspace, tabs);
-  if (!key.startsWith(YOURS)) endClosed(workspace, (c) => c.key === key);
   return tabs[key];
-}
-
-/** A closed tab's page while it may still ask for a tab of the user's own (CLOSED_MS): its tab's key
- *  and secret, which it posts with, until when, and what its frame shows meanwhile besides the
- *  workspace's tabs: its site among Your sites, the Vault's link and a line from the skill (why a tab
- *  didn't open). Kept in closed.json, by the tab's token. */
-type Closed = { key: string; secret: string; until: number; host: string; vault: string | null; msg: { text: string; id: number; until: number } | null };
-
-const closedFile = (workspace: string) => path.join(workspaceDir(workspace), "closed.json");
-
-function readClosed(workspace: string): Record<string, Closed> {
-  try {
-    const closed = JSON.parse(fs.readFileSync(closedFile(workspace), "utf8"));
-    return closed && typeof closed === "object" ? closed : {};
-  } catch {
-    return {};
-  }
 }
 
 /** A closed tab's page that may ask for nothing again: its page goes, and its state says only that it
@@ -124,115 +117,135 @@ function deadPage(token: string): void {
   }
 }
 
-/** The workspace's closed tabs' pages that may still ask, by token; the ones whose time is up, past
- *  MAX_CLOSED, or `ended`, go dead and leave closed.json. */
-function keptClosed(workspace: string, ended: (c: Closed) => boolean = () => false): Record<string, Closed> {
-  const all = readClosed(workspace);
+/** Drops from `tabs` (a workspace's tabs.json) the closed tabs whose time is up and those past
+ *  MAX_CLOSED, their pages gone dead; notes until when the newest left may ask, for the watch.
+ *  Answers whether any went. */
+function prune(workspace: string, tabs: Record<string, Names>): boolean {
   const now = Date.now();
-  const kept = Object.entries(all)
-    .filter(([, c]) => typeof c?.secret === "string" && Number(c.until) > now && !ended(c))
-    .sort((a, b) => b[1].until - a[1].until)
-    .slice(0, MAX_CLOSED);
-  if (kept.length === Object.keys(all).length) return all;
-  const left = Object.fromEntries(kept);
-  for (const token of Object.keys(all)) if (!(token in left)) deadPage(token);
-  try {
-    writeJson(closedFile(workspace), left);
-  } catch {
-    // no folder to write in: the next one tries again
-  }
-  return left;
+  const closed = Object.entries(tabs)
+    .filter(([, n]) => n.closedUntil)
+    .sort((a, b) => b[1].closedUntil! - a[1].closedUntil!);
+  let went = false;
+  closed.forEach(([key, n], i) => {
+    if (n.closedUntil! > now && i < MAX_CLOSED) return;
+    delete tabs[key];
+    deadPage(n.token);
+    went = true;
+  });
+  const newest = closed.find(([key]) => key in tabs)?.[1].closedUntil;
+  if (newest) watching().closed.set(workspace, newest);
+  else watching().closed.delete(workspace);
+  return went;
 }
 
-const endClosed = (workspace: string, ended: (c: Closed) => boolean): void => void keptClosed(workspace, ended);
+/** What each workspace's closed tabs' states were last written from, to write them again only when
+ *  that changes. */
+const stamped = () => perProcess("browser-lean.stamped", () => new Map<string, string>());
 
-/** Writes a closed tab's state: that it closed, until when its page may ask for a tab, and its frame:
- *  the workspace's open tabs along the top (`tabs`, of those `drawn`), Your sites with its own among
- *  them, the Vault's link (none while the links are kept from the agent) and the skill's line. Only
- *  when that changed. */
-function writeClosed(token: string, c: Closed, tabs: StripTab[], drawn: Map<string, Drawn>): void {
-  const msg = c.msg && c.msg.until > Date.now() ? { text: c.msg.text, id: c.msg.id } : null;
-  const st = { closed: true, until: c.until, tabs, sites: sites(drawn, [c.host]), vault: linksHidden() ? null : c.vault, msg };
-  try {
-    writePublic(pub(token, ".json"), JSON.stringify(st));
-  } catch {
-    // no folder to write in
-  }
+/** A closed tab's state: that it closed, until when its page may ask for a tab, and its frame: the
+ *  workspace's open tabs along the top (`tabs`), Your sites (`shown`) with its own first, the Vault's
+ *  link (none while the links are kept from the agent) and the skill's line while it lasts. */
+function closedState(n: Names, tabs: StripTab[], shown: string[]) {
+  const msg = n.msg && n.msg.until > Date.now() ? { text: n.msg.text, id: n.msg.id } : null;
+  const sites = n.host && !shown.includes(n.host) ? [n.host, ...shown].slice(0, 12) : shown;
+  return { closed: true, until: n.closedUntil, tabs, sites, vault: linksHidden() ? null : (n.vault ?? null), msg };
 }
 
-/** Writes each closed tab's state of the workspace's that may still ask, with the open tabs of its
- *  browser (`entry`; none when it closed). */
-function restampClosed(workspace: string, entry: Entry | undefined, drawn = drawnTabs(workspace, entry), tabs = entry ? strip(workspace, entry, drawn) : []): void {
-  for (const [token, c] of Object.entries(keptClosed(workspace))) writeClosed(token, c, tabs, drawn);
-}
-
-/** Puts `text` on a closed tab's page (by its `token`), as say does on an open one's. */
-function sayClosed(workspace: string, token: string, text: string): void {
-  const closed = keptClosed(workspace);
-  const c = closed[token];
-  if (!c) return;
+/** Writes each closed tab's state of a workspace's (in `tabs`, its tabs.json) with its browser's open
+ *  tabs (`strip`) and Your sites (`shown`); only when one of those, the closed tabs or their lines
+ *  changed since the last time. */
+function stampClosed(workspace: string, tabs: Record<string, Names>, strip: StripTab[], shown: string[]): void {
+  const closed = Object.values(tabs).filter((n) => n.closedUntil);
   const now = Date.now();
-  c.msg = { text, id: Math.max(now, (c.msg?.id ?? 0) + 1), until: now + 60 * 1000 }; // a minute, as say keeps a line
-  try {
-    writeJson(closedFile(workspace), closed);
-  } catch {
-    return;
+  const stamp = JSON.stringify([strip, shown, linksHidden(), closed.map((n) => [n.token, n.closedUntil, n.msg && n.msg.until > now ? n.msg.id : 0])]);
+  if (stamped().get(workspace) === stamp) return;
+  stamped().set(workspace, stamp);
+  for (const n of closed) {
+    try {
+      writePublic(pub(n.token, ".json"), JSON.stringify(closedState(n, strip, shown)));
+    } catch {
+      // no folder to write in
+    }
   }
-  restampClosed(workspace, state().browsers.get(workspace));
 }
 
-/** When a thread's tab closes (at `goneAt`, now unless said): its pictures go, its names are dropped
- *  (the next tab gets new ones), and its state says it closed. Its page stays, keeping its frame, and
- *  may ask for a tab of the user's own until CLOSED_MS after; then it goes. */
-export function forgetTab(workspace: string, key: string, goneAt = Date.now()): void {
+/** Puts `text` on the page of a closed tab (`key`'s), as say does on an open one's: its line kept in
+ *  tabs.json, and its state alone written again. */
+function sayClosed(workspace: string, key: string, text: string): void {
   const tabs = readTabs(workspace);
-  const names = tabs[key];
-  if (!names?.token) return;
-  const last = stateOf(names)?.st;
-  delete tabs[key];
-  const until = goneAt + CLOSED_MS;
+  const n = tabs[key];
+  if (!n?.closedUntil) return;
+  n.msg = lineAfter(n.msg, text);
   try {
     saveTabs(workspace, tabs);
-    for (const ending of PICTURES) removePublic(pub(names.token, ending));
-    if (until <= Date.now()) deadPage(names.token);
-    else {
-      const closed = readClosed(workspace);
-      closed[names.token] = { key, secret: names.secret, until, host: clip(last?.host, 300), vault: typeof last?.vault === "string" ? last.vault : null, msg: null };
-      writeJson(closedFile(workspace), closed);
-    }
+    const st = JSON.parse(readPublic(pub(n.token, ".json")) ?? "null");
+    if (st?.closed) writePublic(pub(n.token, ".json"), JSON.stringify({ ...st, msg: { text: n.msg.text, id: n.msg.id } }));
   } catch {
     // no folder to write in
   }
-  restampClosed(workspace, state().browsers.get(workspace));
-  listTabs(workspace);
-  watchFor(until);
 }
 
-/** The closed tab whose page posted with `key` and `secret`, by its token, while it may still ask. Or
- *  a tab whose names are still kept (`names`, by `key`) but whose state says its browser's time ran
- *  out: it went with AnythingLLM, which writes nothing as it goes, so it's forgotten now, as closed
- *  then. (One not open here whose time isn't out may be another process's: a scheduled job's.) Null
- *  for anything else: a forgery, an old link, one whose time is up or whose page was replaced. */
-function closedBy(workspace: string, key: string, names: Names | null, secret: unknown): [string, Closed] | null {
-  const kept = Object.entries(keptClosed(workspace)).find(([, c]) => c.key === key && sameSecret(secret, c.secret));
-  if (kept) return kept;
-  if (!names || !sameSecret(secret, names.secret)) return null;
-  const until = Number(stateOf(names)?.st.until);
-  if (!(until <= Date.now())) return null;
-  forgetTab(workspace, key, until);
-  const now = keptClosed(workspace)[names.token];
-  return now ? [names.token, now] : null;
+/** When tabs close (`keys`, at `goneAt`, now unless said): their pictures go and their states say they
+ *  closed. Each one's names stay in tabs.json, marked closed: its page keeps its frame and may ask for
+ *  a tab of the user's own until CLOSED_MS after (then it goes), and the next tab under its key gets
+ *  new names. Not a scheduled job's (its workspace's, or in its process): their pages go at once. The
+ *  workspace's tabs.json is read and written, and its pages stamped and listed, once. */
+export function forgetTabs(workspace: string, keys: string[], goneAt = Date.now()): void {
+  const tabs = readTabs(workspace);
+  const keep = workspace !== JOBS && jobTimeLeft() === null;
+  let went = false;
+  for (const key of keys) {
+    const n = tabs[key];
+    if (!n?.token || n.closedUntil) continue;
+    went = true;
+    try {
+      for (const ending of PICTURES) removePublic(pub(n.token, ending));
+    } catch {
+      // no folder to write in
+    }
+    const last = keep ? stateOf(n)?.st : null;
+    if (!last) {
+      delete tabs[key];
+      deadPage(n.token);
+    } else tabs[key] = { token: n.token, secret: n.secret, closedUntil: goneAt + CLOSED_MS, host: clip(last.host, 300) || undefined, vault: typeof last.vault === "string" ? last.vault : undefined };
+  }
+  if (!went) return;
+  prune(workspace, tabs);
+  try {
+    saveTabs(workspace, tabs);
+  } catch {
+    return; // no folder to write in
+  }
+  const entry = state().browsers.get(workspace);
+  if (entry) restamp(workspace, entry, tabs);
+  else {
+    stampClosed(workspace, tabs, [], sites(new Map()));
+    listTabs(workspace, new Map());
+  }
+  if (keep) watchFor();
 }
 
-/** What the pages' events are watched for until, in this process: the latest asked for. */
-const watching = () => perProcess("browser-lean.watching", () => ({ until: 0 }));
+/** Until when a tab that isn't open here (`n`) may still ask for a tab of the user's own: its closed
+ *  time's end; or, where its state says its browser's time ran out though it was never marked closed
+ *  (it went with AnythingLLM, which writes nothing as it goes), CLOSED_MS after that. 0 for one whose
+ *  time isn't out: it may be open in another process (a scheduled job's). */
+function asksUntil(n: Names): number {
+  if (n.closedUntil) return n.closedUntil;
+  const until = Number(stateOf(n)?.st.until);
+  return until <= Date.now() ? until + CLOSED_MS : 0;
+}
 
-/** Watches the pages' events until `until` at least: an open tab's page for WATCH_MS after it was
- *  drawn, a closed one's while it may still ask for a tab. */
-function watchFor(until: number): void {
+/** Until when the pages' events are watched, in this process: an open tab's page WATCH_MS after it was
+ *  last drawn (`open`), and each workspace's newest closed tab's page while it may ask (`closed`, kept
+ *  by prune, so one that ended shortens it). */
+const watching = () => perProcess("browser-lean.watching", () => ({ open: 0, closed: new Map<string, number>() }));
+
+/** Watches the pages' events while an open tab's page was drawn lately (until `open`, at least) or a
+ *  closed one's may still ask for a tab. */
+function watchFor(open = 0): void {
   const w = watching();
-  w.until = Math.max(w.until, until);
-  watch(TITLE, drain, () => w.until);
+  w.open = Math.max(w.open, open);
+  watch(TITLE, drain, () => Math.max(w.open, ...w.closed.values()));
 }
 
 /** How far a browser's closing time moves before its tabs are listed, and their states stamped,
@@ -276,10 +289,10 @@ function stateOf(names: Names | undefined): Drawn | null {
   }
 }
 
-/** The drawn tabs of a workspace's browser, by key, in keysOf's order, from tabs.json and each one's
- *  state, each read once; `here`'s as given (a tab being drawn now) in place of its state's. */
-function drawnTabs(workspace: string, entry: Entry | undefined, here?: [key: string, drawn: Drawn]): Map<string, Drawn> {
-  const names = readTabs(workspace);
+/** The drawn tabs of a workspace's browser, by key, in keysOf's order, from tabs.json (`names`, read
+ *  when not given) and each one's state, each read once; `here`'s as given (a tab being drawn now) in
+ *  place of its state's. */
+function drawnTabs(workspace: string, entry: Entry | undefined, here?: [key: string, drawn: Drawn], names = readTabs(workspace)): Map<string, Drawn> {
   const drawn = new Map<string, Drawn>();
   for (const key of entry ? keysOf(entry) : []) {
     const there = here && key === here[0] ? here[1] : stateOf(names[key]);
@@ -303,9 +316,9 @@ function strip(workspace: string, entry: Entry, drawn: Map<string, Drawn>): Stri
   return tabs;
 }
 
-/** Your sites, on a new tab's home: the sites with a saved login first, then `also` (a closed tab's
- *  own), then the hosts of the tabs `drawn`. */
-function sites(drawn: Map<string, Drawn>, also: string[] = []): string[] {
+/** Your sites, on a new tab's home: the sites with a saved login first, then the hosts of the tabs
+ *  `drawn`. */
+function sites(drawn: Map<string, Drawn>): string[] {
   let saved: string[] = [];
   try {
     saved = logins.list().map((l) => l.site);
@@ -313,28 +326,37 @@ function sites(drawn: Map<string, Drawn>, also: string[] = []): string[] {
     // the vault can't be opened: the open tabs' sites alone
   }
   const open = [...drawn.values()].map(({ st }) => st.host as string | undefined);
-  return [...new Set([...saved, ...also, ...open].filter((h): h is string => !!h))].slice(0, 12);
+  return [...new Set([...saved, ...open].filter((h): h is string => !!h))].slice(0, 12);
 }
 
 /** Writes when a workspace's browser closes, its tabs along the top and its sites, into each of its
  *  tabs' states that's there: a step in one chat keeps every tab of the workspace open, and a tab
  *  that came or went, or a login saved, shows on every page. A state is written again only when its
- *  tabs or sites changed, or the closing time moved RELIST_MS (a draw writes it exactly). */
-export function restamp(workspace: string, entry: Entry): void {
+ *  tabs or sites changed, or the closing time moved RELIST_MS (a draw writes it exactly). The closed
+ *  tabs' pages get the same tabs and sites (stampClosed), and those whose time is up go (`tabs`: the
+ *  workspace's tabs.json, read when not given). */
+export function restamp(workspace: string, entry: Entry, tabs = readTabs(workspace)): void {
+  if (prune(workspace, tabs)) {
+    try {
+      saveTabs(workspace, tabs);
+    } catch {
+      // no folder to write in: pruned again next time
+    }
+  }
   const until = entry.last + IDLE_MS;
-  const drawn = drawnTabs(workspace, entry);
-  const tabs = strip(workspace, entry, drawn);
+  const drawn = drawnTabs(workspace, entry, undefined, tabs);
+  const along = strip(workspace, entry, drawn);
   const shown = sites(drawn);
-  const now = JSON.stringify([tabs, shown]);
+  const now = JSON.stringify([along, shown]);
   for (const { names, text, st } of drawn.values()) {
     if (Math.abs(until - (Number(st.until) || 0)) < RELIST_MS && JSON.stringify([st.tabs, st.sites]) === now) continue;
     try {
-      writePublic(pub(names.token, ".json"), JSON.stringify({ ...st, until, tabs, sites: shown }), text);
+      writePublic(pub(names.token, ".json"), JSON.stringify({ ...st, until, tabs: along, sites: shown }), text);
     } catch {
       // no folder to write in, or a state that isn't one: the next draw writes it whole
     }
   }
-  restampClosed(workspace, entry, drawn, tabs);
+  stampClosed(workspace, tabs, along, shown);
   listTabs(workspace, drawn);
 }
 
@@ -392,7 +414,7 @@ function tabState(at: Tab, names: Names, title: string, url: string, snap: Snap,
  *  where AnythingLLM's public folder can't be written (AnythingLLM Desktop) or no page key is set. */
 async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<string | null> {
   await takeover.keepOffer(at, asksPassword(snap)); // before the state shows the offer
-  const names = namesOf(at.workspace, at.key)!;
+  const names = namesOf(at.workspace, at.key);
   try {
     const shot = publicPath(pub(names.token, ""));
     fs.mkdirSync(path.dirname(shot), { recursive: true });
@@ -469,43 +491,44 @@ function addressOf(q: string): string | null {
   }
 }
 
-/** A search or an address typed on a tab's page (`q`, as `e` has it): opens a tab of the user's own
- *  there, in the workspace's browser (`running`, else launched: for a closed tab's page), through the
- *  fence and within MAX_YOURS, both asked before a browser is launched. The page that asked finds it
- *  by `made` along its tabs; what can't be opened is said there (`tell`), and a load that failed on
- *  the new tab's own page. Answers the tab, or null. */
-async function openOwn(workspace: string, running: Entry | undefined, e: Record<string, unknown>, tell: (line: string) => void): Promise<Tab | null> {
+/** A search or an address typed on a tab's page (`q`, as `e` has it; nothing for none): opens a tab
+ *  of the user's own there, in the workspace's browser (launched if it isn't running: for a closed
+ *  tab's page), through the fence and within MAX_YOURS, both asked before a browser is launched, with
+ *  the fence asked then given to it. The page that asked finds it by `made` along its tabs; what
+ *  can't be opened is said there (`tell`), and a load that failed on the new tab's own page. Answers
+ *  the tab, or null. */
+async function openOwn(workspace: string, e: Record<string, unknown>, tell: (line: string) => void): Promise<Tab | null> {
   const q = text(e.q, 2000).trim();
   if (!q) return null;
+  const running = state().browsers.get(workspace);
   if ((running?.yours.size ?? 0) >= MAX_YOURS) return tell(`You have ${MAX_YOURS} tabs of your own open. Close one, then try again.`), null;
   const url = addressOf(q) ?? searchAt(q);
-  if (await (running?.fence ?? makeFence())(url)) return tell(refusal(url, TO_USER)), null;
-  const entry = running?.browser ? running : await entryFor(workspace);
-  const { at, failed } = await openYours(workspace, entry, url, text(e.made, 40));
+  const fence = running?.fence ?? makeFence();
+  if (await fence(url)) return tell(refusal(url, TO_USER)), null;
+  const { at, failed } = await openYours(workspace, await entryFor(workspace, fence), url, text(e.made, 40));
   if (failed) say(at.entry, at.key, `Couldn’t open ${hostOf(url) || "that address"}. Check the address, then try again.`);
   return at;
 }
 
 /** `new` from the page of the open tab `at`: a tab of the user's own (openOwn), drawn. */
 async function openFrom(at: Tab, e: Record<string, unknown>): Promise<boolean> {
-  if (!text(e.q, 2000).trim()) return false;
-  const yours = await openOwn(at.workspace, at.entry, e, (line) => say(at.entry, at.key, line));
+  const yours = await openOwn(at.workspace, e, (line) => say(at.entry, at.key, line));
   if (yours) await redrawn(yours);
   return true;
 }
 
-/** `new` from the page of a tab that isn't open (closed, or its browser gone: closedBy, which checks
- *  its secret), the one thing such a page may ask for: a tab of the user's own, as from an open tab's
- *  page, in the workspace's browser, launched if it isn't running. Only when asked lately (FRESH_MS),
- *  and not in a scheduled job's process, which ends with its job. Answers the tab opened, for the
- *  caller to draw, or null. */
-async function fromClosed(workspace: string, key: string, names: Names | null, e: Record<string, unknown>): Promise<Tab | null> {
-  if (!(Math.abs(Date.now() - Number(e.at)) < FRESH_MS) || jobTimeLeft() !== null) return null;
-  const found = closedBy(workspace, key, names, e.secret);
-  if (!found) return null;
-  const tell = (line: string) => sayClosed(workspace, found[0], line);
+/** `new` from the page of a tab that isn't open while it may still ask (drain checked its secret and
+ *  asksUntil), the one thing such a page may ask for: a tab of the user's own, as from an open tab's
+ *  page. Only when asked lately (FRESH_MS); not a scheduled job's, nor in a job's process, whose
+ *  browser ends with the job. A tab that went with AnythingLLM is marked closed first, as of when its
+ *  browser would have closed, so its page finds the new tab along its top. Answers the tab opened,
+ *  for the caller to draw, or null. */
+async function fromClosed(workspace: string, key: string, n: Names, e: Record<string, unknown>): Promise<Tab | null> {
+  if (!(Math.abs(Date.now() - Number(e.at)) < FRESH_MS) || workspace === JOBS || jobTimeLeft() !== null) return null;
+  if (!n.closedUntil) forgetTabs(workspace, [key], Number(stateOf(n)?.st.until));
+  const tell = (line: string) => sayClosed(workspace, key, line);
   try {
-    return await openOwn(workspace, state().browsers.get(workspace), e, tell);
+    return await openOwn(workspace, e, tell);
   } catch {
     tell("The browser couldn’t open a tab. Try again in a moment.");
     return null;
@@ -629,24 +652,20 @@ async function drainLogins(): Promise<void> {
 }
 
 /** Applies every event the tabs' pages posted since the last time, in order, each only with its
- *  tab's secret; then draws each tab that changed. One that fails is skipped, and its tab says so. A
- *  page whose tab isn't open may ask for a tab of the user's own alone (fromClosed). */
+ *  tab's secret, checked once; then draws each tab that changed. One that fails is skipped, and its
+ *  tab says so. A page whose tab isn't open may ask for a tab of the user's own alone (fromClosed). */
 async function drain(): Promise<void> {
   const changed = new Set<Tab>();
   for (const e of takeEvents(TITLE, "browser_lean_event")) {
     const workspace = text(e.workspace, 100);
     const key = text(e.tab, 100);
-    let names: Names | null;
-    try {
-      names = namesOf(workspace, key, false);
-    } catch {
-      continue; // no such workspace
-    }
+    const names = readTabs(workspace)[key];
+    if (!names?.token || !sameSecret(e.secret, names.secret)) continue; // not this tab's: an old link's, or a forgery
     const entry = state().browsers.get(workspace);
-    // Not this tab's (an old link's, or a forgery), or the tab closed: a closed tab's page, perhaps.
-    const open = names && sameSecret(e.secret, names.secret) && entry ? tabOf(workspace, entry, key) : null;
+    const open = entry && !names.closedUntil ? tabOf(workspace, entry, key) : null;
     if (!open) {
-      const yours = e.ev === "new" ? await fromClosed(workspace, key, names, e) : null;
+      // A closed tab's page, or one whose browser went: a tab of the user's own, while it may ask.
+      const yours = e.ev === "new" && asksUntil(names) > Date.now() ? await fromClosed(workspace, key, names, e) : null;
       if (yours) changed.add(yours);
       continue;
     }

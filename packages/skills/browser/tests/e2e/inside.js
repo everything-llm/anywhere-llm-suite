@@ -409,6 +409,12 @@ const server = http.createServer((req, res) => {
     assert.ok(shown.url().endsWith(`/browser-lean/${opened.path}`), `the page went to it: ${shown.url()}`);
     await shown.waitForFunction(() => !document.getElementById("stage").hidden && document.getElementById("addr").textContent.includes("127.0.0.1"), { timeout: 10_000 });
     assert.equal(JSON.parse(fs.readFileSync(`${APP}/public/browser-lean/${opened.path.replace(".html", ".json")}`, "utf8")).title, "Docs", "the user's own tab, at the address typed");
+    // An open tab's home keeps the same tools: + shows it, and More there has New tab alone.
+    await shown.click("#strip > button:last-child");
+    await shown.waitForFunction(() => !document.getElementById("home").hidden, { timeout: 5_000 });
+    await shown.click("#morebtn");
+    const atHome = await shown.evaluate(() => [...document.querySelectorAll("#more button")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
+    assert.deepEqual(atHome, ["New tab"], "More on an open tab's home: New tab, and no Close this tab");
     assert.deepEqual(errors, [], "no error on the page");
   } finally {
     await phone.close();

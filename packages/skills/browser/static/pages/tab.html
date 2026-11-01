@@ -12,9 +12,9 @@
    take the tab over; tap a field to type with this device's keyboard. The tab's screen follows the
    picture's room, so it fills a phone or a desktop window alike. A sign-in request, and an offer to
    save a login, rise as a card at the bottom. + and More › New tab show a new tab's home, where a
-   search or an address opens a tab of the user's own. A tab that closed keeps all of it, the tab's
-   room alone changing: its other tabs stay along the top, a new tab's home takes the tab's place,
-   Back and Forward are off, and More has New tab alone. Inside AnywhereLLM Lite, which draws its own
+   search or an address opens a tab of the user's own; More there has New tab alone. A tab that closed
+   keeps all of it, the tab's room alone changing: its other tabs stay along the top, a new tab's home
+   takes the tab's place, and Back and Forward are off. Inside AnywhereLLM Lite, which draws its own
    bar for handing the tab back, the bar saying who holds the tab is left out. It draws no Close of
    its own: it opens in a sheet whose toolbar shows its <title> (the tab's) and a Close (AnywhereLLM
    Lite's Custom Tab), or in a browser tab with its own Back. ?theme=light or dark keeps it to one,
@@ -1328,8 +1328,8 @@ svg{flex:none}
     updating("Opening the tab…");
   }
 
-  // ---- More: New tab, Close this tab; New tab alone on a new tab's home and once the tab is
-  // gone. No Back to the chat: the page opens in a sheet whose toolbar has a Close (AnywhereLLM Lite's
+  // ---- More: New tab, Close this tab; New tab alone on a new tab's home (a gone tab's included).
+  // No Back to the chat: the page opens in a sheet whose toolbar has a Close (AnywhereLLM Lite's
   // Custom Tab), or in a browser tab with its own Back.
   function openMore() {
     $("scrim").hidden = $("more").hidden = false;
@@ -1486,9 +1486,9 @@ svg{flex:none}
   // A gone tab's state, as this page draws it: no page of its own, only the frame. A closed one's
   // has the workspace's open tabs, its sites and the Vault's link; a stopped one's tabs went with its
   // browser.
-  const goneState = (s) => ({
-    title: "", url: "", host: "", mine: true, tabs: gone === "closed" ? s.tabs || [] : [], sites: s.sites || [],
-    back: false, forward: false, shot, until: s.until, who: "agent", fields: [], need: null, offer: null, msg: s.msg || null, vault: s.vault || null,
+  const goneState = (s, how) => ({
+    title: "", url: "", host: "", mine: true, tabs: how === "closed" ? s.tabs || [] : [], sites: s.sites || [],
+    shot, until: s.until, who: "agent", fields: [], need: null, offer: null, msg: s.msg || null, vault: s.vault || null,
   });
 
   // The state file, asked for often while a step is pending and less when idle.
@@ -1508,10 +1508,11 @@ svg{flex:none}
     const before = gone;
     gone = next.closed ? "closed" : next.until > Date.now() + skew ? null : "stopped";
     if (gone && awaiting?.next) return goTo(awaiting.next.path); // closed from here: on to the next tab
-    if (gone) next = goneState(next);
+    if (gone) next = goneState(next, gone);
     const same = text === lastText && gone === before;
     if (!same) {
       const first = !st;
+      const fresh = shot !== 0; // a line already there when the page opened isn't news
       st = next;
       if (gone && !before) {
         // Gone now (or when the page opened): its home in its place, as + shows it, keeping what was typed there.
@@ -1520,17 +1521,16 @@ svg{flex:none}
         if (!homeView) setHome(true), ($("q").value = ""), suggest();
         toast("This tab closed");
       }
-      if (gone) {
-        if (st.msg && st.msg.id !== shown) (!first && toast(st.msg.text)), (shown = st.msg.id); // why a tab didn't open
-      } else if (st.shot !== shot) {
-        const fresh = shot !== 0; // a message already there when the page opened isn't news
+      if (!gone && st.shot !== shot) {
         shot = st.shot;
         slide(0);
         if (st.size) size = st.size;
         $("shot").src = cfg.token + ".jpg?v=" + shot;
         if (pending && shot !== pending.from) settled();
-        if (st.msg && st.msg.id !== shown) (fresh && toast(st.msg.text)), (shown = st.msg.id); // a line stays a while: shown once
       }
+      // A line stays a while: shown once (a gone tab's: why a tab didn't open).
+      const news = gone ? !first : fresh;
+      if (st.msg && st.msg.id !== shown) (news && toast(st.msg.text)), (shown = st.msg.id);
       if (first) askSize(); // the first state: ask for this window's room
     }
     // A tab asked for from here: gone to once it's listed. A line said meanwhile is the answer (why it
@@ -1549,11 +1549,15 @@ svg{flex:none}
     // while its request is.
     if ((!same || st.who !== was) && !over) (lastText = text), paint();
   }
+  // A gone tab's state changes only as tabs come and go: asked for less often, and no more once its
+  // page may ask for nothing (its time up, or no `until`). A post asks again soon.
   let pollTimer = 0;
   function loop() {
     poll().finally(() => {
       clearTimeout(pollTimer);
-      pollTimer = setTimeout(loop, pending || awaiting ? 250 : 2000);
+      if (pending || awaiting) return void (pollTimer = setTimeout(loop, 250));
+      if (gone === "closed" && !(st.until > Date.now() + skew)) return;
+      pollTimer = setTimeout(loop, gone ? 15000 : 2000);
     });
   }
   function soon() {
