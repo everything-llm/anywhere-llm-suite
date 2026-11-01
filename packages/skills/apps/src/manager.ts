@@ -142,12 +142,17 @@ export async function show(base: string | null): Promise<string | null> {
   }
 }
 
+/** The manager's card: a quote whose first paragraph is its name, bold, as the link to it titled
+ *  with its glyph, then what it's for, as the library's cards for the Vault and the Library are
+ *  (docs/page-links.md, the card in an answer); any other client shows the quote. */
+const card = (url: string): string => `> **[Artifacts](${url} "artifacts")**\n>\n> Every workspace's artifacts, and the trash.`;
+
 /** What the agent is told about the manager: its link, or where the user opens it while the links
  *  are kept from the agent; nothing when it can't be written. */
 export async function line(base: string | null): Promise<string | null> {
   const url = await show(base);
   if (!url) return null;
-  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, at ${url}`;
+  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, give them its card as it is, in its own quote:\n\n${card(url)}`;
 }
 
 /** What every call does before its own work: the manager's names made to fit the switch (#shared/
