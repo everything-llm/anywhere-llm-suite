@@ -1309,7 +1309,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
   }
   // The requests the user said aren't needed: hidden at once, and sent once the toast with Undo closes.
   const dropped = new Set();
-  const asked = (state) => state.needs.filter((need) => !dropped.has(need.id) && Date.now() - need.at < DAY && !state.targets.some((m) => m.label === need.label));
+  const waitingFor = (state) => state.needs.filter((need) => !dropped.has(need.id) && Date.now() - need.at < DAY && !state.targets.some((m) => m.label === need.label));
   function notNeeded(need, node) {
     dropped.add(need.id);
     node.hidden = true;
@@ -1326,7 +1326,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
     undoButton.focus();
   }
   function machinesTab(state) {
-    const asking = asked(state);
+    const asking = waitingFor(state);
     const add = (href, text) => el("a", { className: "add", href }, icon("plus", 20), el("span", { textContent: text }), icon("next"));
     // A machine the agent waits for is its own card, named as the agent's toolkits will use it, with
     // the chat that asked and when: adding it there meets the request, and the agent carries on; Not
@@ -1509,7 +1509,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       S = JSON.parse(text);
       for (const m of S.targets) draft(`add/${m.label}`, cfg.token).clear(); // the agent's request is met
       // Opened while the agent asks for a machine: Machines, where it's added.
-      if (first && !location.hash && asked(S).length) history.replaceState(null, "", "#machines");
+      if (first && !location.hash && waitingFor(S).length) history.replaceState(null, "", "#machines");
       draw();
       answered(S);
     } catch (e) {

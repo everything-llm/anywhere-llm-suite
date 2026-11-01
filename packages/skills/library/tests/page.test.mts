@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import { linksFile, readLinks } from "#shared/page-links";
 import { call, giveKey, hideLinks, library, LIBRARY_CARD, pageConfig, pageState, post, postVault, publicDir, reset, seal, skillDir, storage, until, VAULT_CARD, vaultConfig, vaultState } from "./harness.mts";
 
@@ -413,6 +414,7 @@ test("a request a day old isn't shown, and is gone from page.json at the next ca
 
 test("a request's card says where and when, with Not needed, a plain secondary, beside its one primary; Undo holds the drop with no timer, until the toast closes or the page is left", () => {
   for (const html of [pageSource("library.html"), vaultSource()]) {
+    for (const [, script] of html.matchAll(/<script>([^]*?)<\/script>/g)) new vm.Script(script); // compiles: run nowhere
     assert.match(html, /need\.where \? `Asked in \$\{need\.where\} · ` : "Asked by a scheduled job · "|n\.where \? `Asked in \$\{n\.where\} · ` : "Asked by a scheduled job · "/);
     assert.match(html, /<div id="toast" role="status" hidden><span><\/span><button type="button" class="undo" hidden>Undo<\/button><button type="button" class="shut" aria-label="Close" hidden><\/button><\/div>/);
     assert.match(html, /if \(undo\) held = undo;\n {4}else toastTimer = setTimeout\(hideToast, 4000\);/, "only a toast without Undo times out");

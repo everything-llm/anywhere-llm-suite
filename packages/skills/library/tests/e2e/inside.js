@@ -21,6 +21,7 @@ const PORT = 18083;
 const KEY = "e2e-key-0123456789";
 
 const ImportedPlugin = require(`${APP}/utils/agents/imported.js`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // A scheduled job's process, as run-scheduled-job.js is: forked, the skill loaded afresh, no workspace.
 if (process.argv[2] === "job") {
@@ -58,7 +59,8 @@ const server = http.createServer((req, res) => {
   const call = async (args, slug = "check") => {
     let fn;
     const agent = {
-      handlerProps: { invocation: { workspace: slug ? { slug } : null, thread_id: 1 }, log: (m) => console.error(m) },
+      // The workspace's row, as AnythingLLM's invocation carries it: its name with its slug.
+      handlerProps: { invocation: { workspace: slug ? { slug, name: "Check room" } : null, thread_id: 1 }, log: (m) => console.error(m) },
       requestUserClarification: async (q) => (cards.push(q), { skipped: true }),
       addClarifyingQuestionSurvey: () => {},
       function: (def) => (fn = def),
@@ -176,6 +178,48 @@ const server = http.createServer((req, res) => {
       assert.ok(!(await stored()).includes("ghp_e2eDraftSecretValue"), "never the key");
       await shown.click("#apikeys button.add"); // Cancel
       assert.deepEqual(await vaultOpen(), [], "Cancel dropped the draft: closed, and empty");
+
+      // A request says which chat asked and when; Not needed hides it with an Undo that outlasts the
+      // 4 s toasts; Close (or leaving the page) sends it, and the chat that asked is told at its next call.
+      const toldIn = async (args) => {
+        for (let i = 0; i < 40; i++) {
+          const said = await call(args);
+          if (said.includes("isn't needed")) return said;
+          await sleep(250);
+        }
+        assert.fail("the chat wasn't told the user said it isn't needed");
+      };
+      const visible = (selector) => shown.$eval(selector, (n) => !n.hidden && !n.closest("[hidden]")).catch(() => false);
+      await call({ action: "secret", kind: "ssh", label: "vm" });
+      await shown.goto(`${at}/library-lean/${libToken}.html#machines`, { waitUntil: "load" });
+      await shown.waitForSelector("#tab .card.need [data-need]", { timeout: 10_000 });
+      assert.match(await shown.$eval("#tab .card.need", (n) => n.textContent), /The agent is waiting for vm.*Asked in Check room · just now/, "where and when");
+      await shown.click("#tab .card.need [data-need]");
+      assert.equal(await visible("#tab .card.need"), false, "hidden at once");
+      assert.equal(await shown.$eval("#toast", (n) => n.textContent), "Dropped the request for vmUndo");
+      await sleep(5000);
+      assert.equal(await visible("#toast .undo"), true, "Undo is still there after 4 s");
+      await shown.click("#toast .undo");
+      assert.equal(await visible("#tab .card.need"), true, "Undo brings it back");
+      assert.equal(await visible("#toast"), false);
+      await shown.click("#tab .card.need [data-need]");
+      await shown.click("#toast .shut");
+      assert.match(await toldIn({ action: "library" }), /^The user said the machine "vm" isn't needed \(on the Library page\)/, "Close sent it, and the chat is told");
+      await shown.waitForFunction(() => !document.querySelector("#tab .card.need"), { timeout: 10_000 });
+
+      // The Vault's: sent as the page is left.
+      await call({ action: "secret", site: "api.github.com", label: "github" });
+      await shown.goto(`${at}/vault-lean/${vaultToken}.html`, { waitUntil: "load" });
+      await shown.waitForSelector("#apikeys .card.need [data-need]", { timeout: 10_000 });
+      assert.match(await shown.$eval("#apikeys .card.need", (n) => n.textContent), /The agent asks for a key for api\.github\.com.*Asked in Check room · just now/);
+      await shown.click("#apikeys .card.need [data-need]");
+      assert.equal(await visible("#toast .undo"), true);
+      await shown.goto("about:blank");
+      // Applied by the Vault's watch (asked again first, it would be a new request the drop misses).
+      const keyNeeds = () => JSON.parse(fs.readFileSync(`${APP}/public/vault-lean/${vaultToken}-keys.json`, "utf8")).needs;
+      for (let i = 0; i < 40 && keyNeeds().length; i++) await sleep(250);
+      assert.deepEqual(keyNeeds(), [], "leaving the page sent it");
+      assert.match(await call({ action: "secret", site: "api.github.com", label: "github" }), /^The user said the key "github" for api\.github\.com isn't needed \(on the Vault\)[^]*So the key "github" wasn't asked for again\./, "and the chat is told");
       assert.deepEqual(errors, [], "no error on the pages");
     } finally {
       await viewer.close();
