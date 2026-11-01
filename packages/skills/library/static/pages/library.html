@@ -906,18 +906,11 @@ dialog.sheet::backdrop{background:var(--scrim)}
 </div>
 <div class="view" id="screen" hidden></div>
 <div class="menu" id="menu" role="menu" hidden></div>
-<dialog class="sheet" id="rename" aria-labelledby="rename-t">
-  <span class="grip" aria-hidden="true"></span>
-  <form method="dialog" class="sheetin">
-    <div><h2 id="rename-t"></h2><p class="say">Only this page shows the new name. The agent still knows it by its old one.</p></div>
-    <label class="ff"><span>Name</span><input class="fld" id="rename-in" type="text" maxlength="100" autocomplete="off" spellcheck="false"></label>
-    <div class="acts"><button class="hu-button hu-button--secondary" value="keep">Cancel</button><button class="hu-button hu-button--primary" value="yes" id="rename-yes">Save</button></div>
-  </form>
-</dialog>
 <dialog class="sheet" id="sheet" aria-labelledby="sheet-t" aria-describedby="sheet-b">
   <span class="grip" aria-hidden="true"></span>
   <form method="dialog" class="sheetin">
     <div><h2 id="sheet-t"></h2><p class="say" id="sheet-b"></p></div>
+    <label class="ff" id="sheet-f" hidden><span>Name</span><input class="fld" id="sheet-in" type="text" maxlength="100" autocomplete="off" spellcheck="false"></label>
     <div class="acts"><button class="hu-button hu-button--primary" value="keep" id="sheet-keep">Keep</button><button class="hu-button hu-button--danger" value="yes" id="sheet-yes"></button></div>
   </form>
 </dialog>
@@ -1022,43 +1015,29 @@ dialog.sheet::backdrop{background:var(--scrim)}
   // ---- The sheet that asks first, and the ⋯ menu.
   const sheet = $("sheet");
   let asked = null;
-  function ask(title, body, yes, act) {
+  // With `value`, the sheet holds a Name field that starts with it, `yes` is the primary button and
+  // Enter presses it, and `act` gets the name typed.
+  function ask(title, body, yes, act, { value } = {}) {
+    const named = value !== undefined;
     $("sheet-t").textContent = title;
     $("sheet-b").textContent = body;
     $("sheet-yes").textContent = yes;
+    $("sheet-yes").className = `hu-button hu-button--${named ? "primary" : "danger"}`;
+    $("sheet-f").hidden = !named;
+    $("sheet-in").value = value ?? "";
     asked = { act, from: document.activeElement };
     sheet.returnValue = "";
     sheet.showModal();
-    $("sheet-keep").focus();
+    named ? $("sheet-in").select() : $("sheet-keep").focus();
   }
+  $("sheet-in").addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), sheet.close("yes")));
   sheet.addEventListener("close", () => {
     const was = asked;
     asked = null;
     if (was?.from?.isConnected) was.from.focus();
-    if (was && sheet.returnValue === "yes") was.act();
+    if (was && sheet.returnValue === "yes") was.act($("sheet-in").value.trim());
   });
   sheet.addEventListener("click", (e) => e.target === sheet && sheet.close("keep")); // the scrim
-
-  // The sheet that renames what this page shows: `act` gets the new name, empty for the old one back.
-  const renameSheet = $("rename");
-  let renaming = null;
-  function rename(name, act) {
-    $("rename-t").textContent = `Rename ${name}`;
-    $("rename-in").value = name;
-    renaming = { act, from: document.activeElement };
-    renameSheet.returnValue = "";
-    renameSheet.showModal();
-    $("rename-in").select();
-  }
-  // Enter saves, though Cancel comes first in the form.
-  $("rename-in").addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), renameSheet.close("yes")));
-  renameSheet.addEventListener("close", () => {
-    const was = renaming;
-    renaming = null;
-    if (was?.from?.isConnected) was.from.focus();
-    if (was && renameSheet.returnValue === "yes") was.act($("rename-in").value.trim());
-  });
-  renameSheet.addEventListener("click", (e) => e.target === renameSheet && renameSheet.close("keep"));
 
   const menu = $("menu");
   let menuFrom = null;
@@ -1084,9 +1063,12 @@ dialog.sheet::backdrop{background:var(--scrim)}
     };
     return b;
   }
-  // ⋯ › Delete, which asks first and then posts `ev`; `after` follows a delete that was sent.
-  const deleteMenu = (name, body, ev, fields, { cls, after } = {}) =>
-    moreButton(`More for ${name}`, [["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
+  // ⋯ › `items`, then Delete, which asks first and then posts `ev`; `after` follows a delete that was sent.
+  const deleteMenu = (name, body, ev, fields, { cls, after, items = [] } = {}) =>
+    moreButton(`More for ${name}`, [...items, ["Delete", () => ask(`Delete ${name}?`, body, "Delete", () => post(ev, fields).then((sent) => sent && after?.()))]], cls);
+  // ⋯ › Rename: a name only this page shows.
+  const renameItem = (name, ev, fields) =>
+    ["Rename", () => ask(`Rename ${name}`, "Only this page shows the new name. The agent still knows it by its old one.", "Save", (to) => post(ev, { ...fields, name: to }), { value: name }), "plain"];
   document.addEventListener("pointerdown", (e) => !menu.hidden && !menu.contains(e.target) && !e.target.closest?.("[aria-haspopup]") && closeMenu());
   document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && closeMenu());
 
@@ -1128,11 +1110,10 @@ dialog.sheet::backdrop{background:var(--scrim)}
     if (!state.toolkits.length) return [card(say("No toolkits yet. Ask the agent to connect a service, and it shows here."))];
     return state.toolkits.map((t) => card(
       el("div", { className: "head" }, el("h2", { textContent: t.title }),
-        el("div", { className: "ends" }, t.locked ? tag("Locked", "ok", "lock") : null, moreButton(`More for ${t.title}`, [
-          ["Rename", () => rename(t.title, (name) => post("toolkit-rename", { service: t.service, name })), "plain"],
-          // Locked, nothing removes it; renaming changes only what this page shows.
-          ...(t.locked ? [] : [["Delete", () => ask(`Delete ${t.title}?`, "Its functions are deleted too. This can’t be undone.", "Delete", () => post("toolkit-delete", { service: t.service }))]]),
-        ]))),
+        // Locked, nothing removes it; renaming changes only what this page shows.
+        el("div", { className: "ends" }, ...(t.locked
+          ? [tag("Locked", "ok", "lock"), moreButton(`More for ${t.title}`, [renameItem(t.title, "toolkit-rename", { service: t.service })])]
+          : [deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service }, { items: [renameItem(t.title, "toolkit-rename", { service: t.service })] })]))),
       reachOf(t),
       t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), el("span", { className: "one", textContent: does(f) })))) : null,
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),

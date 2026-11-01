@@ -146,12 +146,10 @@ function state(p: PageFile) {
 
 /** The Vault's keys section, as the Vault reads it: nothing secret. */
 function keysState(p: PageFile | null) {
-  const shown = store.shownNames();
-  const named = <K extends { label: string }>(k: K) => ({ ...k, shown: shown[k.label.toLowerCase()] ?? null });
   return {
     needs: needsOf(p, "key"),
-    secrets: secrets.secrets().map(named),
-    signing: signing.signingKeys().map(named),
+    secrets: secrets.secrets(),
+    signing: signing.signingKeys(),
   };
 }
 
@@ -255,7 +253,7 @@ async function apply(e: Record<string, unknown>, secret: string): Promise<Applie
       store.removeToolkit(store.serviceOf(e.service));
       return { relist: true };
     case "toolkit-rename":
-      await store.setShown(store.serviceOf(e.service), text(e.name, 100).trim());
+      await store.setShown(store.serviceOf(e.service), text(e.name, 100));
       return { relist: true };
     case "toolkit-lock":
     case "toolkit-unlock":
@@ -293,10 +291,9 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return label;
     case "key-delete":
       await secrets.removeSecret(label);
-      await store.setShownName(label, "");
       return null;
     case "key-rename":
-      await store.setShownName(label, text(e.name, 60));
+      await secrets.setShown(label, text(e.name, 60));
       return null;
     case "signing-new":
       await signing.create(secrets.labelOf(label), signing.namespaceOf(e.namespace));
@@ -306,7 +303,6 @@ async function applyKeys(e: Record<string, unknown>): Promise<string | null> {
       return null;
     case "signing-delete":
       await signing.removeSigning(label);
-      await store.setShownName(label, "");
       return null;
     case "signing-unattended":
       await signing.setUnattended(label, e.on === true);

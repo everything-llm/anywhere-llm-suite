@@ -1034,7 +1034,7 @@ input::placeholder{color:var(--muted);opacity:1}
   const renameButton = (k, ks) => el("button", { className: "hu-button hu-button--secondary", type: "button", textContent: "Rename", attrs: { "aria-label": `Rename ${shownAs(k)}` }, onclick: () => ((renaming = k.label), drawKeys(ks)) });
   function renameForm(k, ks) {
     const f = form([["name", "Name", "text", false, k.label]], "Save name", async (v) => {
-      const went = await post("keys", "key-rename", { label: k.label, name: v.name === k.label ? "" : v.name });
+      const went = await post("keys", "key-rename", { label: k.label, name: v.name });
       if (went) (renaming = null), drawKeys(ks);
       return went;
     });

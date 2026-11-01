@@ -23,7 +23,24 @@ const PER_MINUTE = 60;
 export interface Secret {
   site: string;
   label: string;
+  /** The name the user gave it on the Vault ([setShown]), or null. */
+  shown: string | null;
 }
+
+/** The name the user gave the vault entry `e` on the Vault, shown there in place of its own, which
+ *  the agent and the functions still use; null when it has none. */
+export const shownOf = (e: Readonly<vault.Entry>): string | null => (typeof e.shown === "string" ? e.shown : null);
+
+/** Shows the key or signing key `label` as `shown` on the Vault, kept on its vault entry; a name
+ *  that is empty or the key's own shows its own again. */
+export const setShown = (label: string, shown: string): Promise<void> =>
+  vault.update((v) => {
+    const e = v.entries.find((e) => (e.kind === "key" || e.kind === "signing") && e.user.toLowerCase() === label.toLowerCase());
+    if (!e) return;
+    const name = shown.trim().slice(0, 60);
+    if (name && name !== e.user) e.shown = name;
+    else delete e.shown;
+  });
 
 /** `as`, checked. */
 export function asOf(as: unknown): string {
@@ -64,12 +81,12 @@ export const secrets = (): Secret[] =>
   vault
     .entries()
     .filter(named())
-    .map((e): Secret => ({ site: e.site, label: e.user }));
+    .map((e): Secret => ({ site: e.site, label: e.user, shown: shownOf(e) }));
 
 /** The saved key whose value is `value`, without its value; undefined when none is. */
 export function savedAs(value: string): Secret | undefined {
   const e = vault.entries().find((e) => named()(e) && e.value === value);
-  return e && { site: e.site, label: e.user };
+  return e && { site: e.site, label: e.user, shown: shownOf(e) };
 }
 
 /** The name of the secret a request to `host` goes with when it names none: the one saved for the
@@ -99,14 +116,15 @@ export function assertKeyName(label: string): void {
   if (taken) throw nameTaken(taken);
 }
 
-/** Saves `entry` under its label, replacing whole the secret of that name (keeping only its id), when
- *  that is the same kind of secret. */
+/** Saves `entry` under its label, replacing whole the secret of that name (keeping only its id and the
+ *  name the user gave it), when that is the same kind of secret. */
 function put(v: vault.Vault, entry: { kind: string; site: string; user: string; [field: string]: unknown }): void {
   const other = otherNamed(v.entries, entry.user, entry.kind);
   if (other) throw nameTaken(other);
   const at = v.entries.findIndex(named(entry.user));
   if (at < 0) return void v.entries.push({ id: vault.newId(), ...entry });
-  v.entries[at] = { id: v.entries[at].id, ...entry };
+  const shown = shownOf(v.entries[at]);
+  v.entries[at] = { id: v.entries[at].id, ...(shown ? { shown } : {}), ...entry };
 }
 
 /** Counts a use of the secret `id` (its vault entry's) in `bucket`: refused with `refusal(PER_MINUTE)`

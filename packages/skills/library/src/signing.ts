@@ -15,7 +15,7 @@ import * as vault from "#shared/vault";
 import { LibraryError } from "./errors";
 import { bytesOf } from "./extensions/crypto";
 import { check } from "./policy";
-import { countUse, nameTaken, otherNamed } from "./secrets";
+import { countUse, nameTaken, otherNamed, shownOf } from "./secrets";
 import * as sshsig from "./sshsig";
 import type { RunRecord } from "./store";
 
@@ -29,6 +29,8 @@ export interface SigningKey {
   public: string | null;
   fingerprint: string | null;
   unattended: boolean;
+  /** The name the user gave it on the Vault, or null. */
+  shown: string | null;
 }
 
 /** What signed, for the run's record. */
@@ -50,7 +52,7 @@ export function namespaceOf(raw: unknown): string {
 const keyOf = (e: Readonly<vault.Entry>): SigningKey => {
   const seed = sshsig.seedOf(String(e.seed ?? ""));
   const pub = seed && sshsig.publicOf(seed);
-  return { label: e.user, namespace: e.site, public: pub ? sshsig.keyLine(pub) : null, fingerprint: pub ? sshsig.fingerprint(pub) : null, unattended: e.unattended === true };
+  return { label: e.user, namespace: e.site, public: pub ? sshsig.keyLine(pub) : null, fingerprint: pub ? sshsig.fingerprint(pub) : null, unattended: e.unattended === true, shown: shownOf(e) };
 };
 
 /** The saved signing keys, without their seeds. */

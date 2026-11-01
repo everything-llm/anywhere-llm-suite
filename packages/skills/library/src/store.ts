@@ -189,37 +189,25 @@ function unlocked(service: string): Toolkit | null {
 
 /** Locks the toolkit `service`, or unlocks it: the user's, from the Library page. Under the
  *  toolkit's lock, so a lock and an unlock at once from two processes don't lose one. */
-export async function setLocked(service: string, on: boolean): Promise<void> {
+export const setLocked = (service: string, on: boolean): Promise<void> =>
+  changeKit(service, (kit) => ({ ...kit, locked: on || undefined, pins: on ? pinsOf(kit.targets) : undefined }));
+
+/** Changes the toolkit `service` with `change`, under its lock; nothing when there's none. */
+async function changeKit(service: string, change: (kit: Toolkit) => Toolkit): Promise<void> {
   if (!fs.existsSync(kitFile(service))) return;
   await locked(`${kitFile(service)}.lock`, "the toolkit", () => {
     const kit = readJson<Toolkit>(kitFile(service));
-    if (kit) writeJson(kitFile(service), { ...kit, locked: on || undefined, pins: on ? pinsOf(kit.targets) : undefined });
+    if (kit) writeJson(kitFile(service), change(kit));
   });
 }
 
 /** Gives the toolkit `service` the name `shown` on the Library page, locked or not, since it changes
- *  only what the user sees; an empty name shows its title again. */
-export async function setShown(service: string, shown: string): Promise<void> {
-  if (!fs.existsSync(kitFile(service))) return;
-  await locked(`${kitFile(service)}.lock`, "the toolkit", () => {
-    const kit = readJson<Toolkit>(kitFile(service));
-    if (kit) writeJson(kitFile(service), { ...kit, shown: shown || undefined });
+ *  only what the user sees; a name that is empty or its title shows its title again. */
+export const setShown = (service: string, shown: string): Promise<void> =>
+  changeKit(service, (kit) => {
+    const name = shown.trim().slice(0, 100);
+    return { ...kit, shown: name && name !== kit.title ? name : undefined };
   });
-}
-
-/** The names the user gave keys on the Vault, by key name (lower case): the Vault shows them in
- *  place of the key's own, which the agent and the functions still use. */
-const shownFile = () => path.join(libraryDir(), "shown.json");
-export const shownNames = (): Record<string, string> => readJsonOr<Record<string, string>>(shownFile(), () => ({}));
-
-/** Shows the key `label` as `shown` on the Vault; an empty name, as for a key deleted, shows its
- *  own again. */
-export async function setShownName(label: string, shown: string): Promise<void> {
-  await locked(`${shownFile()}.lock`, "the Vault's names", () => {
-    const { [label.toLowerCase()]: _was, ...rest } = shownNames();
-    writeJson(shownFile(), shown ? { ...rest, [label.toLowerCase()]: shown } : rest);
-  });
-}
 
 /** Whether two registered targets are the same account on the same machine: the same host key and
  *  login (however they are reached, by a name or an address), or the same host (canonical), port and login. */

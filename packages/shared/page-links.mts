@@ -30,6 +30,16 @@ export const linksFile = (storage: string = storageDir()): string => path.join(s
 /** Whether the links are kept from the agent now; read each time, never kept. */
 export const linksHidden = (storage: string = storageDir()): boolean => fs.existsSync(hiddenFile(storage));
 
+/** A page as a card the agent gives the user as it is: a quote whose first line is the page's name as
+ *  a bold link titled with its glyph's name, then a line on what it is for. Any client shows a quote with
+ *  a link, the title only as a tooltip; AnywhereLLM Lite draws a card from it with that glyph
+ *  (docs/page-links.md, the card in an answer). */
+export const pageCard = (name: string, glyph: string, about: string, url: string): string =>
+  `> **[${name.replace(/[[\]]/g, "\\$&")}](${url} "${glyph}")**\n>\n> ${about}`;
+
+/** What the agent is told to do with a page's card ([pageCard]). */
+export const giveCard = (card: string): string => `Give them this card as it is, in its own quote:\n\n${card}`;
+
 /** Where the user opens the pages when the agent isn't given their links. */
 export const OPEN_PAGES = "in AnywhereLLM Lite, or with `anywherellm-suite pages` on the AnythingLLM host";
 

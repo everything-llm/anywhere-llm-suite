@@ -16,7 +16,7 @@ import { baseUrlOf as baseOf, noteBase, workspaceOf } from "#shared/anythingllm"
 import { answerText, flag, keepOf, objectOf, textOf } from "#shared/answer";
 import { Told } from "#shared/errors";
 import { checkUrl } from "#shared/fence";
-import { OPEN_PAGES, linksHidden } from "#shared/page-links";
+import { OPEN_PAGES, giveCard, linksHidden, pageCard } from "#shared/page-links";
 import * as pageKeys from "#shared/pagekey";
 import { entryOf } from "#shared/static";
 import { LibraryError } from "./errors";
@@ -103,14 +103,8 @@ async function library(args: Args, self: HandlerContext): Promise<string> {
   return told(self, lines.join("\n"));
 }
 
-/** A page as a card the agent gives the user as it is: a quote whose first line is the page's name as
- *  a bold link titled with its glyph's name, then a line on what it is for. Any client shows a quote with
- *  a link, the title only as a tooltip; AnywhereLLM Lite draws a card from it with that glyph
- *  (docs/page-links.md, the card in an answer). */
-const pageCard = (name: string, glyph: string, about: string, url: string): string => `> **[${name}](${url} "${glyph}")**\n>\n> ${about}`;
 const vaultCard = (url: string): string => pageCard("The Vault", "vault", "Every key and browser login, by name.", url);
 const libraryCard = (url: string): string => pageCard("The Library", "library", "The toolkits, their runs and the machines.", url);
-const giveCard = (card: string): string => `Give them this card as it is, in its own quote:\n\n${card}`;
 
 /** The pages' links to give the user, or why there are none where AnythingLLM runs. With the links
  *  kept from the agent (shared/page-links.mts) the pages are still written, and the answer says only
