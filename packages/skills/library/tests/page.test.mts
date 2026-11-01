@@ -290,3 +290,11 @@ test("the user renames a toolkit on the Library page and a key on the Vault: onl
   assert.equal(pageState().toolkits[0].title, "Example 2", "an empty name shows the title again");
   assert.deepEqual(vaultState().secrets, [{ label: "ex", site: "api.example.com", shown: null }], "a deleted key's name goes with it");
 });
+
+test("a machine the agent asks for is a card saying the agent waits for it, with one button; the general row says another while one waits", () => {
+  const html = pageSource("library.html");
+  assert.ok(!html.includes("which the agent asks for"), "no second Add row that reads like the first");
+  assert.match(html, /`The agent is waiting for \$\{need\.label\}`/);
+  assert.match(html, /textContent: `Add \$\{need\.label\}`/);
+  assert.match(html, /asking\.length \? "Add another machine" : "Add a machine"/);
+});
