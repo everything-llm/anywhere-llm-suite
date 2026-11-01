@@ -962,6 +962,58 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
     toastTimer = setTimeout(() => (box.hidden = true), ms);
   }
 
+  /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
+     that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
+     is the form's draft: `form` names it ("add/pi"), `key` is the page's token, of which only a hash
+     is kept (every page on AnythingLLM's address reads the same storage, and the token lets in
+     whoever has it). keep(input, field) puts the field's draft back (only what was typed over the
+     value the page gave it) and saves each change; it keeps nothing of a password field, a code or a
+     field marked data-secret. clear() drops the draft: the form was saved, cancelled or met. A field
+     whose text is kept is marked data-draft, so a page may draw it again (it comes back). Storage
+     may be blocked, or full: then nothing is kept and the page works as before. The same block in
+     every suite page, as shared/vault.html has it (shared/drafts.test.mts keeps them the same). */
+  const draft = (() => {
+    const DAY = 24 * 60 * 60 * 1000, PREFIX = "anywherellm-suite.draft:";
+    const quiet = (fn, or) => { try { return fn(); } catch { return or; } };
+    const store = () => window.localStorage;
+    const hash = (text) => {
+      let a = 0x9e3779b9, b = 0x85ebca6b;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+      a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+      b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+      return (b >>> 0).toString(36) + (a >>> 0).toString(36);
+    };
+    const fresh = (d) => !!d && typeof d === "object" && Math.abs(Date.now() - d.at) < DAY && !!d.v && typeof d.v === "object";
+    const secret = (input) => input.type === "password" || /password|one-time-code/.test(input.autocomplete || "") || "secret" in input.dataset;
+    const usable = quiet(() => (store().setItem(PREFIX + "probe", "1"), store().removeItem(PREFIX + "probe"), true), false);
+    // A draft past its day goes, whichever page left it.
+    quiet(() => { const local = store(); for (let i = local.length - 1; i >= 0; i--) { const entry = local.key(i); if (entry?.startsWith(PREFIX) && !fresh(quiet(() => JSON.parse(local.getItem(entry)), null))) local.removeItem(entry); } });
+    return (form, key) => {
+      const name = `${PREFIX}${hash(String(key))}:${form}`;
+      const read = () => quiet(() => { const d = JSON.parse(store().getItem(name)); return fresh(d) ? d.v : {}; }, {});
+      const write = (v) => quiet(() => (Object.keys(v).length ? store().setItem(name, JSON.stringify({ at: Date.now(), v })) : store().removeItem(name), true), false);
+      return {
+        has: () => Object.keys(read()).length > 0,
+        keep(input, field) {
+          if (!input || secret(input)) return () => {};
+          const start = input.value, was = read()[field];
+          if (typeof was === "string") input.value = was;
+          if (usable) input.dataset.draft = "";
+          const save = () => {
+            const v = read();
+            if (input.value === start || secret(input)) delete v[field];
+            else v[field] = input.value;
+            if (!write(v)) delete input.dataset.draft; // not kept: the page must not draw it again
+          };
+          input.addEventListener("input", save);
+          return () => input.removeEventListener("input", save);
+        },
+        clear: () => quiet(() => store().removeItem(name)),
+      };
+    };
+  })();
+  /* end of page drafts */
+
   // ---- Posting: each thing done here is an event under the manager's title, posted through
   // AnythingLLM's upload, which the apps skill applies.
   async function post(ev, fields = {}) {
@@ -982,9 +1034,9 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   }
 
   // ---- The sheet: one at a time over the page, as on the Vault: `kids` in its `kind` of box, the
-  // heading `head` names it; closing it gives the focus back to `from`.
+  // heading `head` names it; closing it gives the focus back to `from`, and calls `closed`.
   let asking = null;
-  function sheet(kind, head, kids, from) {
+  function sheet(kind, head, kids, from, closed = null) {
     asking?.close();
     const shade = [...document.querySelectorAll("body > header, body > main")];
     const was = shade.map((part) => part.inert);
@@ -998,6 +1050,7 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
         scrim.remove(), box.remove();
         shade.forEach((part, i) => (part.inert = was[i]));
         if (from.isConnected) from.focus();
+        closed?.();
       },
     };
     scrim.onclick = me.close;
@@ -1008,15 +1061,18 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
 
   // One question: `body` goes between it and its two buttons; `yes` runs with what `value` reads,
   // unless `from` was drawn away. Asked before something is lost (`danger`), Keep is the main action.
-  function ask({ title, line, yes, danger = true, body = null, value = () => null }, run, from) {
+  // Closed any other way (Keep, Esc, the scrim, another sheet), it calls `cancel`.
+  function ask({ title, line, yes, danger = true, body = null, value = () => null, cancel = null }, run, from) {
     const keep = el("button", { className: danger ? "hu-button hu-button--primary" : "hu-button hu-button--secondary", type: "button", textContent: "Keep" });
     const go = el("button", { className: danger ? "hu-button hu-button--danger" : "hu-button hu-button--primary", type: "button", textContent: yes });
     const head = el("h2", { textContent: title });
-    const me = sheet("q", head, [el("div", {}, head, line ? el("p", { textContent: line }) : null), body, el("div", { className: "two" }, keep, go)], from);
+    let went = false;
+    const me = sheet("q", head, [el("div", {}, head, line ? el("p", { textContent: line }) : null), body, el("div", { className: "two" }, keep, go)], from, () => went || cancel?.());
     keep.onclick = me.close;
     go.onclick = () => {
       const live = from.isConnected, v = value();
       if (v === false) return;
+      went = true;
       me.close();
       if (live) run(v);
     };
@@ -1263,10 +1319,13 @@ section{display:flex;flex-direction:column;gap:var(--space-4)}
   function rename(one, from) {
     const { app } = one;
     const input = el("input", { className: "fld", type: "text", value: app.title, maxLength: 80, autocomplete: "off" });
-    ask({ title: `Rename ${app.title}`, yes: "Rename", danger: false,
+    // What's typed stays on this device until it's sent or the sheet is closed.
+    const kept = draft(`rename/${one.workspace}/${app.name}`, cfg.token);
+    kept.keep(input, "title");
+    ask({ title: `Rename ${app.title}`, yes: "Rename", danger: false, cancel: kept.clear,
       body: el("div", {}, el("label", {}, "Title", input), el("p", { className: "cap", style: "padding:12px 0 0" }, "Its name, ", el("span", { className: "mono", textContent: app.name }), ", stays: the agent and its scheduled jobs call it by that.")),
       value: () => { const v = input.value.trim(); if (!v) return toast("Give it a title"), false; return v; } },
-      (title) => title !== app.title && post("rename", { ...baseOf(one), title }), from);
+      async (title) => (title === app.title || (await post("rename", { ...baseOf(one), title }))) && kept.clear(), from);
   }
 
   function toTrash(one, from) {

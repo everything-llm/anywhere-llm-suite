@@ -996,6 +996,58 @@ svg{flex:none}
     if (!awaiting?.made) $("upd").hidden = true;
   }
 
+  /* page drafts: what is typed into a form, kept on this device for a day, so a phone's browser
+     that drops the page while another app is open loses nothing typed but secrets. draft(form, key)
+     is the form's draft: `form` names it ("add/pi"), `key` is the page's token, of which only a hash
+     is kept (every page on AnythingLLM's address reads the same storage, and the token lets in
+     whoever has it). keep(input, field) puts the field's draft back (only what was typed over the
+     value the page gave it) and saves each change; it keeps nothing of a password field, a code or a
+     field marked data-secret. clear() drops the draft: the form was saved, cancelled or met. A field
+     whose text is kept is marked data-draft, so a page may draw it again (it comes back). Storage
+     may be blocked, or full: then nothing is kept and the page works as before. The same block in
+     every suite page, as shared/vault.html has it (shared/drafts.test.mts keeps them the same). */
+  const draft = (() => {
+    const DAY = 24 * 60 * 60 * 1000, PREFIX = "anywherellm-suite.draft:";
+    const quiet = (fn, or) => { try { return fn(); } catch { return or; } };
+    const store = () => window.localStorage;
+    const hash = (text) => {
+      let a = 0x9e3779b9, b = 0x85ebca6b;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+      a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+      b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+      return (b >>> 0).toString(36) + (a >>> 0).toString(36);
+    };
+    const fresh = (d) => !!d && typeof d === "object" && Math.abs(Date.now() - d.at) < DAY && !!d.v && typeof d.v === "object";
+    const secret = (input) => input.type === "password" || /password|one-time-code/.test(input.autocomplete || "") || "secret" in input.dataset;
+    const usable = quiet(() => (store().setItem(PREFIX + "probe", "1"), store().removeItem(PREFIX + "probe"), true), false);
+    // A draft past its day goes, whichever page left it.
+    quiet(() => { const local = store(); for (let i = local.length - 1; i >= 0; i--) { const entry = local.key(i); if (entry?.startsWith(PREFIX) && !fresh(quiet(() => JSON.parse(local.getItem(entry)), null))) local.removeItem(entry); } });
+    return (form, key) => {
+      const name = `${PREFIX}${hash(String(key))}:${form}`;
+      const read = () => quiet(() => { const d = JSON.parse(store().getItem(name)); return fresh(d) ? d.v : {}; }, {});
+      const write = (v) => quiet(() => (Object.keys(v).length ? store().setItem(name, JSON.stringify({ at: Date.now(), v })) : store().removeItem(name), true), false);
+      return {
+        has: () => Object.keys(read()).length > 0,
+        keep(input, field) {
+          if (!input || secret(input)) return () => {};
+          const start = input.value, was = read()[field];
+          if (typeof was === "string") input.value = was;
+          if (usable) input.dataset.draft = "";
+          const save = () => {
+            const v = read();
+            if (input.value === start || secret(input)) delete v[field];
+            else v[field] = input.value;
+            if (!write(v)) delete input.dataset.draft; // not kept: the page must not draw it again
+          };
+          input.addEventListener("input", save);
+          return () => input.removeEventListener("input", save);
+        },
+        clear: () => quiet(() => store().removeItem(name)),
+      };
+    };
+  })();
+  /* end of page drafts */
+
   // ---- Posting: each step is an event, posted in order through AnythingLLM's upload.
   let queue = Promise.resolve();
   function post(ev, fields = {}) {
@@ -1280,7 +1332,7 @@ svg{flex:none}
   function showHome(on) {
     closeMore();
     setHome(on);
-    if (on) $("q").value = "", suggest();
+    if (on) $("q").value = "", searchDraft.clear(), suggest();
     paint();
     if (on) $("q").focus();
   }
@@ -1312,8 +1364,12 @@ svg{flex:none}
       return b;
     }));
   }
+  // What's typed in a new tab's search bar stays on this device until it's gone to or cleared.
+  const searchDraft = draft("search", cfg.token);
+  searchDraft.keep($("q"), "q");
+  if ($("q").value) suggest();
   $("q").addEventListener("input", suggest);
-  $("clear").addEventListener("click", () => (($("q").value = ""), suggest(), $("q").focus()));
+  $("clear").addEventListener("click", () => (($("q").value = ""), searchDraft.clear(), suggest(), $("q").focus()));
   $("searchbar").addEventListener("submit", (e) => (e.preventDefault(), go($("q").value)));
   // Opens a tab of the user's own at what was typed; this page goes there once it's listed.
   // A closed tab's page may ask while its state's `until` lasts, by AnythingLLM's clock (`at`, so the
@@ -1322,6 +1378,7 @@ svg{flex:none}
     q = String(q || "").trim();
     if (!q || awaiting?.made) return;
     if (gone === "closed" && !(st.until > Date.now() + skew)) return toast("This tab closed a while ago. Ask the agent in the chat to open a page.");
+    searchDraft.clear();
     awaiting = { made: Math.random().toString(36).slice(2, 12), until: Date.now() + 20000, shown };
     $("q").blur();
     post("new", { q, made: awaiting.made, at: Date.now() + skew });
@@ -1360,8 +1417,10 @@ svg{flex:none}
   // (its `until`), so a new one, or one asked again, gets a card of its own.
   const remaining = () => (st && st.need ? Math.round((st.need.until - (Date.now() + skew)) / 1000) : 0);
   const asking = () => !!(st && st.need) && st.need.until !== dismissed && remaining() > 0;
-  // Answered, turned down or taken over: this request is done here, and doesn't come back.
-  const answered = () => (dismissed = st.need ? st.need.until : dismissed);
+  // Answered, turned down or taken over: this request is done here, and doesn't come back. The user
+  // name typed for it is kept on this device meanwhile (`needDraft`), never the password or the code.
+  let needDraft = null;
+  const answered = () => (needDraft?.clear(), (dismissed = st.need ? st.need.until : dismissed));
   let ticker = 0;
   function tick() {
     if (!asking()) return paint();
@@ -1380,6 +1439,8 @@ svg{flex:none}
     let keep = false; // the save switch starts off
     const input = (id, props) => el("input", { id, className: "fld", autocapitalize: "off", spellcheck: false, ...props });
     const user = login && need.hasUser ? input("n-user", { type: "text", autocomplete: "off" }) : null;
+    needDraft = draft(`sign-in/${need.until}`, cfg.token);
+    needDraft.keep(user, "user");
     const secret = input("n-secret", { type: login ? "password" : "text", autocomplete: login ? "new-password" : "one-time-code" });
     const field = (label, inp, extra) => el("div", { className: "ff" }, el("label", { textContent: label, htmlFor: inp.id }), extra ? el("div", { className: "pw" }, inp, extra) : inp);
     // A password can be shown while it's typed; the card is made again for each request, so it starts hidden.
@@ -1430,6 +1491,7 @@ svg{flex:none}
     const held = mine();
     // The request's card, over the page.
     if (formFor && !asking()) {
+      needDraft?.clear();
       if (formFor !== dismissed) toast("That sign-in request has ended");
       formFor = 0;
     }
@@ -1518,7 +1580,7 @@ svg{flex:none}
         // Gone now (or when the page opened): its home in its place, as + shows it, keeping what was typed there.
         closeField(false);
         settled();
-        if (!homeView) setHome(true), ($("q").value = ""), suggest();
+        if (!homeView) setHome(true), ($("q").value = ""), searchDraft.clear(), suggest();
         toast("This tab closed");
       }
       if (!gone && st.shot !== shot) {

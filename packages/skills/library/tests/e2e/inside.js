@@ -115,6 +115,73 @@ const server = http.createServer((req, res) => {
   await new Promise((r) => killed.child.once("exit", r));
   assert.match(await call({ action: "library" }), /^Finished since last shown [^\n]*\n- digest\.nap: interrupted \(Interrupted: [^\n]*from a scheduled job/);
 
+  // ---- The pages keep a draft of what's typed, in a real Chrome (the collector's) at a phone's width:
+  // a reload (a phone's browser drops a page put away) brings back the Library's add form and the
+  // Vault's Add a key as they were typed, never the private key or the key itself; Back and Cancel
+  // drop the draft.
+  {
+    const puppeteer = require("/app/collector/node_modules/puppeteer");
+    const viewer = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+    try {
+      const at = `http://127.0.0.1:${process.env.INNER_PORT || 3001}`;
+      const libToken = JSON.parse(fs.readFileSync(`${storage}/library-lean/page.json`, "utf8")).token;
+      const vaultToken = JSON.parse(fs.readFileSync(`${storage}/vault-lean/vault-page.json`, "utf8")).token;
+      const shown = await viewer.newPage();
+      await shown.setViewport({ width: 390, height: 844 });
+      const errors = [];
+      shown.on("pageerror", (e) => errors.push(e.message));
+      const PRIVATE = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA-e2e-not-a-real-key\n-----END OPENSSH PRIVATE KEY-----";
+      const LINE = "256 SHA256:e2eDraftLine0123456789abcdefghijklmnopqrstu root@pi (ED25519)";
+      const fieldOf = (name) => `#screen form [aria-describedby="err-${name}"]`;
+      const addForm = async () => {
+        await shown.waitForSelector(fieldOf("host"), { timeout: 10_000 });
+        return shown.evaluate((names) => names.map((n) => document.querySelector(`#screen form [aria-describedby="err-${n}"]`)?.value ?? null), ["label", "host", "login", "fingerprint", "key"]);
+      };
+      const stored = () => shown.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+      await shown.goto(`${at}/library-lean/${libToken}.html#add`, { waitUntil: "load" });
+      await addForm();
+      await shown.type(fieldOf("label"), "pi");
+      await shown.type(fieldOf("host"), "192.168.1.20:2222");
+      await shown.type(fieldOf("login"), "sandbox");
+      await shown.type(fieldOf("fingerprint"), LINE);
+      await shown.click("#screen details.own summary");
+      await shown.type(fieldOf("key"), PRIVATE);
+      await shown.reload({ waitUntil: "load" });
+      assert.deepEqual(await addForm(), ["pi", "192.168.1.20:2222", "sandbox", LINE, ""], "the add form as it was typed, the private key gone");
+      const kept = await stored();
+      assert.ok(kept.includes("192.168.1.20:2222"), "kept on the device");
+      assert.ok(!kept.includes("OPENSSH") && !kept.includes("e2e-not-a-real-key"), "never the private key");
+      assert.ok(!kept.includes(libToken), "nor the page's token");
+      await shown.click("#screen .bar a.back");
+      await shown.waitForSelector("#home:not([hidden])");
+      await shown.goto(`${at}/library-lean/${libToken}.html#add`, { waitUntil: "load" });
+      assert.deepEqual(await addForm(), ["", "", "", "", ""], "Back dropped the draft");
+
+      // The Vault's Add a key: Name and Site come back, open as they were; the key never.
+      const keysForm = "#apikeys button.add + form input";
+      const vaultOpen = async () => {
+        await shown.goto(`${at}/vault-lean/${vaultToken}.html`, { waitUntil: "load" });
+        await shown.waitForSelector("#apikeys button.add", { timeout: 10_000 });
+        return shown.$$eval(keysForm, (inputs) => inputs.map((i) => [i.type, i.value]));
+      };
+      assert.deepEqual(await vaultOpen(), [], "the form is closed at first");
+      await shown.click("#apikeys button.add");
+      const [nameIn, siteIn, keyIn] = await shown.$$(keysForm);
+      await nameIn.type("github");
+      await siteIn.type("api.github.com");
+      await keyIn.type("ghp_e2eDraftSecretValue0123456789");
+      await shown.reload({ waitUntil: "load" });
+      await shown.waitForSelector(keysForm, { timeout: 10_000 });
+      assert.deepEqual(await shown.$$eval(keysForm, (inputs) => inputs.map((i) => [i.type, i.value])), [["text", "github"], ["text", "api.github.com"], ["password", ""]], "open again, as it was typed, the key gone");
+      assert.ok(!(await stored()).includes("ghp_e2eDraftSecretValue"), "never the key");
+      await shown.click("#apikeys button.add"); // Cancel
+      assert.deepEqual(await vaultOpen(), [], "Cancel dropped the draft: closed, and empty");
+      assert.deepEqual(errors, [], "no error on the pages");
+    } finally {
+      await viewer.close();
+    }
+  }
+
   if (process.env.E2E_SSH_PORT) {
     // Machines (targets) are added on the Library page (the keys are given on the Vault), which has a
     // token, a secret and a key of its own.
