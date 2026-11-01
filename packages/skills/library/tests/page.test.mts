@@ -265,3 +265,9 @@ test("every field the pages read from their state is one the skill writes", asyn
   assert.ok(fs.existsSync(path.join(library, "page.json")));
   assert.ok(fs.existsSync(path.join(storage, "vault-lean", "vault-page.json")));
 });
+
+test("a toolkit's functions are one line each on the Library page, as the canvas draws them: what each does, cut short with an ellipsis", () => {
+  const html = pageSource("library.html");
+  assert.match(html, /\.one\{overflow:hidden;white-space:nowrap;text-overflow:ellipsis\}/);
+  assert.match(html, /t\.functions\.map\(\(f\) => rowLink\(fnHref\(t\.service, f\.name\), el\("span", \{ className: "one", textContent: does\(f\) \}\)\)\)/);
+});

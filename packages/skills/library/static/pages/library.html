@@ -836,6 +836,7 @@ nav button[aria-selected="true"]{background:var(--tile);box-shadow:inset 0 0 0 1
 .row{min-height:52px;padding:var(--space-2) 0;display:flex;align-items:center;gap:var(--space-3);color:var(--ink);text-decoration:none}
 .row+.row{border-top:1px solid var(--line)}
 .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:1rem;overflow-wrap:anywhere}
+.one{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .meta{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .day{margin:0 0 calc(-1 * var(--space-2));font-size:0.8125rem;font-weight:600;line-height:1.4}
 .add{min-height:56px;padding:var(--space-2) var(--space-5);display:flex;align-items:center;gap:var(--space-3);background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-tile);color:var(--ink);text-decoration:none}
@@ -1098,7 +1099,7 @@ dialog.sheet::backdrop{background:var(--scrim)}
       el("div", { className: "head" }, el("h2", { textContent: t.title }),
         t.locked ? tag("Locked", "ok", "lock") : deleteMenu(t.title, "Its functions are deleted too. This can’t be undone.", "toolkit-delete", { service: t.service })),
       reachOf(t),
-      t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), does(f)))) : null,
+      t.functions.length ? el("div", { className: "rows" }, t.functions.map((f) => rowLink(fnHref(t.service, f.name), el("span", { className: "one", textContent: does(f) })))) : null,
       t.locked ? null : say("Lock it once it works the way you want. The agent can’t change it after that."),
       // Lock acts at once; Unlock only the page can do, and asks first.
       acts(t.locked
