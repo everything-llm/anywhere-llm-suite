@@ -193,6 +193,7 @@ const ACTIONS = {
     ].join("\n");
   },
   page: async ({ workspace }, p, self) => {
+    if (p.name === undefined || p.name === "") return manager.cardReply(baseOf(self));
     const app = store.read(workspace, p.name);
     if (!app.page) return `${app.name} has no page.html yet: write one from a template and its components (guide), then try again.`;
     const url = pageUrl(await publish(app, workspace), baseOf(self));

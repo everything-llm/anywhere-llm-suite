@@ -40,13 +40,18 @@ test("each app's last change is kept in the links file, newest first, for Anywhe
   assert.ok(changed.every((t: string) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(t)), "times, in UTC");
 });
 
-test("a chat call makes the manager beside the apps' pages, keeps its path as apps, and list gives its link", async () => {
+test("a chat call makes the manager beside the apps' pages, keeps its path as apps, and page without a name gives its card", async () => {
   const listed = await settled();
   const files = fs.readdirSync(pub());
   const page = files.find((f) => MANAGER.test(f))!;
   assert.ok(page, files.join(", "));
   assert.equal(links().apps, `/apps-lean/${page}`);
-  assert.ok(listed.endsWith(`The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, give them this card as it is, in its own quote:\n\n> **[Artifacts](/apps-lean/${page} "artifacts")**\n>\n> Every workspace's artifacts, and the trash.`), listed);
+  assert.ok(listed.endsWith("The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, call page without a name: it gives the manager's card."), listed);
+  assert.ok(!listed.includes("manager-"), "list leaves the card to page");
+  assert.equal(
+    await call("home", { action: "page" }),
+    `The artifacts manager shows every workspace's artifacts, and the trash.\n\nPut the card below in your reply exactly as given, with no label or heading.\n> **[Artifacts](/apps-lean/${page} "artifacts")**\n>\n> Every workspace's artifacts, and the trash.`,
+  );
   const html = fs.readFileSync(path.join(pub(), page), "utf8");
   assert.ok(html.includes(`"token":"manager-${names().token}"`) && html.includes('"key":"brx-test"'), "the page reads its state and posts with the pages' key");
   assert.ok(!html.includes("/*CONFIG*/null"));
@@ -56,12 +61,15 @@ test("a chat call makes the manager beside the apps' pages, keeps its path as ap
   assert.ok(!JSON.stringify(state()).includes(store.read("home", "groceries").secret), "no app's secret");
 });
 
-test("with the links kept from the agent, the manager is still made and kept in the links file, and list says where the user opens it", async () => {
+test("with the links kept from the agent, the manager is still made and kept in the links file, and list and page say where the user opens it", async () => {
   setLinksHidden(storage, true);
   const listed = await settled();
   assert.match(links().apps, /^\/apps-lean\/manager-[\w-]{24}\.html$/);
   assert.ok(!listed.includes("manager-"), listed);
   assert.match(listed, /on the artifacts manager, in AnywhereLLM Lite/);
+  const asked = await call("home", { action: "page" });
+  assert.ok(!asked.includes("manager-"), asked);
+  assert.match(asked, /^The user opens the artifacts manager in AnywhereLLM Lite/);
 });
 
 test("rename changes the title only, and keeps the old one among the earlier versions", async () => {

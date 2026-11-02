@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { jobTimeLeft } from "#shared/anythingllm";
 import { firstLine, Told } from "#shared/errors";
-import { giveCard, linksHidden, noteStatus, OPEN_PAGES, pageCard } from "#shared/page-links";
+import { linksHidden, noteStatus, OPEN_PAGES, pageCard } from "#shared/page-links";
 import { embed, inTurn, pageKey, publicPath, sameSecret, takeEvents, watch } from "#shared/pages";
 import { type Names, tokenPage } from "#shared/token-page";
 import { summary } from "./card.ts";
@@ -143,12 +143,23 @@ export async function show(base: string | null): Promise<string | null> {
 }
 
 
-/** What the agent is told about the manager: its link, or where the user opens it while the links
- *  are kept from the agent; nothing when it can't be written. */
+/** What list tells the agent about the manager: where the user opens it, or that page without a
+ *  name gives its card; nothing when it can't be written. The card itself is page's alone: at the
+ *  end of a long list a model put the link in a sentence, as code, which no client draws as a card. */
 export async function line(base: string | null): Promise<string | null> {
   const url = await show(base);
   if (!url) return null;
-  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : `The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, ${giveCard(pageCard("Artifacts", "artifacts", "Every workspace's artifacts, and the trash.", url)).replace(/^G/, "g")}`;
+  return linksHidden() ? `The user manages every workspace's artifacts, and the trash, on the artifacts manager, ${OPEN_PAGES}.` : "The user manages every workspace's artifacts, and the trash, on the artifacts manager. When they ask for it, call page without a name: it gives the manager's card.";
+}
+
+/** What page without a name answers: the manager's card and nothing else to give, so the reply is
+ *  the card, as an artifact's page is; or where the user opens it while the links are kept from the
+ *  agent, or why it isn't there. */
+export async function cardReply(base: string | null): Promise<string> {
+  const url = await show(base);
+  if (!url) return "The artifacts manager can't be published here: AnythingLLM's public folder can't be written (as in AnythingLLM Desktop), or the pages have no key yet. Tell the user it isn't available on this instance.";
+  if (linksHidden()) return `The user opens the artifacts manager ${OPEN_PAGES}. Its link is kept from you: tell them where to open it.`;
+  return ["The artifacts manager shows every workspace's artifacts, and the trash.", "", "Put the card below in your reply exactly as given, with no label or heading.", pageCard("Artifacts", "artifacts", "Every workspace's artifacts, and the trash.", url)].join("\n");
 }
 
 /** What every call does before its own work: the manager's names made to fit the switch (#shared/
