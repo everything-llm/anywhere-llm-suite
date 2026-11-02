@@ -6,6 +6,6 @@
 <script>
 App.mount("pager", ({ root, at }) => {
   const draw = Parts.deck(root);
-  return () => draw({ title: App.title, screens: App.get(at + "/screens"), sources: App.get(at + "/sources") });
+  return () => draw({ title: App.title, screens: App.get(at + "/screens"), sources: App.get(at).sources || [] });
 });
 </script>

@@ -355,6 +355,20 @@ export function colourNote(page: unknown, rules: Json = []): string {
 /** The text of each inline <script> in an HTML page, in order. */
 export const scriptsOf = (html: string): string[] => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 
+/** The libraries a page names with <script src>, by the global each gives: a script that uses one
+ *  before its tag stops there, as a component's script put at the slot with its markup does. */
+const GIVEN_BY: Record<string, string> = { App: "app.js", Parts: "parts.js" };
+
+/** Each library a script uses before the page loads it, as "script N uses App before <script src="app.js">". */
+function usedEarly(page: string): string[] {
+  const inline = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  return Object.entries(GIVEN_BY).flatMap(([name, lib]) => {
+    const loaded = page.indexOf(tag(lib));
+    if (loaded < 0) return [];
+    return inline.flatMap((m, i) => (m.index! < loaded && new RegExp(`\\b${name}\\.`).test(m[1]) ? [`page.html's script ${i + 1} uses ${name} before ${tag(lib)} loads it, so the page stops there: a component's script goes at <!--scripts-->, after the runtime, and only its markup at <!--slot-->`] : []));
+  });
+}
+
 /** The ids the markup of `page` gives its elements, scripts left out. */
 const idsOf = (page: string): string[] => [...page.replace(/<script[\s\S]*?<\/script>/g, "").matchAll(/\sid=["']([^"']+)["']/g)].map((m) => m[1]);
 
@@ -395,6 +409,7 @@ export async function pageProblems(page: unknown): Promise<string[]> {
     if (lost.length && !/\bid\s*[:=]|setAttribute\(\s*["']id["']/.test(all)) out.push(`page.html's scripts look up ${lost.map((id) => `$("${id}")`).join(", ")}, but no element has ${lost.map((id) => `id="${id}"`).join(", ")}`);
   }
   if (parses) out.push(...undeclared(scripts, BROWSER));
+  out.push(...usedEarly(page));
   const names = scripts.flatMap((code) => [...code.matchAll(/App\.mount\(\s*["']([^"']+)["']/g)].map((m) => m[1]));
   const twice = repeats(names);
   if (twice.length) out.push(`page.html has the script for ${twice.join(", ")} more than once: each component's script goes in once`);

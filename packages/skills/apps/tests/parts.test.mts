@@ -147,3 +147,12 @@ test("a component of markup alone is placed with no script", () => {
     delete all["bare-note"];
   }
 });
+
+test("a component's script put at the slot, ahead of the runtime, is refused", async () => {
+  const pager = parts.parts().pager.body;
+  const atSlot = parts.template("story").replace("<!--slot-->", pager);
+  assert.deepEqual((await parts.pageProblems(atSlot)).filter((p) => p.includes("before")), [
+    'page.html\'s script 1 uses App before <script src="app.js"></script> loads it, so the page stops there: a component\'s script goes at <!--scripts-->, after the runtime, and only its markup at <!--slot-->',
+  ]);
+  assert.deepEqual(await parts.pageProblems(parts.compose(parts.template("story"), "pager")), []);
+});
