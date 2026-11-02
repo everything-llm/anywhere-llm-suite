@@ -360,10 +360,11 @@ const server = http.createServer((req, res) => {
   await ownTab.post({ ev: "close" });
   assert.ok(!seven.state().tabs.some((t) => t.made === "e2e-own"), "closed, and gone from the top of the chat's tab");
 
-  // ---- The closed tab's page, in a real Chrome at a phone's width, keeps its frame: the open tabs
-  // along the top, the search bar and Back, Forward, Logins and More, with a new tab's home in the
-  // tab's place; Back and Forward are off, and More has New tab and no Close. A search there is posted
-  // through AnythingLLM's own upload, opens a tab of the user's own, and the page goes to it.
+  // ---- The closed tab's page, in a real Chrome at a phone's width, keeps its frame: one bar at the
+  // bottom (Back, off; the pill with the home's field and the You chip; the count; More), with a new
+  // tab's home in the tab's place; the count opens the tabs as a sheet, and More has New tab and
+  // Logins. A search there is posted through AnythingLLM's own upload, opens a tab of the user's own,
+  // and the page goes to it.
   const shut = ownTab.state();
   assert.equal(shut.closed, true);
   assert.ok(shut.tabs.length > 1 && shut.tabs.some((t) => t.made === "e2e-search"), "the open tabs, in its state");
@@ -377,27 +378,45 @@ const server = http.createServer((req, res) => {
     await shown.waitForFunction(() => !document.getElementById("home").hidden, { timeout: 10_000 });
     const frame = await shown.evaluate(() => {
       const seen = (id) => { const n = document.getElementById(id); return !n.hidden && n.getBoundingClientRect().height > 0; };
+      const bar = document.getElementById("bar").getBoundingClientRect();
       return {
-        strip: [...document.querySelectorAll("#strip > *")].map((n) => n.getAttribute("aria-label")),
-        bars: ["strip", "searchbar", "home", "navbar"].map(seen),
-        tab: ["addrbar", "stage"].map(seen),
-        navbar: [...document.querySelectorAll("#navbar > *")].filter((n) => !n.hidden).map((n) => `${n.textContent.trim()}${n.disabled ? " (off)" : ""}`),
+        seen: ["home", "bar", "searchbar", "chipown", "count", "morebtn"].map(seen),
+        gone: ["stage", "addrbtn", "thin", "chatbar", "chip"].map(seen),
+        back: document.getElementById("navback").disabled,
+        chip: document.getElementById("chipown").textContent,
+        count: [document.getElementById("countn").textContent, document.getElementById("count").getAttribute("aria-label")],
+        atFoot: Math.round(innerHeight - bar.bottom),
+        placeholder: document.getElementById("q").placeholder,
         hero: document.querySelector("#hero h1").textContent,
         title: document.title,
       };
     });
-    assert.equal(frame.strip.length, shut.tabs.length + 2, `the open tabs, the new tab's and + along the top: ${frame.strip}`);
-    assert.deepEqual(frame.strip.slice(-2), ["New tab", "New tab"]);
-    assert.deepEqual(frame.bars, [true, true, true, true], "the tabs, the search bar, the home and the bottom bar");
-    assert.deepEqual(frame.tab, [false, false], "no address bar or picture: the tab is gone");
-    assert.deepEqual(frame.navbar, ["Back (off)", "Forward (off)", "Logins", "More"]);
-    assert.deepEqual([frame.hero, frame.title], ["Where to?", "New tab"]);
+    assert.deepEqual(frame.seen, [true, true, true, true, true, true], "the home, and the bar with the field, the You chip, the count and More");
+    assert.deepEqual(frame.gone, [false, false, false, false, false], "no picture, address, thin line, chat bar or holder button: the tab is gone");
+    assert.equal(frame.back, true, "Back is off");
+    assert.equal(frame.chip, "You: your own tab");
+    assert.deepEqual(frame.count, [String(shut.tabs.length + 1), `${shut.tabs.length + 1} tabs`], "the open tabs and this one");
+    assert.equal(frame.atFoot, 0, "the bar at the bottom");
+    assert.deepEqual([frame.placeholder, frame.hero, frame.title], ["Search", "Where to?", "New tab"]);
+    await shown.click("#count");
+    const sheet = await shown.evaluate(() => ({
+      open: !document.getElementById("tabsheet").hidden,
+      heads: [...document.querySelectorAll("#tabslists h3")].map((h) => h.textContent),
+      rows: [...document.querySelectorAll("#tabslists .ts-row")].map((r) => [r.querySelector(".ts-title").textContent, !!r.querySelector(".ts-av i"), r.getAttribute("aria-current")]),
+    }));
+    assert.equal(sheet.open, true, "the count opens the tabs sheet");
+    assert.deepEqual(sheet.heads, ["Chats’ tabs", "Your tabs"]);
+    assert.equal(sheet.rows.length, shut.tabs.length, `each open tab: ${JSON.stringify(sheet.rows)}`);
+    assert.ok(sheet.rows.every(([, , current]) => current === null), "none is this page's: its tab closed");
+    await shown.keyboard.press("Escape");
+    assert.equal(await shown.evaluate(() => document.getElementById("tabsheet").hidden), true, "Esc closes it");
     await shown.click("#morebtn");
-    const more = await shown.evaluate(() => [...document.querySelectorAll("#more button")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
-    assert.deepEqual(more, ["New tab"], "More: New tab, and no Close this tab");
+    const more = await shown.evaluate(() => [...document.querySelectorAll("#more .item")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
+    assert.deepEqual(more, ["Logins", "New tab"], "More on a home: Logins and New tab, and no Close");
     await shown.click("#morenew");
     assert.equal(await shown.evaluate(() => [document.getElementById("more").hidden, document.activeElement.id].join()), "true,q", "New tab: the home's field, ready to type in");
     await shown.type("#q", `${SITE}/docs`);
+    assert.equal(await shown.evaluate(() => [...document.querySelectorAll("#bar > *")].filter((n) => n.getClientRects().length).map((n) => n.id).join()), "pill", "typing: the field widens across the bar");
     await shown.keyboard.press("Enter");
     // AnythingLLM's collector writes what the page posted; the watch here, or the next call, applies it.
     for (let i = 0; i < 40 && shown.url().includes(ownTab.token); i++) {
@@ -405,19 +424,118 @@ const server = http.createServer((req, res) => {
       await new Promise((r) => setTimeout(r, 500));
     }
     const opened = ownTab.state().tabs.find((t) => t.made && !shut.tabs.some((was) => was.made === t.made));
-    assert.ok(opened, `the new tab, along the top of the closed page: ${JSON.stringify(ownTab.state().tabs.map((t) => t.made))}`);
+    assert.ok(opened, `the new tab, in the closed page's tabs: ${JSON.stringify(ownTab.state().tabs.map((t) => t.made))}`);
+    assert.ok(opened.mine, "one of the user's own");
     assert.ok(shown.url().endsWith(`/browser-lean/${opened.path}`), `the page went to it: ${shown.url()}`);
     await shown.waitForFunction(() => !document.getElementById("stage").hidden && document.getElementById("addr").textContent.includes("127.0.0.1"), { timeout: 10_000 });
     assert.equal(JSON.parse(fs.readFileSync(`${APP}/public/browser-lean/${opened.path.replace(".html", ".json")}`, "utf8")).title, "Docs", "the user's own tab, at the address typed");
-    // An open tab's home keeps the same tools: + shows it, and More there has New tab alone.
-    await shown.click("#strip > button:last-child");
+    const ownBar = await shown.evaluate(() => [document.getElementById("chipown").textContent, document.getElementById("chip").hidden, document.getElementById("chatbar").hidden]);
+    assert.deepEqual(ownBar, ["You: your own tab, which the agent never reaches", true, true], "the user's own tab: the You chip, which does nothing, and no chat bar");
+    await shown.click("#morebtn");
+    const onPage = await shown.evaluate(() => [...document.querySelectorAll("#more .item")].filter((b) => !b.hidden).map((b) => `${b.textContent.trim()}${b.disabled ? " (off)" : ""}`));
+    assert.deepEqual(onPage, ["Forward (off)", "Reload", "Logins", "New tab", "Close this tab"], "More on a tab's page");
+    await shown.keyboard.press("Escape");
+    // The address pill opens a new tab's home, whose More has New tab and Logins.
+    await shown.click("#addrbtn");
     await shown.waitForFunction(() => !document.getElementById("home").hidden, { timeout: 5_000 });
     await shown.click("#morebtn");
-    const atHome = await shown.evaluate(() => [...document.querySelectorAll("#more button")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
-    assert.deepEqual(atHome, ["New tab"], "More on an open tab's home: New tab, and no Close this tab");
+    const atHome = await shown.evaluate(() => [...document.querySelectorAll("#more .item")].filter((b) => !b.hidden).map((b) => b.textContent.trim()));
+    assert.deepEqual(atHome, ["Logins", "New tab"], "More on an open tab's home: Logins and New tab, and no Close this tab");
     assert.deepEqual(errors, [], "no error on the page");
   } finally {
     await phone.close();
+  }
+
+  // ---- The chat bar on a chat's tab, inside AnywhereLLM (a stand-in for its channel, an
+  // androidx WebMessageListener: postMessage, and replies as message events): its tab belongs to a
+  // real AnythingLLM thread, named by its slug. Point picks the element the agent's read names by its
+  // ref, without taking the tab over, and never a password field; Send posts the whole message for
+  // that thread, and the reply's chat is named in "Sent to". Outside AnywhereLLM, no chat bar.
+  {
+    const { Workspace } = require(`${APP}/models/workspace.js`);
+    const { WorkspaceThread } = require(`${APP}/models/workspaceThread.js`);
+    const { workspace: ws } = await Workspace.new("Chat bar");
+    const { thread } = await WorkspaceThread.new(ws, null, { name: "Export my statements", slug: "export-my-statements" });
+    const read = await call({ action: "open", url: `${SITE}/login` }, thread.id, ws.slug);
+    const signInRef = read.match(/\[(e\d+)\] button "Sign in"/)[1];
+    const names = JSON.parse(fs.readFileSync(`${storage}/browser-lean/${ws.slug}/tabs.json`, "utf8"))[String(thread.id)];
+    const stateOf = () => JSON.parse(fs.readFileSync(`${APP}/public/browser-lean/${names.token}.json`, "utf8"));
+    assert.deepEqual([stateOf().thread, stateOf().chat], ["export-my-statements", "Export my statements"], "the tab's chat, from AnythingLLM's thread");
+    const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+    try {
+      const url = `http://127.0.0.1:${process.env.INNER_PORT || 3001}/browser-lean/${names.token}.html`;
+      const bare = await browser.newPage();
+      await bare.setViewport({ width: 390, height: 844 });
+      await bare.goto(url, { waitUntil: "load" });
+      await bare.waitForFunction(() => !document.getElementById("stage").hidden && document.getElementById("addr").textContent.length > 2, { timeout: 10_000 });
+      assert.equal(await bare.evaluate(() => document.getElementById("chatbar").hidden), true, "no chat bar outside AnywhereLLM");
+      assert.equal(await bare.evaluate(() => document.getElementById("chip").textContent), "Agent", "the holder chip, always there");
+
+      const page = await browser.newPage();
+      await page.setViewport({ width: 390, height: 844 });
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.evaluateOnNewDocument(() => {
+        const channel = new EventTarget();
+        channel.postMessage = (m) => (window.posted = [...(window.posted || []), m]);
+        window.AnywhereLLMApps = channel;
+      });
+      await page.goto(url, { waitUntil: "load" });
+      await page.waitForFunction(() => !document.getElementById("chatbar").hidden && document.getElementById("shot").complete && document.getElementById("shot").naturalWidth > 0, { timeout: 10_000 });
+      await new Promise((r) => setTimeout(r, 2500)); // the page's size asked for, and the tab drawn at it
+      const bar = await page.evaluate(() => ({
+        chip: [document.getElementById("chip").textContent, document.getElementById("chip").getAttribute("aria-label")],
+        input: document.querySelector("#chatbar .cp-input").getAttribute("aria-label"),
+        send: document.querySelector("#chatbar .cp-row [data-a=send]").disabled,
+        above: Math.round(document.getElementById("bar").getBoundingClientRect().top - document.getElementById("chatbar").getBoundingClientRect().bottom),
+      }));
+      assert.deepEqual(bar, { chip: ["Agent", "Agent has this tab: take over"], input: "Message the agent", send: true, above: 0 }, "the chat bar above the bar, Send off while empty");
+      // A tap at an element's middle, as the page draws the picture.
+      const tapAt = async (ref) => {
+        const st = stateOf();
+        const t = st.targets.find((g) => g.ref === ref);
+        assert.ok(t, `${ref} in the targets: ${JSON.stringify(st.targets)}`);
+        const at = await page.evaluate((b, w) => { const r = document.getElementById("shot").getBoundingClientRect(); const k = r.width / w; return [r.left + (b.x + b.w / 2) * k, r.top + (b.y + b.h / 2) * k]; }, t, st.size.w);
+        await page.mouse.click(at[0], at[1]);
+        await new Promise((r) => setTimeout(r, 150));
+      };
+      await page.click("#chatbar .cp-point");
+      await tapAt(signInRef);
+      const password = stateOf().targets.find((t) => t.role === "input[password]");
+      await tapAt(password.ref);
+      const pointed = await page.evaluate(() => ({
+        mode: document.querySelector("#chatbar .cp-mode p").textContent,
+        chips: [...document.querySelectorAll("#chatbar .cp-pick span")].map((c) => c.textContent),
+        marks: document.querySelectorAll("#marks .mark").length,
+      }));
+      assert.deepEqual(pointed, { mode: "A password field can’t be picked. 1 of 5", chips: ["1 · button “Sign in”"], marks: 1 }, "one picked, numbered on the page; the password field refused");
+      assert.equal(stateOf().who, "agent", "pointing doesn't take the tab over");
+      await page.keyboard.press("Escape");
+      await page.click("#chatbar .cp-input");
+      const typing = await page.evaluate(() => [document.getElementById("chatbar").dataset.state, document.getElementById("thin").hidden, document.getElementById("bar").hidden, document.activeElement.className]);
+      assert.deepEqual(typing, ["expanded", false, true, "cp-area"], "typed in: the multi-line composer, over the thin bar");
+      await page.keyboard.type("Which one exports them?");
+      await page.click("#chatbar .cp-actions [data-a=send]");
+      const sent = await page.evaluate(() => window.posted.map((m) => JSON.parse(m)));
+      const host = stateOf().host;
+      assert.deepEqual(sent, [{ comment: { workspace: ws.slug, thread: "export-my-statements", message: `About the browser tab Sign in (${host}):\n1. [${signInRef}] button "Sign in"\n\nWhich one exports them?` } }]);
+      await page.evaluate(() => window.AnywhereLLMApps.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ ok: true, chat: "Export my statements" }) })));
+      await page.waitForFunction(() => document.getElementById("toast").textContent.startsWith("Sent to"), { timeout: 3_000 });
+      assert.equal(await page.evaluate(() => document.getElementById("toast").textContent), "Sent to Export my statementsOpen chat");
+      assert.equal(await page.evaluate(() => [document.querySelectorAll("#chatbar .cp-pick").length, document.querySelectorAll("#marks .mark").length, document.querySelector("#chatbar .cp-input").value].join()), "0,0,", "sent: the picks and the words go");
+      await page.click("#toast button");
+      assert.deepEqual(JSON.parse((await page.evaluate(() => window.posted)).at(-1)), { open: { workspace: ws.slug, thread: "export-my-statements" } }, "Open chat opens the tab's chat");
+      // Not sent: AnywhereLLM's error is said, and the words are kept.
+      await page.click("#chatbar .cp-input");
+      await page.keyboard.type("Again");
+      await page.click("#chatbar .cp-actions [data-a=send]");
+      await page.evaluate(() => window.AnywhereLLMApps.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ ok: false, error: "That chat is gone." }) })));
+      await page.waitForFunction(() => document.querySelector("#chatbar .cp-said").textContent.startsWith("Not sent"), { timeout: 3_000 });
+      assert.equal(await page.evaluate(() => [document.querySelector("#chatbar .cp-said").textContent, document.querySelector("#chatbar .cp-area").value].join("|")), "Not sent: That chat is gone.|Again");
+      assert.deepEqual(errors, [], "no error on the page");
+    } finally {
+      await browser.close();
+    }
   }
 
   const found = await call({ action: "search", query: "export" });

@@ -7,18 +7,21 @@
 <meta name="robots" content="noindex">
 <title>Browser</title>
 <style>
-/* A tab's page: the workspace's tabs along the top, the address bar, the tab's picture filling the
-   room, who holds a chat's tab, and Back, Forward, Logins and More at the bottom. Tap the picture to
-   take the tab over; tap a field to type with this device's keyboard. The tab's screen follows the
-   picture's room, so it fills a phone or a desktop window alike. A sign-in request, and an offer to
-   save a login, rise as a card at the bottom. + and More › New tab show a new tab's home, where a
-   search or an address opens a tab of the user's own; More there has New tab alone. A tab that closed
-   keeps all of it, the tab's room alone changing: its other tabs stay along the top, a new tab's home
-   takes the tab's place, and Back and Forward are off. Inside AnywhereLLM Lite, which draws its own
-   bar for handing the tab back, the bar saying who holds the tab is left out. It draws no Close of
-   its own: it opens in a sheet whose toolbar shows its <title> (the tab's) and a Close (AnywhereLLM
-   Lite's Custom Tab), or in a browser tab with its own Back. ?theme=light or dark keeps it to one,
-   as the Vault's does. */
+/* A tab's page: the tab's picture filling the screen, and one bar at the bottom, in thumb reach: Back,
+   the address pill with the holder chip (Agent or You: tap it to take the tab over or hand it back),
+   the tab count, which opens the tabs as a sheet, and More (Forward, Reload, Logins, New tab, Close
+   this tab). Scrolling the page down shrinks the bar to a thin line with the host and the chip.
+   Tap the picture to take the tab over; tap a field to type with this device's keyboard. The tab's
+   screen follows the picture's room, so it fills a phone or a desktop window alike. A sign-in
+   request, and an offer to save a login, rise as a card above the bar, which stays thin under it.
+   On a chat's tab inside AnywhereLLM, a "Message the agent" composer sits above the bar (the one
+   Apps' Comment uses, shared/composer.js): Point picks up to 5 things on the page by the refs the
+   agent reads, and Send puts the message in the tab's chat. A new tab's home has the same bar, its
+   pill the field for a search or an address, which opens a tab of the user's own; More there has New
+   tab and Logins. A tab that closed keeps all of it, the tab's room alone changing: a new tab's home
+   takes the tab's place, and Back is off. It draws no Close of its own: it opens in a sheet whose
+   toolbar shows its <title> (the tab's) and a Close (AnywhereLLM Lite's Custom Tab), or in a browser
+   tab with its own Back. ?theme=light or dark keeps it to one, as the Vault's does. */
 /* house ui: House UI 3.1 (claude.ai/artifact/9igEPZB5mRR1SnT8LwGJkc) as the design canvas has it: its
    tokens.css with the indigo scheme only, then bundle.css's root, density, focus and button rules. Regenerate
    from the canvas's house-tokens.css and house-bundle.css; never edit one page's copy. */
@@ -806,11 +809,11 @@ html { font-size: 100%; }
 }
 /* end of house ui */
 /* The tab's page as the Browser Lean Design canvas draws it (page "Browser": The tab's page, A new
-   tab's home, Log in on the tab's page), with House UI's tokens only. Every control is at least 44 px
-   tall whatever the pointer (the body's data-density="touch" keeps House UI's buttons at that size
-   too); the type is House UI's ramp in rem, so it grows with the text size. */
+   tab's home, Tabs sheet, Log in on the tab's page), with House UI's tokens only. Every control is at
+   least 44 px tall whatever the pointer (the body's data-density="touch" keeps House UI's buttons at
+   that size too); the type is House UI's ramp in rem, so it grows with the text size. */
 html,body{height:100%;margin:0}
-body{overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{overflow:hidden;-webkit-tap-highlight-color:transparent;--thin-h:41px;--bottom-h:72px}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input{font:inherit;color:var(--ink)}
 input::placeholder{color:var(--muted)}
@@ -818,26 +821,10 @@ a{color:inherit;text-decoration:none}
 [hidden]{display:none!important}
 svg{flex:none}
 .app{position:fixed;inset:0;display:flex;flex-direction:column;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
-/* The tabs along the top: each chat's and the user's own, the current one with its title. */
-.strip{flex:none;display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--space-2) 0;overflow-x:auto;scrollbar-width:none}
-.strip::-webkit-scrollbar{display:none}
-.strip>*{flex:none;width:var(--size-control-touch);height:var(--size-control-touch);box-sizing:border-box;border-radius:var(--radius-md);border:1.5px solid transparent;color:var(--ink);display:grid;place-items:center}
-.strip .cur{flex:1 1 0;min-width:6rem;width:auto;height:auto;min-height:var(--size-control-touch);padding:0 var(--space-3) 0 10px;background:var(--tile);border-color:var(--line-strong);display:flex;align-items:center;gap:var(--space-2);font-size:0.875rem;font-weight:600}
-.strip .cur>span:last-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fav{position:relative;flex:none;display:grid}
-.fav b{width:22px;height:22px;border-radius:50%;background:var(--sunken);color:var(--ink);display:grid;place-items:center;font-size:0.75rem;font-weight:700;line-height:1}
-.fav i{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:var(--success);border:2px solid var(--tile)}
 .icon{flex:none;width:22px;height:22px;display:grid;place-items:center}
-/* The address bar (the site, with a lock and Reload) and, on a new tab's home, the search field. */
-.bar{flex:none;padding:var(--space-2) var(--space-3) 10px}
-.field{width:100%;min-height:var(--size-primary);padding:0 var(--space-4);border-radius:var(--radius-pill);background:var(--tile);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);display:flex;align-items:center;gap:10px;font-size:1rem}
-.field:focus-within{box-shadow:inset 0 0 0 var(--size-focus) var(--accent)}
-.field input{flex:1;min-width:0;min-height:var(--size-control-touch);border:0;background:none;padding:0;font-size:1rem}
-.field input:focus-visible{outline:none} /* the field's own ring, above, shows the focus */
-.host{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.in{flex:none;width:var(--size-control-touch);height:var(--size-control-touch);margin-right:-12px;border-radius:50%;display:grid;place-items:center}
-/* The page: its picture, filling the room between the bars, tapped and typed on directly. */
-#stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;background:var(--tile);border-top:1px solid var(--line)}
+/* The page: its picture, filling the room down to the thin bar; the full bar and the chat bar lie over
+   its foot until the page is scrolled, so the tab's screen stays the same size as the bar changes. */
+#stage{position:relative;flex:1;min-height:0;margin-bottom:var(--thin-h,41px);overflow:hidden;touch-action:none;background:var(--tile)}
 #shot{position:absolute;display:block;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;pointer-events:none;background:#fff}
 #take{position:absolute;inset:0;width:100%;height:100%}
 #take:focus-visible{outline-offset:-3px}
@@ -845,8 +832,12 @@ svg{flex:none}
 @keyframes ripple{from{transform:scale(.4);opacity:.35}to{transform:scale(1.4);opacity:0}}
 @media (prefers-reduced-motion:reduce){.tap{animation:fade .3s forwards}@keyframes fade{to{opacity:0}}}
 .over,.over:focus-visible{position:absolute;margin:0;border:0;outline:3px solid var(--accent);outline-offset:1px;border-radius:var(--radius-xs);background:#fff;color:#111;padding:0 8px;font-size:1rem;box-shadow:var(--shadow-raised)}
-/* A new tab's home: where to, Your sites, and suggestions while typing. */
-.home{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+/* What the chat bar picked on the page: an accent outline and its number. */
+#marks{position:absolute;inset:0;pointer-events:none}
+.mark{position:absolute;outline:3px solid var(--accent);outline-offset:2px;border-radius:var(--radius-xs)}
+.mark>b{position:absolute;top:-14px;left:-14px;width:22px;height:22px;border-radius:50%;border:2px solid var(--tile);background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:700 0.8125rem/1 var(--font-sans)}
+/* A new tab's home: where to, Your sites, and suggestions while typing, rising above the bar. */
+.home{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-bottom:var(--bottom-h,72px)}
 .hero{padding:40px var(--space-5) var(--space-6);display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .hero>span{width:56px;height:56px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
 .hero h1{margin:var(--space-2) 0 0;font:600 1.5rem/1.3 var(--font-display)}
@@ -857,31 +848,57 @@ svg{flex:none}
 .site{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);min-width:0;text-align:center;color:var(--ink)}
 .site>b{width:56px;height:56px;border-radius:var(--radius-lg);background:var(--tile);border:1px solid var(--tile-edge);box-shadow:var(--shadow-tile);display:grid;place-items:center;font:700 1.25rem var(--font-display)}
 .site>span{max-width:100%;font-size:0.875rem;line-height:1.3;overflow-wrap:anywhere}
-.suggest{margin:0;padding:0;list-style:none;background:var(--tile);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.suggest li+li{border-top:1px solid var(--line)}
+.suggest{margin:auto 0 0;padding:0;list-style:none;display:flex;flex-direction:column-reverse;background:var(--tile);border-top:1px solid var(--line)}
+.suggest li+li{border-bottom:1px solid var(--line)}
 .suggest button{width:100%;min-height:var(--size-row-touch);padding:var(--space-2) var(--space-5);display:flex;align-items:center;gap:14px;color:var(--ink);text-align:left}
 .suggest button>span:last-child{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .suggest b{font-size:1rem;font-weight:400;overflow-wrap:anywhere}
 .suggest small{font-size:0.8125rem}
 .suggest button:focus-visible{outline-offset:-3px}
-/* Who holds a chat's tab, above the bottom bar: the agent, with Take over, or the user, with Hand back. */
-.holdbar{flex:none;display:flex;align-items:center;gap:10px;padding:var(--space-2) var(--space-3) var(--space-2) var(--space-4);background:var(--tile);border-top:1px solid var(--line)}
-.holdbar>span{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);font-size:1rem;line-height:1.4}
-.dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--success)}
-/* Back, Forward, Logins and More, where a thumb reaches. */
-.navbar{flex:none;display:flex;padding:var(--space-1) var(--space-2) calc(var(--space-3) + env(safe-area-inset-bottom,0px));background:var(--ground);border-top:1px solid var(--line)}
-.navbar>*{flex:1;min-width:0;min-height:var(--size-row-touch);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:0.8125rem;line-height:1.2;color:var(--ink);text-align:center}
-.navbar>:disabled{color:var(--muted);cursor:default}
-/* While a request or an offer is up, it rises in place of the bars; they keep their room, so the tab's screen stays as it is.
-   Reload stays above a request (it takes the tab over in the request's place), not above an offer. */
-.carded .holdbar,.carded .navbar{visibility:hidden}
+/* The bottom: the chat bar on a chat's tab, then one bar with Back, the address pill and its holder
+   chip, the tab count and More; scrolled, a thin line with the host and the chip. */
+.bottom{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+.chatbar{flex:none;padding:var(--space-2) var(--space-2) var(--space-1);background:var(--ground);border-top:1px solid var(--line)}
+.chatbar[data-state="expanded"]{padding:var(--space-3)}
+.tb-bar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-2) calc(var(--space-4) + env(safe-area-inset-bottom,0px));background:var(--ground);border-top:1px solid var(--line);font-size:1rem}
+.chatbar:not([hidden])+.tb-bar{border-top:0}
+.tb-icon{position:relative;flex:none;min-width:var(--size-target-touch);min-height:var(--size-target-touch);border-radius:var(--radius-pill);color:var(--ink);display:grid;place-items:center}
+.tb-icon:disabled{color:var(--muted);cursor:default}
+.tb-count{margin-left:auto}
+.tb-count__sq{min-width:2em;height:2em;padding:0 var(--space-1);border:2px solid currentColor;border-radius:var(--radius-xs);display:grid;place-items:center;font:700 0.8125em/1 var(--font-sans)}
+.tb-pill{flex:1 1 9em;min-width:0;min-height:var(--size-target-touch);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-1) 0 0;border-radius:var(--radius-pill);background:var(--tile);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.tb-pill:focus-within{box-shadow:inset 0 0 0 2px var(--accent)}
+.typing .tb-pill{flex-basis:100%}
+.typing #navback,.typing #count,.typing #morebtn{display:none}
+.tb-addr{flex:1;min-width:0;align-self:stretch;display:flex;align-items:center;gap:6px;padding:0 0 0 14px;border-radius:var(--radius-pill);color:var(--ink);font:500 0.875em/1.3 var(--font-sans);text-align:left}
+.tb-addr:focus-visible{outline-offset:-3px}
+.tb-host{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.tb-search{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);padding-left:14px}
+.tb-search input{flex:1;min-width:0;min-height:var(--size-control-touch);border:0;background:none;padding:0;font:400 1em/1.3 var(--font-sans)}
+.tb-search input:focus-visible{outline:none} /* the pill's own ring, above, shows the focus */
+.tb-chip{position:relative;flex:none;display:inline-flex;align-items:center;gap:var(--space-1);min-height:40px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--radius-pill);background:var(--tile);color:var(--ink);font:600 0.8125em/1.2 var(--font-sans);white-space:nowrap}
+button.tb-chip::after{content:"";position:absolute;inset:-5px 0}
+.tb-chip--agent{background:var(--success-soft);border-color:var(--success)}
+.tb-chip--you{background:var(--accent-soft);border-color:var(--accent)}
+.tb-chip[aria-disabled="true"]{background:var(--sunken);border-color:var(--line);color:var(--muted);cursor:not-allowed}
+.tb-thin{flex:none;padding:0 var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom,0px));background:var(--ground);border-top:1px solid var(--line);font-size:1rem}
+.tb-thin__row{min-height:28px;display:flex;align-items:center;justify-content:center;gap:var(--space-2)}
+.tb-thin__host{position:relative;min-width:0;min-height:28px;display:flex;align-items:center;gap:var(--space-1);padding:0 var(--space-1);color:var(--ink);font:500 0.8125em/1.2 var(--font-sans)}
+.tb-thin__host::after{content:"";position:absolute;inset:-8px 0 -12px}
+.tb-thin__host:disabled{cursor:default}
+.tb-thin__host:disabled::after{content:none}
+.tb-chip--sm{min-height:24px;padding:0 var(--space-2)}
+button.tb-chip--sm::after{inset:-10px 0 -14px}
+.tb-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes rise{from{transform:translateY(var(--space-2));opacity:0}}
+.moved .tb-bar,.moved .tb-thin{animation:rise var(--duration-panel) var(--ease-out)} /* as the page scrolls, not as it opens */
+@media (prefers-reduced-motion:reduce){.moved .tb-bar,.moved .tb-thin{animation:none}}
+/* While a request or an offer is up, it rises above the bar, which stays thin under it. */
 .carded .app{background:var(--tile)}
-.offered #reload{visibility:hidden}
-.holdbar .hu-button{flex:none}
 .row{display:flex;flex-wrap:wrap;gap:var(--space-3)}
 .row>.hu-button{flex:1 1 0;min-width:fit-content}
-/* The request and the offer: a card at the bottom, over the page. */
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:3;padding:0 max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-4) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;pointer-events:none}
+/* The request and the offer: a card at the bottom, over the page, above the bar. */
+.dock{position:fixed;left:0;right:0;bottom:var(--bottom-h,41px);z-index:3;padding:0 max(var(--space-4),env(safe-area-inset-right,0px)) var(--space-4) max(var(--space-4),env(safe-area-inset-left,0px));display:flex;flex-direction:column;pointer-events:none}
 .dock>*{pointer-events:auto}
 .card{width:100%;max-width:30rem;margin:0 auto;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;background:var(--tile);border:1px solid var(--tile-edge);border-radius:var(--radius-lg);box-shadow:var(--shadow-raised);padding:18px var(--space-5);display:flex;flex-direction:column;gap:10px}
 .card>*{flex:none} /* a card taller than its room scrolls, its rows kept whole */
@@ -897,7 +914,7 @@ svg{flex:none}
 .ff .err{padding:0 var(--space-2);display:flex;gap:6px;align-items:flex-start;font-size:0.8125rem;line-height:1.4;color:var(--danger);overflow-wrap:anywhere}
 .ff .err svg{flex:none;margin-top:1px}
 .ff .err:empty{display:none}
-.app>#banners{flex:none;padding:0 var(--space-3) var(--space-2)}
+.app>#banners{flex:none;padding:var(--space-2) var(--space-3) 0}
 .pw{position:relative}.pw .fld{padding-right:72px}
 .pwshow{position:absolute;right:4px;top:2px;min-height:var(--size-control-touch);min-width:56px;padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.8125rem;font-weight:600}
 .tgl{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--size-control-touch);font-size:1rem}
@@ -908,19 +925,38 @@ svg{flex:none}
 .sw[aria-checked="true"] span::after{left:18px}
 .left{display:flex;align-items:center;gap:var(--space-2);font-size:1rem;color:var(--ink);font-variant-numeric:tabular-nums}
 .left>span:first-child{flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent)}
-/* More: a sheet from the bottom. */
+/* More and the tabs: sheets from the bottom. */
 .scrim{position:fixed;inset:0;z-index:4;background:var(--scrim)}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:5;max-height:calc(100% - var(--space-12));overflow-y:auto;background:var(--tile);border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:var(--shadow-sheet);border:1px solid var(--tile-edge);border-bottom:0;display:flex;flex-direction:column}
-.sheet>span{align-self:center;width:40px;height:4px;margin-top:10px;border-radius:var(--radius-pill);background:var(--line)}
-.sheet>div{padding:var(--space-2) var(--space-6) calc(var(--space-7) + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column}
-.sheet button{width:100%;min-height:var(--size-row-touch);display:flex;align-items:center;gap:14px;font-size:1rem;text-align:left;color:var(--ink)}
-.sheet button+button{border-top:1px solid var(--line)}
-.sheet button:focus-visible{outline-offset:-3px}
-/* Updating the page: a pill under the bar. */
+.sheet>span{flex:none;align-self:center;width:40px;height:4px;margin-top:10px;border-radius:var(--radius-pill);background:var(--line)}
+#more>div{padding:var(--space-2) var(--space-6) calc(var(--space-7) + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column}
+.sheet .item{width:100%;min-height:var(--size-row-touch);display:flex;align-items:center;gap:14px;font-size:1rem;text-align:left;color:var(--ink)}
+.sheet .item:disabled{color:var(--muted);cursor:default}
+.sheet .item~.item{border-top:1px solid var(--line)}
+.sheet .item:focus-visible{outline-offset:-3px}
+.ts-head{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-1) 0 var(--space-4)}
+.ts-head h2{flex:1;margin:0;font:600 1.25rem/1.3 var(--font-display)}
+.ts-h{margin:var(--space-3) var(--space-4) var(--space-1);font-size:0.8125rem;font-weight:700;line-height:1.4}
+.ts-list{margin:0;padding:0;list-style:none}
+.ts-row{width:100%;min-height:var(--size-row-touch);padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:14px;color:var(--ink);text-align:left;border-inline-start:3px solid transparent}
+.ts-row:focus-visible{outline-offset:-3px}
+.ts-row[aria-current="true"]{background:var(--accent-soft);border-inline-start-color:var(--accent)}
+.ts-row[aria-current="true"] .ts-title{font-weight:700}
+.ts-row>svg{color:var(--accent)}
+.ts-av{position:relative;flex:none;display:grid}
+.ts-av>b{width:32px;height:32px;border-radius:50%;background:var(--sunken);color:var(--ink);display:grid;place-items:center;font-size:0.875rem;font-weight:700}
+.ts-av>i{position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:var(--success);border:2px solid var(--tile)}
+.ts-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ts-title{font-size:1rem;line-height:1.4;overflow-wrap:anywhere}
+.ts-sub{display:flex;align-items:center;gap:6px;font-size:0.8125rem;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
+.ts-sub.mono{font-family:var(--font-mono)}
+.ts-new{padding:var(--space-4) var(--space-4) calc(var(--space-7) + env(safe-area-inset-bottom,0px))}
+/* Updating the page: a pill at the top. */
 .upd{position:fixed;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:var(--space-2);min-height:36px;max-width:calc(100% - var(--space-8));padding:0 14px;border-radius:var(--radius-pill);background:var(--tile);box-shadow:var(--shadow-raised);font-size:0.8125rem;font-weight:500;line-height:1.4;white-space:nowrap}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.live{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.live{animation:none}}
-@media (hover:hover){.strip>a:not(.cur):hover,.strip>button:hover,.in:hover,.navbar>:not(:disabled):hover,.suggest button:hover,.sheet button:hover,.site:hover>b,.pwshow:hover,.hu-button--secondary:hover{background:var(--sunken)}}
+@media (forced-colors:active){.tb-pill{border:1px solid CanvasText}.tb-chip{border-color:CanvasText}.tb-chip[aria-disabled="true"]{color:GrayText;border-color:GrayText}.tb-bar,.tb-thin,.chatbar{border-top-color:CanvasText}.tb-count__sq{border-color:CanvasText}.mark{outline-color:Highlight}.mark>b{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Canvas}.ts-av>i{forced-color-adjust:none;background:CanvasText}}
+@media (hover:hover){.tb-icon:not(:disabled):hover,.tb-addr:hover,.suggest button:hover,.sheet .item:not(:disabled):hover,.ts-row:hover,.site:hover>b,.pwshow:hover,.hu-button--secondary:hover{background:var(--sunken)}}
 /* page messages: the toast and the banners, as the script's block of that name writes them; the same
    in every suite page (shared/messages.test.mts). An empty toast draws nothing and stays in the page. */
 #toast{--focus:var(--ground);position:fixed;inset-inline:0;bottom:calc(var(--space-6) + env(safe-area-inset-bottom,0px));z-index:7;width:max-content;max-width:min(28rem,calc(100% - 2 * var(--space-4)));margin-inline:auto;padding:var(--space-2) var(--space-4);display:flex;align-items:center;gap:var(--space-2);border:1px solid transparent;border-radius:var(--radius-lg);background:var(--ink);color:var(--ground);box-shadow:var(--shadow-raised);font:400 1rem/1.5 var(--font-sans);text-align:center}
@@ -944,27 +980,27 @@ svg{flex:none}
 </head>
 <body class="hu-root" data-density="touch">
 <div class="app" id="app">
-  <nav class="strip" id="strip" aria-label="Tabs"></nav>
-  <div class="bar" id="addrbar">
-    <div class="field"><span id="lock"></span><span class="host" id="addr"></span><button class="in" id="reload" type="button" aria-label="Reload"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button></div>
-  </div>
-  <form class="bar" id="searchbar" role="search" hidden>
-    <div class="field"><i data-icon="search" data-size="18"></i><input id="q" type="text" aria-label="Search or type an address" placeholder="Search or type an address" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="in" id="clear" type="button" aria-label="Clear" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
-  </form>
   <div id="banners"></div>
-  <main id="stage" aria-label="The page"><img id="shot" alt=""><button id="take" type="button" aria-label="Take the tab over"></button></main>
+  <main id="stage" aria-label="The page"><img id="shot" alt=""><div id="marks" aria-hidden="true"></div><button id="take" type="button" aria-label="Take the tab over"></button></main>
   <section class="home" id="home" aria-label="New tab" hidden>
-    <ul class="suggest" id="suggest" aria-label="Suggestions" hidden></ul>
-    <div class="hero" id="hero"><span aria-hidden="true"><i data-icon="globe" data-size="28"></i></span><h1>Where to?</h1><p>Browse yourself, or ask the agent in the chat.</p></div>
+    <div class="hero" id="hero"><span aria-hidden="true"><i data-icon="globe" data-size="28"></i></span><h1>Where to?</h1><p>Search or type an address below, or ask the agent in the chat.</p></div>
     <section class="sites" id="mysites" aria-labelledby="h-sites" hidden><h2 id="h-sites">Your sites</h2><div class="grid" id="grid"></div></section>
+    <ul class="suggest" id="suggest" aria-label="Suggestions" hidden></ul>
   </section>
-  <div class="holdbar" id="holdbar" role="status" hidden><span><span class="dot" id="holddot" aria-hidden="true"></span><span id="holdtext"></span></span><button class="hu-button hu-button--secondary" id="hold" type="button"></button></div>
-  <nav class="navbar" id="navbar" aria-label="Browser">
-    <button type="button" id="navback" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Back</span></button>
-    <button type="button" id="navfwd" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span>Forward</span></button>
-    <a id="logins" class="nl" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg><span>Logins</span></a>
-    <button type="button" id="morebtn" aria-haspopup="dialog"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg><span>More</span></button>
-  </nav>
+  <div class="bottom" id="bottom">
+    <div class="chatbar" id="chatbar" hidden></div>
+    <nav class="tb-bar" id="bar" aria-label="Browser">
+      <button class="tb-icon" id="navback" type="button" aria-label="Back" disabled><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <div class="tb-pill" id="pill">
+        <button class="tb-addr" id="addrbtn" type="button"><span id="lock"></span><span class="tb-host" id="addr"></span></button>
+        <form class="tb-search" id="searchbar" role="search" hidden><i data-icon="search" data-size="18"></i><input id="q" type="text" aria-label="Search or type an address" placeholder="Search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="tb-icon" id="clear" type="button" aria-label="Clear" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></form>
+        <button class="tb-chip" id="chip" type="button" hidden></button><span class="tb-chip" id="chipown" hidden></span>
+      </div>
+      <button class="tb-icon tb-count" id="count" type="button" aria-haspopup="dialog"><span class="tb-count__sq" id="countn" aria-hidden="true"></span></button>
+      <button class="tb-icon" id="morebtn" type="button" aria-label="More" aria-haspopup="dialog"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+    </nav>
+    <nav class="tb-thin" id="thin" aria-label="Browser" hidden><div class="tb-thin__row"><button class="tb-thin__host" id="thinhost" type="button"><i data-icon="lock" data-size="12"></i><span class="tb-host" id="thinaddr"></span></button><button class="tb-chip tb-chip--sm" id="thinchip" type="button" hidden></button><span class="tb-chip tb-chip--sm" id="thinown" hidden></span></div></nav>
+  </div>
 </div>
 <div class="upd" id="upd" role="status" hidden><span class="live" aria-hidden="true"></span><span id="updtext">Updating the page…</span></div>
 <div class="dock" id="dock">
@@ -973,10 +1009,19 @@ svg{flex:none}
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <section class="sheet" id="more" role="dialog" aria-modal="true" aria-label="More" hidden><span aria-hidden="true"></span><div>
-  <button type="button" id="morenew"><i data-icon="plus" data-size="20"></i>New tab</button>
-  <button type="button" id="moreclose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Close this tab</button>
+  <button class="item" type="button" id="morefwd"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Forward</button>
+  <button class="item" type="button" id="morereload"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reload</button>
+  <a class="item" id="logins" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg>Logins</a>
+  <button class="item" type="button" id="morenew"><i data-icon="plus" data-size="20"></i>New tab</button>
+  <button class="item" type="button" id="moreclose"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Close this tab</button>
 </div></section>
+<section class="sheet" id="tabsheet" role="dialog" aria-modal="true" aria-labelledby="ts-title" hidden><span aria-hidden="true"></span>
+  <div class="ts-head"><h2 id="ts-title">Tabs</h2><button class="tb-icon" id="tabsclose" type="button" aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <div id="tabslists"></div>
+  <div class="ts-new"><button class="hu-button hu-button--secondary hu-button--block" id="tabsnew" type="button"><i data-icon="plus" data-size="20"></i>New tab</button></div>
+</section>
 <div id="toast" role="status"></div>
+<script>/*COMPOSER*/</script>
 <script>
 (() => {
   const cfg = /*CONFIG*/null;
@@ -992,6 +1037,9 @@ svg{flex:none}
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
     warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    agent: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+    you: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
   };
   const svg = (name, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG[name]}</svg>`;
   /** An icon in a box of a favicon's size. */
@@ -999,8 +1047,13 @@ svg{flex:none}
   // The page's own icons from the map too, where it marks them (data-icon, at data-size).
   for (const n of document.querySelectorAll("[data-icon]")) n.outerHTML = svg(n.dataset.icon, n.dataset.size);
   // AnywhereLLM Lite's channel, when this page shows inside it: told who has the tab and when it was
-  // handed back; it draws its own bar for handing the tab back, so the bar saying who holds it isn't drawn here.
+  // handed back (its own bar hands the tab back before it sends a message to the agent).
   const host = window.AnywhereLLMBrowser || null;
+  // The bar: thin (the host and the chip alone) once the page is scrolled down, under a request or an
+  // offer, and while the chat bar is typed in; full again when the page is scrolled up or the host tapped.
+  let scrolled = false;
+  // The chat bar's composer (shared/composer.js), on a chat's tab inside AnywhereLLM; made below.
+  let chat = null;
   let st = null, size = { w: 430, h: 932 }, scale = 1, left = 0, over = null, shot = 0, swiped = false;
   let formFor = 0, dismissed = 0, skew = 0, lastText = "", shown = 0;
   // A new tab's home is a view of this page: + and More › New tab show it, and a search or an address
@@ -1191,18 +1244,21 @@ svg{flex:none}
   new MutationObserver(() => placeToast()).observe($("toast"), { childList: true });
   function placeToast() {
     const card = [$("need"), $("offer")].find((c) => !c.hidden);
-    const above = card ? card.getBoundingClientRect().top : $("navbar").getBoundingClientRect().top;
+    const above = card ? card.getBoundingClientRect().top : $("bottom").getBoundingClientRect().top;
     $("toast").style.bottom = Math.max(16, Math.round(innerHeight - above) + 10) + "px";
   }
 
   // ---- The picture, fitted to the room between the bars, measured on each resize.
   function reserve() {
-    const bar = homeView ? $("searchbar") : $("addrbar");
-    $("upd").style.top = Math.round(bar.getBoundingClientRect().bottom) + 8 + "px";
-    const room = Math.max(160, innerHeight - Math.round($("strip").getBoundingClientRect().bottom) - 24) + "px";
+    const bottom = Math.round($("bottom").getBoundingClientRect().height);
+    document.body.style.setProperty("--bottom-h", bottom + "px"); // the home's foot and the cards sit above it
+    if (!$("thin").hidden) document.body.style.setProperty("--thin-h", Math.round($("thin").getBoundingClientRect().height) + "px"); // the picture's room ends at the thin bar
+    $("upd").style.top = Math.round($("banners").getBoundingClientRect().bottom) + 8 + "px";
+    const room = Math.max(160, innerHeight - bottom - Math.round($("banners").getBoundingClientRect().bottom) - 24) + "px";
     $("need").style.maxHeight = $("offer").style.maxHeight = room; // a card taller than the room scrolls
     placeToast();
   }
+  new ResizeObserver(() => reserve()).observe($("bottom"));
   function layout() {
     if (!st || homeView) return;
     const W = Math.max(1, $("stage").clientWidth), H = Math.max(1, $("stage").clientHeight);
@@ -1210,6 +1266,7 @@ svg{flex:none}
     left = (W - size.w * scale) / 2;
     Object.assign($("shot").style, { width: size.w * scale + "px", height: size.h * scale + "px", left: left + "px", top: "0px" });
     if (over) place(over.input, over.field);
+    drawMarks();
   }
   addEventListener("resize", () => (reserve(), layout(), askSize()));
   // A banner coming or going changes the picture's room: fitted again, the window's size unchanged.
@@ -1221,7 +1278,7 @@ svg{flex:none}
   function askSize() {
     clearTimeout(sizeTimer);
     sizeTimer = setTimeout(() => {
-      if (!st || homeView || over || asking() || document.activeElement?.tagName === "INPUT") return;
+      if (!st || homeView || over || asking() || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || "")) return;
       const want = { w: $("stage").clientWidth, h: $("stage").clientHeight, dpr: devicePixelRatio || 1 };
       if (want.w < 1 || want.h < 1) return;
       const have = asked || size;
@@ -1308,12 +1365,16 @@ svg{flex:none}
     const dy = e.clientY - down.y;
     if (isSwipe(e.clientX - down.x, dy)) slide(Math.max(-size.h * scale, Math.min(size.h * scale, dy)));
   });
+  // A swipe scrolls the page (while the user holds the tab), and shrinks the bar to its thin line as
+  // the page goes down, or brings it back as the page goes up, whoever holds the tab.
   $("stage").addEventListener("pointerup", (e) => {
     const d = down;
     down = null;
-    if (!d || !mine()) return;
+    if (!d) return;
     const dy = e.clientY - d.y;
     swiped = isSwipe(e.clientX - d.x, dy);
+    if (swiped) setScrolled(dy < 0);
+    if (!mine()) return;
     if (!swiped) return slide(0);
     post("scroll", { dy: Math.round(-dy / scale) });
     slid = setTimeout(() => slide(0), 3000); // no picture came: put it back
@@ -1330,6 +1391,7 @@ svg{flex:none}
   $("stage").addEventListener("click", (e) => {
     if (swiped) return void (swiped = false);
     if (!mine() || e.target === $("take") || !onPicture(e)) return;
+    if (chat?.pointing) return pickAt(e);
     tapAt(e);
   });
   // Takes the tab over, shown at once; the state file catches up.
@@ -1344,6 +1406,8 @@ svg{flex:none}
   // the tab over in the request's place (the agent is told).
   $("take").addEventListener("click", (e) => {
     if (!st) return;
+    if (swiped) return void (swiped = false);
+    if (chat?.pointing) return pickAt(e); // pointing picks, and doesn't take the tab over
     if (asking()) return void (answered(), post("need-cancel", { reason: "takeover" }), takeOver());
     takeOver();
     tapAt(e);
@@ -1357,18 +1421,37 @@ svg{flex:none}
     pending.who = "agent";
     return done;
   }
-  $("hold").addEventListener("click", () => (mine() ? give() : takeOver()));
-  // Back, Forward and Reload on a tab the agent has take it over first, as tapping the page does;
-  // Reload above a request takes it over in the request's place, as tapping the page above it does.
+  // The holder chip: Agent takes the tab over (above a request, in the request's place, as tapping the
+  // page above it does), You hands it back; off while an offer waits, which the user answers first.
+  const chipTap = () => {
+    if (!st || st.mine || homeView || gone || !!st.offer) return;
+    if (mine()) return void give();
+    if (asking()) answered(), post("need-cancel", { reason: "takeover" });
+    takeOver();
+  };
+  $("chip").addEventListener("click", chipTap);
+  $("thinchip").addEventListener("click", chipTap);
+  // Back, and Forward and Reload in More, on a tab the agent has take it over first, as tapping the page does.
   const nav = (how) => () => {
+    closeMore();
     closeField(true);
     if (asking()) answered(), post("need-cancel", { reason: "takeover" });
     takeOver();
     post("nav", { do: how });
   };
   $("navback").addEventListener("click", nav("back"));
-  $("navfwd").addEventListener("click", nav("forward"));
-  $("reload").addEventListener("click", nav("reload"));
+  $("morefwd").addEventListener("click", nav("forward"));
+  $("morereload").addEventListener("click", nav("reload"));
+  // The address pill opens a new tab's home, its field ready for a search or an address; the thin
+  // line's host brings the full bar back.
+  $("addrbtn").addEventListener("click", () => showHome(true));
+  $("thinhost").addEventListener("click", () => setScrolled(false));
+  function setScrolled(on) {
+    if (scrolled === on) return;
+    scrolled = on;
+    $("bottom").classList.add("moved");
+    drawBar();
+  }
   // AnywhereLLM Lite's bar hands the tab back through this, before it sends a message to the agent.
   window.browserLean = { give: () => give().then(() => host && host.postMessage('{"gave":true}')) };
   let told = null;
@@ -1376,43 +1459,56 @@ svg{flex:none}
   // The saved logins are listed and deleted on the Vault page, on this same host.
   $("logins").addEventListener("click", (e) => {
     e.preventDefault();
-    if (st && st.vault) closeField(true), location.assign(st.vault);
+    if (st && st.vault) closeMore(), closeField(true), location.assign(st.vault);
   });
 
-  // ---- The tabs along the top: each one's page, gone to in place (the chat stays one step back).
+  // ---- The tabs, a sheet from the count: the chats' tabs, then the user's own, each one's page gone
+  // to in place (the chat stays one step back), and New tab.
   const letter = (t) => ((t.title || t.host || "").match(/[\p{L}\p{N}]/u)?.[0] || "?").toUpperCase();
-  function fav(t, agent) {
-    const s = el("span", { className: "fav" }, el("b", { textContent: letter(t), ariaHidden: "true" }));
-    if (agent) s.append(el("i", { ariaHidden: "true" }));
-    return s;
-  }
   const goTo = (path) => location.replace(path + location.search);
-  // This tab along the top: the one whose page is this one.
+  // This tab among them: the one whose page is this one.
   const isHere = (t) => t.path === cfg.token + ".html";
-  function drawStrip() {
-    const kids = [];
-    for (const t of st.tabs || []) {
-      const here = isHere(t);
-      const agent = here ? !st.mine && st.who !== "user" : t.agent;
-      const name = (t.title || t.host || "Tab") + (agent ? ", the agent is using it" : "");
-      const cur = here && !homeView;
-      const a = el("a", { href: t.path + location.search, className: cur ? "cur" : "", ariaLabel: name }, fav(t, agent));
-      if (cur) a.setAttribute("aria-current", "page"), a.append(el("span", { textContent: t.title || t.host || "Tab" }));
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        if (here) return homeView && showHome(false);
+  /** How many tabs the count shows: the open ones, and a closed tab's own, whose page this still is. */
+  const tabCount = () => Math.max(1, (st.tabs || []).length + (gone ? 1 : 0));
+  function drawTabs() {
+    const row = (t) => {
+      const here = isHere(t) && !homeView && !gone;
+      const agent = isHere(t) ? !st.mine && st.who !== "user" : t.agent;
+      const av = el("span", { className: "ts-av" }, el("b", { textContent: letter(t), ariaHidden: "true" }));
+      if (agent) av.append(el("i", { ariaHidden: "true" }));
+      const sub = el("span", { className: agent ? "ts-sub" : "ts-sub mono" });
+      if (agent) sub.append(icon("agent", 14), el("span", { textContent: "The agent is using it" }));
+      else sub.textContent = t.host || "New tab";
+      const b = el("button", { type: "button", className: "ts-row" }, av, el("span", { className: "ts-text" }, el("span", { className: "ts-title", textContent: t.title || t.host || "Tab" }), sub));
+      if (here) b.setAttribute("aria-current", "true"), b.append(icon("check", 20), el("span", { className: "tb-sr", textContent: ", open now" }));
+      b.addEventListener("click", () => {
+        closeTabs();
+        if (isHere(t)) return homeView && !gone && showHome(false);
         closeField(true);
         goTo(t.path);
       });
-      kids.push(a);
-    }
-    if (homeView) kids.push(el("a", { className: "cur", href: "#new", ariaLabel: "New tab", ariaCurrent: "page" }, icon("globe"), el("span", { textContent: "New tab" })));
-    const plus = el("button", { type: "button", ariaLabel: "New tab" }, icon("plus", 20));
-    plus.addEventListener("click", () => showHome(true));
-    kids.push(plus);
-    $("strip").replaceChildren(...kids);
-    $("strip").querySelector('[aria-current="page"]')?.scrollIntoView?.({ inline: "nearest", block: "nearest" });
+      return el("li", {}, b);
+    };
+    const group = (id, words, tabs) => (tabs.length ? [el("h3", { className: "ts-h", id, textContent: words }), (() => { const ul = el("ul", { className: "ts-list" }, ...tabs.map(row)); ul.setAttribute("aria-labelledby", id); return ul; })()] : []);
+    const tabs = st.tabs || [];
+    $("tabslists").replaceChildren(...group("ts-chats", "Chats’ tabs", tabs.filter((t) => !t.mine)), ...group("ts-yours", "Your tabs", tabs.filter((t) => t.mine)));
   }
+  let tabsFrom = null;
+  function openTabs() {
+    closeMore();
+    drawTabs();
+    tabsFrom = document.activeElement;
+    $("scrim").hidden = $("tabsheet").hidden = false;
+    ($("tabsheet").querySelector('[aria-current="true"]') || $("tabsclose")).focus();
+  }
+  function closeTabs() {
+    if ($("tabsheet").hidden) return;
+    $("scrim").hidden = $("tabsheet").hidden = true;
+    (tabsFrom?.isConnected ? tabsFrom : $("count")).focus();
+  }
+  $("count").addEventListener("click", openTabs);
+  $("tabsclose").addEventListener("click", closeTabs);
+  $("tabsnew").addEventListener("click", () => (closeTabs(), showHome(true)));
 
   // ---- A new tab's home: one field for a search or an address, Your sites, suggestions while typing.
   function setHome(on) {
@@ -1421,6 +1517,8 @@ svg{flex:none}
   }
   function showHome(on) {
     closeMore();
+    closeTabs();
+    chat?.point(false);
     setHome(on);
     if (on) $("q").value = "", searchDraft.clear(), suggest();
     paint();
@@ -1430,6 +1528,7 @@ svg{flex:none}
   function suggest() {
     const q = $("q").value.trim();
     $("clear").hidden = !q;
+    $("bar").classList.toggle("typing", !!q); // the field widens across the bar while it's typed in
     $("suggest").hidden = !q;
     $("hero").hidden = $("mysites").hidden = !!q;
     if (!q) return void (st && drawSites());
@@ -1475,12 +1574,20 @@ svg{flex:none}
     updating("Opening the tab…");
   }
 
-  // ---- More: New tab, Close this tab; New tab alone on a new tab's home (a gone tab's included).
-  // No Back to the chat: the page opens in a sheet whose toolbar has a Close (AnywhereLLM Lite's
-  // Custom Tab), or in a browser tab with its own Back.
+  // ---- More: Forward, Reload, Logins, New tab, Close this tab; on a new tab's home (a gone tab's
+  // included) New tab and Logins, so the Vault's Logins stays in reach there. No Back to the chat: the
+  // page opens in a sheet whose toolbar has a Close (AnywhereLLM Lite's Custom Tab), or in a browser
+  // tab with its own Back.
   function openMore() {
+    closeTabs();
+    const home = homeView || !!gone;
+    $("morefwd").hidden = $("morereload").hidden = home;
+    $("morefwd").disabled = !st?.forward;
+    $("moreclose").hidden = home;
+    $("logins").hidden = !st?.vault;
+    if (st?.vault) $("logins").href = st.vault;
     $("scrim").hidden = $("more").hidden = false;
-    $("more").querySelector("button").focus();
+    [...$("more").querySelectorAll(".item")].find((b) => !b.hidden && !b.disabled)?.focus();
   }
   function closeMore() {
     if ($("more").hidden) return;
@@ -1488,8 +1595,13 @@ svg{flex:none}
     $("morebtn").focus();
   }
   $("morebtn").addEventListener("click", openMore);
-  $("scrim").addEventListener("click", closeMore);
-  addEventListener("keydown", (e) => e.key === "Escape" && closeMore());
+  $("scrim").addEventListener("click", () => (closeMore(), closeTabs()));
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (chat?.pointing) return chat.point(false);
+    closeMore();
+    closeTabs();
+  });
   $("morenew").addEventListener("click", () => showHome(true));
   // Closes this tab, then goes to the one before it along the top (or after it); the chat's tab
   // isn't closed while its agent is in the middle of a step, and the page says so.
@@ -1592,6 +1704,61 @@ svg{flex:none}
   $("offerno").addEventListener("click", () => (($("offer").hidden = true), post("offer", { save: false })));
   $("offeryes").addEventListener("click", () => (($("offer").hidden = true), post("offer", { save: true })));
 
+  // ---- The bar: Back, the address pill with the holder chip, the count and More; thin under a request
+  // or an offer, while the chat bar is typed in, and once the page is scrolled down. The chip says who
+  // holds a chat's tab, the agent or the user, and is never cut short or hidden; on a tab of the
+  // user's own, and on a new tab's home, it reads You and does nothing, as the agent never reaches it.
+  function chipOf(button, mark, small) {
+    const page = !homeView && !gone;
+    const own = !page || st.mine;
+    button.hidden = own;
+    mark.hidden = !own;
+    if (own) {
+      mark.innerHTML = svg("you", 14);
+      mark.append("You", el("span", { className: "tb-sr", textContent: page ? ": your own tab, which the agent never reaches" : ": your own tab" }));
+      return;
+    }
+    const held = mine(), waiting = held && !!st.offer;
+    button.className = "tb-chip" + (small ? " tb-chip--sm" : "") + (held ? " tb-chip--you" : " tb-chip--agent");
+    button.innerHTML = svg(held ? "you" : "agent", 14);
+    button.append(held ? "You" : "Agent");
+    button.setAttribute("aria-label", waiting ? "You have this tab. Hand back once you answer" : held ? "You have this tab: hand back" : "Agent has this tab: take over");
+    if (waiting) button.setAttribute("aria-disabled", "true");
+    else button.removeAttribute("aria-disabled");
+  }
+  function drawBar() {
+    if (!st) return;
+    const page = !homeView && !gone;
+    const carded = document.body.classList.contains("carded");
+    const typing = !!chat?.expanded;
+    const thin = page && (carded || typing || scrolled);
+    $("bar").hidden = thin;
+    $("thin").hidden = !thin;
+    $("addrbtn").hidden = !page;
+    $("searchbar").hidden = page;
+    if (page) $("bar").classList.remove("typing");
+    const secure = /^https:/i.test(st.url || "");
+    const where = st.host || (st.url || "").replace(/^[a-z]+:(\/\/)?/i, "") || "New tab";
+    $("lock").innerHTML = svg(secure ? "lock" : "open", 16);
+    $("addr").textContent = "\u200e" + where + "\u200e"; // cut at its start, so the site's own name stays in view
+    $("addrbtn").setAttribute("aria-label", where + (secure ? ", secure" : ", not secure") + ". Search or type an address");
+    $("thinhost").innerHTML = svg(secure ? "lock" : "open", 12);
+    $("thinhost").append(el("span", { className: "tb-host", textContent: "\u200e" + where + "\u200e" }));
+    $("thinhost").disabled = carded; // under a request or an offer, Back and More stay out of reach
+    $("thinhost").setAttribute("aria-label", carded ? where : where + ": show the bar");
+    chipOf($("chip"), $("chipown"), false);
+    chipOf($("thinchip"), $("thinown"), true);
+    $("navback").disabled = !page || !st.back;
+    const n = tabCount();
+    $("countn").textContent = String(n);
+    $("count").setAttribute("aria-label", n === 1 ? "1 tab" : n + " tabs");
+    // The chat bar: on a chat's tab, above the bar, shrinking away with it; typed in, it stays above the thin bar.
+    const talk = !!chat && page && !st.mine && !carded && (!thin || typing);
+    if (chat && !talk && chat.pointing) chat.point(false);
+    $("chatbar").hidden = !talk;
+    if (chat) $("chatbar").dataset.state = chat.expanded ? "expanded" : "collapsed";
+  }
+
   // ---- Drawing what the state file says.
   function paint() {
     if (!st) return;
@@ -1622,29 +1789,13 @@ svg{flex:none}
     }
     document.body.classList.toggle("carded", ask || offer);
     document.body.classList.toggle("offered", offer);
-    // The tab, or a new tab's home.
-    $("addrbar").hidden = $("stage").hidden = homeView;
-    $("searchbar").hidden = $("home").hidden = !homeView;
-    drawStrip();
+    // The tab, or a new tab's home, under the same bar.
+    $("stage").hidden = homeView;
+    $("home").hidden = !homeView;
     if (homeView) drawSites();
-    const secure = /^https:/i.test(st.url || "");
-    $("lock").replaceChildren(icon(secure ? "lock" : "open"));
-    $("lock").setAttribute("aria-label", secure ? "Secure" : "Not secure");
-    $("lock").setAttribute("role", "img");
-    $("addr").textContent = st.host || (st.url || "").replace(/^[a-z]+:(\/\/)?/i, "") || "New tab";
+    if (!$("tabsheet").hidden) drawTabs();
     document.title = homeView ? "New tab" : st.title || st.host || "Browser"; // what the sheet's toolbar shows
-    // Who holds a chat's tab; a tab the user opened is theirs, with no such bar.
-    $("holdbar").hidden = homeView || st.mine || !!host;
-    $("holddot").hidden = held;
-    $("holdtext").textContent = held ? "You have this tab" : "The agent is using this tab";
-    $("hold").textContent = held ? "Hand back" : "Take over";
-    $("navback").disabled = homeView || !st.back;
-    $("navfwd").disabled = homeView || !st.forward;
-    // More stays, as every tool does whatever shows: New tab alone on a new tab's home, where the
-    // tab under it isn't in view to close, and once the tab is gone.
-    $("moreclose").hidden = homeView || !!gone;
-    $("logins").hidden = !st.vault;
-    if (st.vault) $("logins").href = st.vault;
+    drawBar();
     $("take").hidden = held || homeView;
     tell(st.who);
     reserve();
@@ -1657,7 +1808,7 @@ svg{flex:none}
   // browser.
   const goneState = (s, how) => ({
     title: "", url: "", host: "", mine: true, tabs: how === "closed" ? s.tabs || [] : [], sites: s.sites || [],
-    shot, until: s.until, who: "agent", fields: [], need: null, offer: null, msg: s.msg || null, vault: s.vault || null,
+    shot, until: s.until, who: "agent", fields: [], targets: [], thread: null, chat: null, need: null, offer: null, msg: s.msg || null, vault: s.vault || null,
   });
 
   // The state file, asked for often while a step is pending and less when idle.
@@ -1734,6 +1885,65 @@ svg{flex:none}
     clearTimeout(pollTimer);
     pollTimer = setTimeout(loop, 250);
   }
+  // ---- The chat bar, on a chat's tab inside AnywhereLLM (whose web view gives the page its
+  // AnywhereLLMApps channel, as Apps' Comment has it; elsewhere there's none): a message to the agent,
+  // put in the chat this tab belongs to (`thread`) as the user's own. Point picks up to 5 things on the
+  // page instead of pressing them, without taking the tab over: each tap is the element in view the
+  // agent's read names by its ref (the state's targets), never a password field.
+  function pickAt(e) {
+    const p = toPage(e);
+    const t = (st.targets || []).filter((g) => inside(p, g)).sort((a, b) => a.w * a.h - b.w * b.h)[0];
+    if (!t) return;
+    chat.pick({ key: t.ref, chip: t.text ? `${t.role} “${t.text}”` : t.role, line: `[${t.ref}] ${t.role} "${t.text}"`, secret: t.role === "input[password]", box: t });
+  }
+  function drawMarks() {
+    const picks = chat ? chat.picks : [];
+    $("marks").replaceChildren(...picks.map((p, i) => {
+      const m = el("span", { className: "mark" }, el("b", { textContent: String(i + 1) }));
+      Object.assign(m.style, { left: left + p.box.x * scale + "px", top: p.box.y * scale + "px", width: p.box.w * scale + "px", height: p.box.h * scale + "px" });
+      return m;
+    }));
+  }
+  // Sent: said over the page, with Open chat, which asks AnywhereLLM to open the tab's chat. The toast
+  // goes by itself, so with AnywhereLLM's own word over the page there's nothing more to dismiss.
+  function sent(to) {
+    chat.point(false);
+    chat.expand(false, false);
+    drawBar();
+    toast("Sent to " + (to || st.chat || "the chat"));
+    const open = el("button", { type: "button", textContent: "Open chat" });
+    open.addEventListener("click", () => {
+      AnywhereComposer.channel(window)?.postMessage(AnywhereComposer.opening(cfg.workspace, st.thread ?? null));
+      $("toast").replaceChildren();
+    });
+    $("toast").append(open);
+  }
+  const C = window.AnywhereComposer;
+  if (C && C.channel(window)) {
+    chat = C.make($("chatbar"), {
+      label: "Message the agent",
+      placeholder: "Message the agent",
+      state: "collapsed",
+      onPicks: () => drawMarks(),
+      onPoint: (on) => {
+        if (on) closeField(true), chat.expand(false, false), setScrolled(false);
+        drawBar();
+      },
+      onExpand: (on) => (chat.expand(on), drawBar()),
+      onSend: async (text, picks) => {
+        const about = `About the browser tab ${st.title || st.host || "New tab"} (${st.host || st.url || "no address"}):`;
+        const answer = await C.deliver(window, C.payload(cfg.workspace, C.message(about, picks, text), st.thread ?? null));
+        if (answer.ok) sent(answer.chat);
+        return answer;
+      },
+    });
+    // Typed in, it's the multi-line composer above the keyboard; left, it's one line again.
+    $("chatbar").addEventListener("focusout", (e) => {
+      if (!chat.expanded || $("chatbar").contains(e.relatedTarget)) return;
+      setTimeout(() => !$("chatbar").contains(document.activeElement) && chat.expanded && (chat.expand(false, false), drawBar()), 0);
+    });
+  }
+
   reserve();
   loop();
   document.addEventListener("visibilitychange", poll);

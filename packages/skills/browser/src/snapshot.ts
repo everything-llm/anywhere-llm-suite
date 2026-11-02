@@ -4,8 +4,9 @@
 // roots are walked; frames aren't. An open dialog's elements come first, and those behind it
 // say so. A password field is marked (data-bw-secret) and stays one in every read after, even once
 // "Show password" makes it a text field. It also gives where each field one types into sits in
-// view, for the tab's page to put an input over while the user holds the tab. `snapshot` runs in
-// the page (page.evaluate), so it uses nothing outside itself.
+// view, for the tab's page to put an input over while the user holds the tab, and where each element
+// with a ref sits in view (targets), for the chat bar on a chat's tab to point at one by its ref.
+// `snapshot` runs in the page (page.evaluate), so it uses nothing outside itself.
 
 import type { Page } from "./host";
 import { firstLine } from "#shared/errors";
@@ -21,11 +22,25 @@ export interface Field {
   filled: boolean;
 }
 
+/** An element in view with a ref, as a read lists it: its ref, its kind (role, or tag and input
+ *  type: "button", "link", "input[password]"), its name as the read gives it, and its box in the
+ *  page's CSS pixels. The chat bar on the tab's page resolves a tap to one, to name it to the agent. */
+export interface Target {
+  ref: string;
+  role: string;
+  text: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Snap {
   elements: string[];
   text: string;
   more: boolean;
   fields: Field[];
+  targets: Target[];
 }
 
 /** The input types one doesn't type into; act.ts's notTyped is given the same list. */
@@ -87,11 +102,14 @@ function snapshot({ snapshot: maxElements, notTyped, dialog }: { snapshot: numbe
       el.style.setProperty("-webkit-text-security", "disc", "important");
     }
   };
+  const kindOf = (el: any) => {
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") return secret(el) ? "input[password]" : `input[${el.type}]`;
+    return el.getAttribute("role") || (tag === "a" ? "link" : tag === "summary" ? "button" : tag);
+  };
   const describe = (el: any) => {
     const tag = el.tagName.toLowerCase();
-    let kind = el.getAttribute("role") || (tag === "a" ? "link" : tag === "summary" ? "button" : tag);
-    if (tag === "input") kind = secret(el) ? "input[password]" : `input[${el.type}]`;
-    let line = `${kind} "${name(el)}"`;
+    let line = `${kindOf(el)} "${name(el)}"`;
     if (tag === "a") {
       const href = el.getAttribute("href") || "";
       if (href && !href.startsWith("javascript:")) line += ` -> ${clip(href, 100)}`;
@@ -111,6 +129,13 @@ function snapshot({ snapshot: maxElements, notTyped, dialog }: { snapshot: numbe
     return line;
   };
   const MAX_FIELDS = 60;
+  const MAX_TARGETS = 150;
+  // An element in view, for the chat bar's picks: what a read names it, and where it is.
+  const target = (el: any, ref: string): Target | null => {
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) return null;
+    return { ref, role: kindOf(el), text: name(el), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+  };
   const field = (el: any, ref: string): Field | null => {
     const typed = (el.tagName === "INPUT" && !notTyped.includes(el.type)) || el.tagName === "TEXTAREA" || (el.isContentEditable && el.parentElement?.isContentEditable !== true);
     if (!typed || el.disabled || el.readOnly) return null;
@@ -122,6 +147,7 @@ function snapshot({ snapshot: maxElements, notTyped, dialog }: { snapshot: numbe
   let next: number = window.__bwNext || 1;
   const lines: string[] = [];
   const fields: Field[] = [];
+  const targets: Target[] = [];
   const seen = new Set();
   const walk = (root: any) => {
     for (const el of root.querySelectorAll("*")) {
@@ -138,6 +164,8 @@ function snapshot({ snapshot: maxElements, notTyped, dialog }: { snapshot: numbe
       lines.push(`[${ref}] ${describe(el)}`);
       const f = field(el, ref);
       if (f && fields.length < MAX_FIELDS) fields.push(f);
+      const t = targets.length < MAX_TARGETS && target(el, ref);
+      if (t) targets.push(t);
     }
   };
   for (const d of dialogs) walk(d);
@@ -149,7 +177,7 @@ function snapshot({ snapshot: maxElements, notTyped, dialog }: { snapshot: numbe
     .filter((l: string, i: number, all: string[]) => l || (i > 0 && all[i - 1]))
     .join("\n")
     .trim();
-  return { elements: lines, text, more: lines.length >= maxElements, fields };
+  return { elements: lines, text, more: lines.length >= maxElements, fields, targets };
 }
 
 /** What snapshot lists at most; view.ts shows fewer and says there are more. */
@@ -186,7 +214,7 @@ export const fieldAt = (snap: Snap, ref: string): string | undefined => {
 /** The page now: { snap, title, url }, with a snap saying why when it can't be read. */
 export async function readPage(page: Page): Promise<Read> {
   const [snap, title] = await Promise.all([
-    page.evaluate(snapshot, { snapshot: SNAPSHOT_ELEMENTS, notTyped: NOT_TYPED, dialog: DIALOG }).catch((e): Snap => ({ elements: [], text: `(couldn't read the page: ${firstLine(e)})`, more: false, fields: [] })),
+    page.evaluate(snapshot, { snapshot: SNAPSHOT_ELEMENTS, notTyped: NOT_TYPED, dialog: DIALOG }).catch((e): Snap => ({ elements: [], text: `(couldn't read the page: ${firstLine(e)})`, more: false, fields: [], targets: [] })),
     page.title().catch(() => ""),
   ]);
   return { snap, title, url: page.url() };
