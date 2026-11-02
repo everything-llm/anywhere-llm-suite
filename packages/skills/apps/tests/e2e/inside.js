@@ -81,8 +81,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.equal(saved.history.filter((h) => h.by === "page").length, 1, "the tap sent twice applies once");
 
   // Comment, in a real Chrome (the collector's): none without AnywhereLLM's channel; with a stand-in,
-  // a tap while picking picks, never presses, and the picks and the one text about them go to the
-  // channel, and the tray closes once AnywhereLLM says it went.
+  // the sheet opens writing first; Point at the page is optional, and a tap while pointing picks, never
+  // presses; the picks and the words go to the channel, the sheet closes once AnywhereLLM says it went,
+  // and a comment with no picks, or one AnywhereLLM didn't take, is said as the boards have it.
   const habits = await call("home", { action: "create", name: "reading", title: "Reading", starter: "tracker" });
   const readingUrl = habits.match(linkTo("Reading"))[1];
   const puppeteer = require("/app/collector/node_modules/puppeteer");
@@ -92,33 +93,80 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await bare.goto(readingUrl, { waitUntil: "load" });
     assert.equal(await bare.evaluate(() => [...document.querySelectorAll("div")].some((d) => d.shadowRoot)), false, "no Comment outside AnywhereLLM");
     const tab = await chrome.newPage();
-    await tab.evaluateOnNewDocument(() => (window.AnywhereLLMApps = { postMessage: (m) => (window.posted = m) }));
+    await tab.setViewport({ width: 390, height: 844 });
+    // AnywhereLLM Lite's channel, an androidx WebMessageListener: postMessage, and its reply as a message event.
+    await tab.evaluateOnNewDocument(() => {
+      const channel = new EventTarget();
+      channel.postMessage = (m) => (window.posted = [...(window.posted || []), m]);
+      window.AnywhereLLMApps = channel;
+    });
     await tab.goto(readingUrl, { waitUntil: "load" });
     const inTray = (sel) =>
       tab.evaluate((s) => {
         const el = [...document.querySelectorAll("div")].find((d) => d.shadowRoot)?.shadowRoot.querySelector(s);
         return el ? (el.click(), "ok") : "missing";
       }, sel);
+    const sheet = () =>
+      tab.evaluate(() => {
+        const ui = [...document.querySelectorAll("div")].find((d) => d.shadowRoot).shadowRoot;
+        const shown = (el) => !!el && el.getClientRects().length > 0;
+        const area = ui.querySelector(".cp-area");
+        return {
+          open: shown(ui.querySelector(".t")), button: shown(ui.querySelector(".b")), label: ui.querySelector(".t").getAttribute("aria-label"),
+          area: shown(area), focused: ui.activeElement?.className || "", rows: area.getAttribute("rows"), mode: shown(ui.querySelector(".cp-mode")) ? ui.querySelector(".cp-mode p").textContent : "",
+          chips: [...ui.querySelectorAll(".cp-pick span")].map((c) => c.textContent), said: ui.querySelector(".cp-said").textContent, send: ui.querySelector(".cp-actions [data-a=send]").disabled,
+          badges: [...ui.querySelectorAll(".m b")].map((b) => b.textContent), close: shown(ui.querySelector(".x")) && ui.querySelector(".x").getBoundingClientRect().width,
+        };
+      });
+    const write = (text) => tab.evaluate((t) => {
+      const area = [...document.querySelectorAll("div")].find((d) => d.shadowRoot).shadowRoot.querySelector(".cp-area");
+      area.value = t;
+      area.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    }, text);
+    const posted = async () => JSON.parse((await tab.evaluate(() => window.posted || [])).at(-1));
+    const answer = (reply) => tab.evaluate((r) => window.AnywhereLLMApps.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(r) })), reply);
     assert.notEqual(await inTray('[data-a="start"]'), "missing", "the page has Comment");
+    let now = await sheet();
+    assert.deepEqual([now.open, now.button, now.label, now.area, now.focused, now.rows, now.send, now.close], [true, false, "Comment on Reading", true, "cp-area", "3", true, 48], "writing first: the field focused, Send off while it's empty, a 48 px Close");
+    assert.equal(now.said, "It goes to the chat as your message, and the agent answers there.");
+    await inTray('.cp-actions [data-a="point"]');
+    now = await sheet();
+    assert.deepEqual([now.mode, now.area, now.close], ["Tap up to 5 things on the page · 0 of 5", false, false], "Point lowers the sheet to the pick tray");
     const count = await tab.evaluate(() => App.data.count);
     await tab.click('[data-ref="more"]');
     await sleep(300);
     assert.equal(await tab.evaluate(() => App.data.count), count, "the tap picked the button and didn't press it");
-    await inTray('[data-a="describe"]');
-    await tab.evaluate(() => {
-      const t = [...document.querySelectorAll("div")].find((d) => d.shadowRoot).shadowRoot.querySelector("textarea");
-      t.value = "Make the plus bigger";
-      t.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
-    });
-    await inTray('[data-a="send"]');
-    const { comment } = JSON.parse(await tab.evaluate(() => window.posted));
+    now = await sheet();
+    assert.deepEqual([now.mode, now.badges], ["Tap up to 5 things on the page · 1 of 5", ["1"]], "the pick numbered on the page");
+    await inTray('[data-a="done"]');
+    now = await sheet();
+    assert.deepEqual([now.area, now.chips.length], [true, 1], "Done brings the sheet back, the pick a chip");
+    assert.match(now.chips[0], /^1 · counter/);
+    await write("Make the plus bigger");
+    await inTray('.cp-actions [data-a="send"]');
+    const { comment } = await posted();
+    assert.deepEqual(Object.keys(comment), ["workspace", "message"], "no thread: the app's chat is the one AnywhereLLM has open");
     assert.equal(comment.workspace, "home");
-    assert.match(comment.message, /^Comment on my Reading artifact's page \(apps-lean artifact `reading`\), about what I picked there:\n1\. `button[^\n]*part `counter`, data-ref `more`[^\n]*\n\nMake the plus bigger$/);
-    await tab.evaluate(() => window.dispatchEvent(new CustomEvent("anywherellm-comment", { detail: { ok: true } })));
+    assert.match(comment.message, /^Comment on my Reading app's page \(apps-lean app `reading`\), about what I picked there:\n1\. `button[^\n]*part `counter`, data-ref `more`[^\n]*\n\nMake the plus bigger$/);
+    await answer({ ok: true, chat: "Main" });
     await sleep(100);
+    now = await sheet();
+    assert.deepEqual([now.open, now.button, now.badges], [false, true, []], "sent: the sheet closes");
     await tab.click('[data-ref="more"]');
     await sleep(300);
     assert.equal(await tab.evaluate(() => App.data.count), count + 1, "once sent, taps press again");
+    // No picks: a comment all the same. One AnywhereLLM didn't take keeps its words and says why.
+    await inTray('[data-a="start"]');
+    await write("Is this the right goal?");
+    await inTray('.cp-actions [data-a="send"]');
+    assert.equal((await posted()).comment.message, "Comment on my Reading app's page (apps-lean app `reading`):\n\nIs this the right goal?");
+    await answer({ ok: false, error: "AnywhereLLM didn’t answer. Try again in a moment." });
+    await sleep(100);
+    now = await sheet();
+    assert.deepEqual([now.open, now.said], [true, "Not sent: AnywhereLLM didn’t answer. Try again in a moment."]);
+    assert.equal(await tab.evaluate(() => [...document.querySelectorAll("div")].find((d) => d.shadowRoot).shadowRoot.querySelector(".cp-area").value), "Is this the right goal?");
+    await inTray('[data-a="close"]');
+    assert.deepEqual([(await sheet()).open, (await sheet()).button], [false, true], "Close closes it");
 
     // The apps manager at a phone's width: each artifact a picture of its page, its HTML the document
     // of a frame that has an origin of its own and asks AnythingLLM for nothing.

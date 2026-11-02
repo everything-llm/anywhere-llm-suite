@@ -33,8 +33,9 @@ const inlineStyle = (source: string): string => "<style>" + source.replace(/<\//
 
 const sha = (text: string): string => crypto.createHash("sha256").update(text).digest("base64url");
 let shared: string | null = null;
-/** The scripts the skill puts ahead of app.js in every page: the stand-in for a server, then the patch library. */
-const HOST_SCRIPTS = ["runtime-lean.js", "fast-json-patch.js"];
+/** The scripts the skill puts ahead of app.js in every page: the composer Comment shares with the
+ *  browser's chat bar (shared/composer.js), the stand-in for a server, then the patch library. */
+const HOST_SCRIPTS = ["composer.js", "runtime-lean.js", "fast-json-patch.js"];
 /** What every page holds besides its own page.html and data, hashed once per load: the host's scripts
  *  and the libraries, as shipped or tuned. */
 const partsDigest = (): string => (shared ??= sha([...HOST_SCRIPTS.map((name) => file(name)), ...Object.entries(libraries()).flat()].join("\0")));

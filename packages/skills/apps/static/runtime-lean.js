@@ -16,7 +16,8 @@
 // A page whose <html> has data-picture is a picture: the apps manager draws it small, its HTML the
 // document of a sandboxed frame, and says so. It shows the data it was written with, reads and posts
 // nothing, has no Comment, and tells the frame's parent once it's drawn ("apps-lean:drawn"), so the
-// manager shows it in place of the icon. Any other page, framed or not, is a page.
+// manager shows it in place of the icon. Any other page, framed or not, is a page. Comment, below,
+// runs on the composer the page carries just before this script (shared/composer.js).
 var AppsLean = (() => {
   const cfg = JSON.parse(document.getElementById("apps-lean").textContent);
   const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -143,17 +144,21 @@ var AppsLean = (() => {
     }
   }
 
-  // --- Comment: the user picks up to 5 things on the page and says one thing about them, a question
-  // or a change, which goes to the chat as their message. Only AnywhereLLM, whose web view gives the
-  // page its AnywhereLLMApps channel, has a chat to send it to; elsewhere there's no Comment. While
-  // picking, taps pick instead of pressing: these listeners, on the window and added before any
-  // part's, see each tap first and keep it from the page; scrolling still works.
-  const PICKS = 5, WORDS = 1000;
-  const chat = window.AnywhereLLMApps && window.AnywhereLLMApps.postMessage ? window.AnywhereLLMApps : null;
-  let picking = false, picks = [], text = "", sending = false, failed = "";
+  // --- Comment: the user says one thing about the page, a question or a change, which goes to the
+  // chat as their message; they may point at up to 5 things on it first, and none is fine. Only
+  // AnywhereLLM, whose web view gives the page its AnywhereLLMApps channel, has a chat to send it to;
+  // elsewhere there's no Comment. The sheet holds the composer the browser's chat bar shares
+  // (shared/composer.js, inlined ahead of this script), expanded: writing first, Point at the page
+  // lowers it to the pick tray. While pointing, taps pick instead of pressing: these listeners, on
+  // the window and added before any part's, see each tap first and keep it from the page; scrolling
+  // still works.
+  const C = window.AnywhereComposer || null;
+  const chat = C && C.channel(window);
+  let composer = null, open = false, opener = null;
   const host = document.createElement("div");
   const ui = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
   const ours = (e) => (e.composedPath ? e.composedPath().includes(host) : host.contains(e.target));
+  const picking = () => !!(composer && composer.pointing);
   /** What marks the picked element in page.html and in the data, and what it showed. */
   function locate(el) {
     const near = (sel) => (el.closest ? el.closest(sel) : null);
@@ -167,10 +172,44 @@ var AppsLean = (() => {
       at: item ? item.getAttribute("data-at") + (key ? "/" + key : "") : undefined, figure, tag: String(el.tagName || "").toLowerCase(), cls: el.classList && el.classList[0] || undefined, shown: shown || undefined,
     };
   }
-  const outline = (el, on) => { el.style.outline = on ? "3px solid var(--accent, #6a5cff)" : ""; el.style.outlineOffset = on ? "2px" : ""; };
-  // The shut button is a 44 px round icon in the page's top right corner, 16 px in, level with the top
-  // of its content and over it, scrolling away with the page. The page's first block keeps clear of the
-  // corner's 76 px (the button and 16 px either side of it), whatever the app put there.
+  const code = (v) => "`" + String(v).replace(/`/g, "'") + "`";
+  /** A pick's line in the message: what marks it in page.html and in the data, and what it showed. */
+  const described = ({ tag, id, cls, part, ref, at, figure, shown }) =>
+    [code((tag || "element") + (id ? "#" + id : cls ? "." + cls : "")), part && "part " + code(part), ref && "data-ref " + code(ref), at && "data at " + code(at), figure && "figure " + code(figure), shown && `showing "${shown}"`].filter(Boolean).join(", ");
+  /** The tapped element as the composer picks it; a password field is a secret, which it refuses. */
+  function pickOf(el) {
+    const where = locate(el);
+    const secret = el.tagName === "INPUT" && (el.type === "password" || /password/.test(el.getAttribute("autocomplete") || ""));
+    const shown = where.shown && !secret ? " “" + where.shown.slice(0, 40) + "”" : "";
+    return { key: el, chip: (where.part || where.ref || where.tag) + shown, line: described(where), secret, box: el };
+  }
+  /** The comment as the user's message: which app, what they picked by what marks each in page.html
+   *  (none is fine), then their words. */
+  function message(text, picks) {
+    const about = `Comment on my ${cfg.title || cfg.app} app's page (apps-lean app ${code(cfg.app)})`;
+    return C.message(picks.length ? about + ", about what I picked there:" : about + ":", picks, text);
+  }
+  // Each pick: an accent outline on the element, and its number at its corner.
+  const outline = (el, on) => { el.style.outline = on ? "3px solid var(--accent)" : ""; el.style.outlineOffset = on ? "2px" : ""; };
+  let marked = [];
+  function mark(picks) {
+    for (const el of marked) if (!picks.some((p) => p.box === el)) outline(el, false);
+    marked = picks.map((p) => p.box);
+    for (const el of marked) outline(el, true);
+    const box = ui.querySelector(".m");
+    if (!box) return;
+    box.replaceChildren(...picks.map((p, i) => {
+      const r = p.box.getBoundingClientRect();
+      const b = document.createElement("b");
+      b.textContent = String(i + 1);
+      b.style.left = r.left + scrollX - 12 + "px";
+      b.style.top = r.top + scrollY - 12 + "px";
+      return b;
+    }));
+  }
+  // The Comment button is a 44 px round icon in the page's top right corner, 16 px in, level with the
+  // top of its content and over it, scrolling away with the page. The page's first block keeps clear
+  // of the corner's 76 px (the button and 16 px either side of it), whatever the app put there.
   const CORNER = 76, SIDE = "(var(--pad,20px) - 4px)", MARGIN = "max(0px,(100vw - 40rem) / 2)";
   const clear = document.createElement("style");
   // Wide enough to reach past the button's left edge, and tall enough that what follows starts
@@ -178,11 +217,11 @@ var AppsLean = (() => {
   clear.textContent = `main>:first-child{padding-right:max(0px,calc(${CORNER}px - ${SIDE} - ${MARGIN}));min-height:max(0px,calc(40px - var(--gap,14px)))}` +
     `main.center>:first-child{padding-left:max(0px,calc(${CORNER}px - ${SIDE} - ${MARGIN}))}`;
   function place() {
-    // Open, the tray is on the body too, out of the page's layout. Put back if the page took either out.
+    // Open, the sheet is on the body too, out of the page's layout. Put back if the page took either out.
     if (host.parentNode !== document.body) document.body.append(host);
     if (!clear.isConnected) (document.head || document.body).append(clear);
   }
-  // The tray's buttons are House UI's: its block, which the page has inline, given to the shadow root
+  // The sheet's buttons are House UI's: its block, which the page has inline, given to the shadow root
   // too, where the page's own styles don't reach (its tokens reach it, as inherited values).
   let adopted = false;
   function adopt() {
@@ -196,105 +235,95 @@ var AppsLean = (() => {
       ui.adoptedStyleSheets = [sheet];
     } catch (e) {}
   }
-  const BUTTON = (kind, act, label, on = true) => `<button class="hu-button hu-button--${kind}" data-a="${act}" type="button"${on ? "" : " disabled"}>${label}</button>`;
-  function tray() {
-    if (!document.body) return;
+  const X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  const BUBBLE = '<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5H7.5L4.5 13.5V11h-1A1.5 1.5 0 0 1 2 9.5V4a1.5 1.5 0 0 1 1.5-1.5Z"/></svg>';
+  function build() {
+    if (!document.body || composer) return;
     place();
     adopt();
-    const open = picking || picks.length;
     ui.innerHTML = `<style>
-      :host{all:initial;display:block;font-family:var(--font-sans,system-ui,sans-serif);color:var(--ink,#222)}
-      :focus-visible{outline:var(--size-focus,3px) solid var(--focus,var(--accent,#4758d5));outline-offset:3px}
-      .b{position:absolute;right:16px;top:calc(var(--pad,20px) + 12px);z-index:2147483646;box-sizing:border-box;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--tile-edge,transparent);background:var(--tile,#fff);color:var(--ink,#222);box-shadow:var(--shadow-tile,none);display:flex;align-items:center;justify-content:center;cursor:pointer}
-      .t{position:fixed;left:0;right:0;bottom:0;z-index:2147483647;box-sizing:border-box;max-height:70vh;overflow:auto;padding:14px 16px 18px;border:1px solid var(--tile-edge,transparent);border-bottom:0;border-radius:18px 18px 0 0;background:var(--tile,#fff);color:var(--ink,#222);box-shadow:var(--shadow-raised,0 -8px 28px #0002);font-size:.9375rem;line-height:1.45;display:flex;flex-direction:column;gap:10px}
-      .t b{font-weight:600}
-      .r{display:flex;gap:8px;justify-content:space-between;align-items:center}
-      .cs{display:flex;flex-wrap:wrap;gap:8px}
-      .c{padding:6px 12px;border-radius:var(--radius-pill,999px);background:var(--accent-soft,#dee5fe);color:var(--ink,#222);font-size:.875rem;font-weight:600}
-      label{display:flex;flex-direction:column;gap:6px}
-      small{font-size:.8125rem;color:var(--muted,#555)}
-      small.bad{color:var(--danger,#920810)}
-      .n{font-variant-numeric:tabular-nums}
-      textarea{width:100%;box-sizing:border-box;min-height:64px;padding:10px;border-radius:12px;border:1px solid var(--line-strong,#7f8390);background:var(--ground,#fff);color:var(--ink,#222);font:inherit;resize:vertical}
-      textarea:focus-visible{outline-offset:-3px}
-      textarea::placeholder{color:var(--muted,#555)}
-    </style>` + (!open ? `<button class="b" data-a="start" type="button" aria-label="Comment" title="Comment"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5H7.5L4.5 13.5V11h-1A1.5 1.5 0 0 1 2 9.5V4a1.5 1.5 0 0 1 1.5-1.5Z"/></svg></button>` : picking
-      ? `<div class="t" role="dialog" aria-label="Pick what to comment on"><div class="r"><b>Tap what you want to comment on</b><small class="n">${picks.length} of ${PICKS}</small></div><div class="r">${BUTTON("secondary", "cancel", "Cancel")}${BUTTON("primary", "describe", picks.length ? "Comment on " + picks.length + (picks.length === 1 ? " pick" : " picks") : "Pick something first", picks.length > 0)}</div></div>`
-      : `<div class="t" role="dialog" aria-label="Write your comment"><b>${picks.length} picked</b><div class="cs" role="list" aria-label="Picked on the page">${picks.map((p, i) => `<span class="c" role="listitem">${i + 1}. ${esc(p.where.part || p.where.ref || p.where.tag)}${p.where.shown ? ": " + esc(p.where.shown) : ""}</span>`).join("")}</div><label><small>What do you want to say about these?</small><textarea data-text maxlength="${WORDS}" placeholder="A question or a change">${esc(text)}</textarea></label><small role="status"${failed ? ' class="bad"' : ""}>${failed ? esc(failed) : "It goes to the chat as your message, and the agent answers there."}</small><div class="r">${BUTTON("secondary", "back", "Back")}${BUTTON("primary", "send", "Send to the chat", !!text.trim())}</div></div>`);
-  }
-  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  /** The comment as the user's message: which app and what they picked, by what marks each in
-   *  page.html, then their words. */
-  function message() {
-    const code = (v) => "`" + String(v).replace(/`/g, "'") + "`";
-    const about = `Comment on my ${cfg.title || cfg.app} artifact's page (apps-lean artifact ${code(cfg.app)})`;
-    const said = text.trim();
-    if (!picks.length) return `${about}:\n\n${said}`;
-    const described = ({ tag, id, cls, part, ref, at, figure, shown }) =>
-      [code((tag || "element") + (id ? "#" + id : cls ? "." + cls : "")), part && "part " + code(part), ref && "data-ref " + code(ref), at && "data at " + code(at), figure && "figure " + code(figure), shown && `showing "${shown}"`].filter(Boolean).join(", ");
-    return [`${about}, about what I picked there:`, ...picks.map((p, i) => `${i + 1}. ${described(p.where)}`), "", said].join("\n");
-  }
-  function end() {
-    for (const p of picks) outline(p.el, false);
-    picks = [];
-    text = "";
-    picking = false;
-    failed = "";
-    tray();
-  }
-  // AnywhereLLM sends the comment in the chat and answers on the window (anywherellm-comment):
-  // whether it went, and why not. A send that fails keeps the picks and the text, for another try;
-  // one tap sends once.
-  async function send() {
-    if (sending) return;
-    sending = true;
-    const answered = new Promise((done) => {
-      const heard = (e) => (clearTimeout(wait), window.removeEventListener("anywherellm-comment", heard), done(e.detail || {}));
-      const wait = setTimeout(() => heard({ detail: { why: "AnywhereLLM didn't answer: try again in a moment." } }), 10000);
-      window.addEventListener("anywherellm-comment", heard);
+      :host{all:initial;display:block;font-family:var(--font-sans);color:var(--ink)}
+      :focus-visible{outline:var(--size-focus) solid var(--focus);outline-offset:3px}
+      [hidden]{display:none!important}
+      .b{position:absolute;right:16px;top:calc(var(--pad,20px) + 12px);z-index:2147483646;box-sizing:border-box;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--tile-edge);background:var(--tile);color:var(--ink);box-shadow:var(--shadow-tile);display:flex;align-items:center;justify-content:center;cursor:pointer}
+      .t{position:fixed;left:0;right:0;bottom:0;z-index:2147483647;box-sizing:border-box;max-height:96vh;overflow:auto;padding:0 var(--space-4) var(--space-5);border:1px solid var(--tile-edge);border-bottom:0;border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--tile);color:var(--ink);box-shadow:var(--shadow-sheet);display:flex;flex-direction:column;gap:var(--space-2);font-size:1rem}
+      .t.tray{padding-top:var(--space-3)}
+      .top{position:relative;height:44px;margin-right:calc(-1 * var(--space-3));display:flex;align-items:center;justify-content:flex-end}
+      .top>span{position:absolute;left:50%;top:10px;width:40px;height:4px;margin-left:-14px;border-radius:var(--radius-pill);background:var(--line)}
+      .x{position:relative;flex:none;width:48px;height:48px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+      .m b{position:absolute;z-index:2147483645;width:24px;height:24px;box-sizing:border-box;border-radius:50%;border:2px solid var(--tile);background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:700 0.8125rem/1 var(--font-sans);pointer-events:none}
+      @media (forced-colors:active){.m b{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Canvas}}
+    </style><button class="b" data-a="start" type="button" aria-label="Comment" title="Comment">${BUBBLE}</button><div class="m" aria-hidden="true"></div><div class="t" role="dialog" aria-modal="true" hidden><div class="top"><span aria-hidden="true"></span><button class="x" data-a="close" type="button" aria-label="Close">${X}</button></div><div class="w"></div></div>`;
+    const title = "Comment on " + (cfg.title || cfg.app);
+    ui.querySelector(".t").setAttribute("aria-label", title);
+    composer = C.make(ui.querySelector(".w"), {
+      label: title,
+      placeholder: "Ask a question or describe a change",
+      state: "expanded",
+      tray: true,
+      hint: "It goes to the chat as your message, and the agent answers there.",
+      onPicks: mark,
+      onPoint: (on) => {
+        // Pointing lowers the sheet to the pick tray; Done brings it back, with the picks as chips.
+        const sheet = ui.querySelector(".t");
+        sheet.classList.toggle("tray", on);
+        sheet.setAttribute("aria-modal", String(!on));
+        sheet.setAttribute("aria-label", on ? "Point at the page" : title);
+        ui.querySelector(".top").hidden = on;
+        if (!on) composer.focus();
+      },
+      onSend: async (text, picks) => {
+        const answer = await C.deliver(window, C.payload(cfg.workspace, message(text, picks)));
+        if (answer.ok) setTimeout(shut, 0);
+        return answer;
+      },
     });
-    chat.postMessage(JSON.stringify({ comment: { workspace: cfg.workspace, message: message() } }));
-    const { ok, why } = await answered;
-    sending = false;
-    failed = ok ? "" : why || "Couldn't send it: try again in a moment.";
-    if (failed) return tray();
-    end();
   }
-  // What each of the tray's buttons does to picking: on, off, or send.
-  const ACTS = { start: true, back: true, describe: false, cancel: null, send: "send" };
+  function show() {
+    open = true;
+    opener = ui.querySelector(".b");
+    ui.querySelector(".b").hidden = true;
+    ui.querySelector(".t").hidden = false;
+    composer.focus();
+  }
+  // Closed: what was picked and written goes, and taps press again.
+  function shut() {
+    open = false;
+    if (picking()) composer.point(false);
+    composer.clear();
+    ui.querySelector(".t").hidden = true;
+    ui.querySelector(".b").hidden = false;
+    if (opener) opener.focus();
+  }
   ui.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest("[data-a]");
-    const act = a && ACTS[a.getAttribute("data-a")];
-    if (act === undefined || !a) return;
-    if (act === "send") return send();
-    if (act === null) return end();
-    picking = act;
-    tray();
+    if (!a) return;
+    if (a.getAttribute("data-a") === "start") show();
+    else if (a.getAttribute("data-a") === "close") shut();
   });
-  ui.addEventListener("input", (e) => {
-    if (!e.target.hasAttribute || !e.target.hasAttribute("data-text")) return;
-    text = e.target.value;
-    ui.querySelector('[data-a="send"]').disabled = !text.trim();
+  // Keys typed in the sheet are its own: from outside its shadow they'd look like keys on the page
+  // (a deck's space and arrows turn its screen). Esc leaves pointing, else closes the sheet.
+  ui.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape" && open) picking() ? composer.point(false) : shut();
   });
-  // Keys typed in the tray are its own: from outside its shadow they'd look like keys on the page
-  // (a deck's space and arrows turn its screen).
-  ui.addEventListener("keydown", (e) => e.stopPropagation());
   // Without a chat to send to, Comment isn't put on the page, and nothing listens for it.
-  if (chat) {
+  if (chat && C) {
     for (const type of ["click", "pointerdown", "mousedown", "mouseup", "pointerup", "submit", "input", "change", "keydown", "touchend"])
       window.addEventListener(type, (e) => {
-        if (!picking || ours(e)) return;
-        if (type === "keydown" && e.key === "Escape") end();
+        if (!picking() || ours(e)) return;
+        if (type === "keydown" && e.key === "Escape") composer.point(false);
         if (type !== "touchend") e.preventDefault();
         e.stopImmediatePropagation();
         if (type !== "click" || !e.target || e.target === document.body || e.target === document.documentElement) return;
-        const at = picks.findIndex((p) => p.el === e.target || p.el.contains(e.target));
-        if (at >= 0) ((outline(picks[at].el, false)), picks.splice(at, 1));
-        else if (picks.length < PICKS) (outline(e.target, true), picks.push({ el: e.target, where: locate(e.target) }));
-        tray();
+        // Tapping a pick again unpicks it, and the numbers close up; a sixth does nothing.
+        const at = composer.picks.findIndex((p) => p.box === e.target || p.box.contains(e.target));
+        if (at >= 0) composer.remove(at);
+        else composer.pick(pickOf(e.target));
       }, { capture: true });
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", tray);
-    else tray();
+    addEventListener("resize", () => composer && mark(composer.picks));
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+    else build();
     // A page that draws itself again can take the button, or the corner's rule, out with what it
     // replaces: each goes back at once, as it was (the button's shadow root goes with it).
     if (typeof MutationObserver === "function")
