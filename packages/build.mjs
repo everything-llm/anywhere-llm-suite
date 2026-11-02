@@ -100,12 +100,17 @@ export const houseBlock = (html) => /\/\* house ui:[\s\S]*?\/\* end of house ui 
 
 /** Files from outside its static/ folder that a skill's pages carry, by the name they have in
  *  STATIC_FILES, for the skill's folder name: a library from node_modules (the browser can't import
- *  it), and for the apps' pages the Vault's House UI block, so they carry the same one as every page.
+ *  it), for the apps' pages the Vault's House UI block, so they carry the same one as every page,
+ *  and the composer Apps' Comment and the browser's chat bar share (shared/composer.js).
  *  @type {Record<string, Record<string, () => string>>} */
 const PAGE_LIBRARIES = {
   apps: {
     "fast-json-patch.js": () => read("node_modules/fast-json-patch/dist/fast-json-patch.min.js"),
     "house.css": () => houseBlock(read("shared/vault.html")),
+    "composer.js": () => read("shared/composer.js"),
+  },
+  browser: {
+    "composer.js": () => read("shared/composer.js"),
   },
 };
 const read = (/** @type {string} */ from) => fs.readFileSync(path.join(here, from), "utf8");
