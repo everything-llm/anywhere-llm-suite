@@ -561,7 +561,12 @@ async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Pr
   return new Promise((resolve, reject) => {
     // Until it's signed in, a stop ends the connection; after, the command's own stop does (run).
     const onAbort = () => failed(new Error("the run stopped"));
+    let settled = false;
     const failed = (err: Error & { level?: string }) => {
+      // Ending the socket before the server's banner makes ssh2 raise a second error ("Connection lost before
+      // handshake"): the listener stays, and only the first error counts.
+      if (settled) return;
+      settled = true;
       signal?.removeEventListener("abort", onAbort);
       client.end();
       sock.destroy();
@@ -573,12 +578,12 @@ async function open(e: Readonly<Entry>, until: number, signal?: AbortSignal): Pr
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     client.once("ready", () => {
+      // After sign-in a dropped connection ends the command's channel; its error still needs this listener.
+      settled = true;
       signal?.removeEventListener("abort", onAbort);
-      // After sign-in a dropped connection ends the command's channel; its error needs a listener, or it is uncaught.
-      client.on("error", () => {});
       resolve(client);
     });
-    client.once("error", failed);
+    client.on("error", failed);
     client.connect({ sock, username: e.login, privateKey: e.key, readyTimeout: timeout, hostVerifier: (key: Buffer) => ((seen = sshFingerprint(key)), (ownKey = vouched ? null : thisHostKeyRefusal(seen)), !ownKey && seen === e.fingerprint) });
   });
 }

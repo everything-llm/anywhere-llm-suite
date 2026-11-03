@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import dns from "node:dns";
 import fs from "node:fs";
 import http from "node:http";
+import type net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -126,7 +127,7 @@ function serveFiles(sftp: ssh2.SFTPWrapper): void {
  *  address isn't reachable); its hostname and user; and whether it can see the marker file in the
  *  vault's folder. Its exec runs the library's fixed command in a real sh, with a curl that answers
  *  from `serve`, so the command itself (quoting, the token compared, the addresses tried together) is tested. */
-const machine = { tools: true, serve: (_u: URL): string | null => null, hostname: "vm-1", uid: "1001", sees: false };
+const machine = { tools: true, serve: (_u: URL): string | null => null, hostname: "vm-1", uid: "1001", sees: false, silent: false };
 /** What AnythingLLM itself serves at an address: the file the library put in its public folder. */
 const pageOf = (u: URL): string | null => (fs.existsSync(path.join(publicDir, u.pathname)) ? fs.readFileSync(path.join(publicDir, u.pathname), "utf8") : null);
 
@@ -213,6 +214,12 @@ const standIn = (key: string) =>
   });
 
 const server = standIn(hostKey.private);
+// machine.silent: the machine takes the connection and never says its banner, as a port behind a proxy that accepts
+// any connection does.
+const tcp = (server as unknown as { _srv: net.Server })._srv;
+const [greet] = tcp.listeners("connection") as ((sock: net.Socket) => void)[];
+tcp.removeAllListeners("connection");
+tcp.on("connection", (sock: net.Socket) => (machine.silent ? sock.on("error", () => {}) : greet(sock)));
 const PORT = await listen(server);
 const imposter = standIn(otherHostKey.private);
 const IMPOSTER_PORT = await listen(imposter);
@@ -253,7 +260,7 @@ const result = (said: string) => JSON.parse(said.match(/Result \(JSON\):\n([\s\S
 test.beforeEach(() => {
   reset();
   Object.assign(seen, { auths: 0, open: 0, most: 0, refused: [], hung: 0, closed: 0, sftpClosed: 0, execs: 0, unanswered: 0, authDelay: 0, fetched: [] });
-  Object.assign(machine, { tools: true, serve: () => null, hostname: "vm-1", uid: "1001", sees: false });
+  Object.assign(machine, { tools: true, serve: () => null, hostname: "vm-1", uid: "1001", sees: false, silent: false });
   (globalThis as unknown as Record<symbol, unknown>)[THISHOST_RECORD] = { fingerprints: [THIS_HOST_FINGERPRINT], addresses: [] };
   failRemove.clear();
   stallRenames.clear();
@@ -529,6 +536,14 @@ test("the user deletes a target on the page, and with it its key", async () => {
 /** Runs the "ops.run" function on the target, as the agent does, with `req` for kit.ssh.exec. */
 const exec = (req: Record<string, unknown>) => call({ action: "run", name: "ops.run", inputs: { req } });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("a machine that takes the connection but never says its banner ends at the command's time, with nothing left uncaught", async () => {
+  await register();
+  await ops();
+  machine.silent = true;
+  assert.match(await exec({ command: "echo hi", timeout_s: 1 }), /didn't finish signing in within 1 s/);
+  await sleep(300); // past the second error ssh2 raises when a socket ends before the banner, which once went uncaught
+});
 
 test("a machine that never answers the request to run a command ends at the command's time, and frees its slot and connection", async () => {
   await register();

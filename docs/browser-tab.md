@@ -18,7 +18,7 @@ An answer about the tab ends with its card, as Markdown:
 - `<token>` names the chat's tab: it stays the same for the tab's life, and a new tab gets a new one. It's a capability: whoever has it can read the tab's state and post to its page.
 - `<name>` is the page's title (its host where it has none), as "Sign in · <title>" while the user is asked for a login or a code on the tab's page. It and `<host>` hold no brackets or line breaks. A reply without a picture has the last line alone.
 
-A client finds the card by the link `…/browser-lean/<token>.html` and reads the files beside it, all served by AnythingLLM's public folder with no sign-in. The tab's page draws no Close: a client shows it with its own (AnywhereLLM Lite opens it in a Custom Tab, whose toolbar shows the page's `<title>`, the tab's title), and in a browser tab the browser's Back does it.
+A client finds the card by the link `…/browser-lean/<token>.html` and reads the files beside it, all served by AnythingLLM's public folder with no sign-in. The tab's page draws no Close: a client shows it with its own (AnywhereLLM Lite opens it in a Custom Tab, whose toolbar shows the page's `<title>`, the tab's title), and in a browser tab the browser's Back does it. Its chat bar (below) talks to the client through the same channel as Apps' Comment.
 
 | File | What it is |
 | --- | --- |
@@ -36,8 +36,8 @@ Read `<token>.json` with a query that changes (`?t=<now>`) or no cache: it's rew
 | `title` | string | the page's title, at most 200 characters |
 | `url` | string | the tab's address, at most 2000 characters |
 | `host` | string | its host |
-| `mine` | boolean | whether it's a tab the user opened themselves (below), which is always theirs and has no bar saying who holds it |
-| `tabs` | array | the workspace's tabs, for the strip along the top of the page: each chat's, then the user's own, each `{path, title, host, agent, made}`: `path` is its page beside this one (`<token>.html`; this tab is the one whose `path` is this page's), `agent` says the agent has it (a chat's tab the user doesn't hold), and `made` is the id the page that asked for a tab of the user's own gave (null for a chat's) |
+| `mine` | boolean | whether it's a tab the user opened themselves (below), which is always theirs: its holder chip reads You and does nothing, and it has no chat bar |
+| `tabs` | array | the workspace's tabs, for the page's tabs sheet: each chat's, then the user's own, each `{path, title, host, agent, mine, made}`: `path` is its page beside this one (`<token>.html`; this tab is the one whose `path` is this page's), `agent` says the agent has it (a chat's tab the user doesn't hold), `mine` that it's one the user opened, and `made` is the id the page that asked for a tab of the user's own gave (null for a chat's) |
 | `sites` | array of strings | the sites a new tab's home lists: the ones with a saved login first, then the open tabs' hosts |
 | `back` | boolean | whether the tab can go back (true where the page can't say) |
 | `forward` | boolean | whether it can go forward |
@@ -46,6 +46,9 @@ Read `<token>.json` with a query that changes (`?t=<now>`) or no cache: it's rew
 | `size` | `{w, h}` | the tab's screen, in CSS pixels |
 | `who` | `"agent"` or `"user"` | who holds the tab (`user`: taken over on its page) |
 | `fields` | array | the fields in view, only while the user holds the tab |
+| `targets` | array | on a chat's tab, the elements in view as the agent's `read` lists them, each `{ref, role, text, x, y, w, h}`: its ref, its kind as the read gives it (`button`, `link`, `input[email]`, `input[password]`...), its name, and its box in the tab's CSS pixels (at most 150); empty on the user's own tabs. The chat bar resolves a tap to the smallest one under it |
+| `thread` | string or null | on a chat's tab, the slug of the AnythingLLM thread the tab belongs to, read from AnythingLLM's thread model by the id its invocation gave; null for a chat with no thread (one through AnythingLLM's developer API, as AnywhereLLM Lite's are: AnythingLLM gives the agent no thread there), and on the user's own tabs |
+| `chat` | string or null | that thread's name, for "Sent to <name>"; null where `thread` is |
 | `need` | object or null | what the agent asked the user to enter (below) |
 | `offer` | object or null | a login or passkey the page offers to save: `{kind, site, user}` |
 | `msg` | `{text, id, done?}` or null | a line for the page to show once ("Saved for example.com"; a login the site seems to have refused). It stays in the state for up to a minute, so show each `id` once. `done: true` marks a line that says what was done ("Saved for example.com", "Handed back to the agent"), which the page shows as a toast; any other line is a refusal or what to do next, which the page keeps as a banner until it's closed |
@@ -114,3 +117,29 @@ From a tab's page the user can open tabs of their own: its + and More › New ta
 ## When an answer lands
 
 The skill applies a page's events within a second or two while it watches (for 30 minutes after it last drew the tab's card), and otherwise at the agent's next call. Once an answer is typed, the state is written again with `need` null. The agent isn't woken: it learns what happened at its next call, as a note in its read of the tab. So a client that wants the chat to go on sends a message of its own once `need` is null and `shot` is later than its answer (for example "Done: I entered it on the tab's page").
+
+## The chat bar, for AnywhereLLM
+
+On a chat's tab (not the user's own, not a new tab's home), a page that finds `window.AnywhereLLMApps` (the channel AnywhereLLM Lite's web view gives a page, an androidx WebMessageListener, as for Apps' Comment) shows a "Message the agent" composer above its bar; a page without it shows none. Lite gives the channel only on AnythingLLM's own origin, under `/apps-lean/`, `/browser-lean/`, `/library-lean/` and `/vault-lean/`, in the main frame: the tab's page is `/browser-lean/<token>.html`. The user may point at up to 5 things on the page first: each tap is resolved to the smallest of the state's `targets` under it, the element the agent's `read` names by that ref; a password field can't be picked, and pointing doesn't take the tab over. Send posts one message, a JSON string, with no other field anywhere (Lite refuses one):
+
+```json
+{"comment": {"workspace": "<cfg.workspace>", "thread": "<state.thread>", "message": "<the whole text>"}}
+```
+
+`thread` is left out when the state's is null: the message goes to the chat AnywhereLLM has open (a chat through the developer API has no thread the skill can name). `message` is what the agent should see, as the user's own message in that chat: a first line naming the page, one numbered line per pick (its ref, kind and name, as the read lists them), a blank line, then the user's words; without picks, the first line, a blank line and the words. It never starts with `/reset`, and the whole JSON is at most 8 KB (the page refuses more itself; the words are at most 1000 characters).
+
+```text
+About the browser tab Example Bank (examplebank.com):
+1. [e12] button "Sign in"
+2. [e30] link "Statements"
+
+Which one exports them?
+```
+
+AnywhereLLM replies on the channel, as a message event whose `data` is a JSON string: `{"ok":true,"chat":"<chat name>"}`, or `{"ok":false,"error":"<text>"}`, which the page shows as "Not sent: <text>", keeping the words and the picks. No reply in 8 s is not sent too. Once sent, the page says "Sent to <chat>" (the reply's `chat`, else `state.chat`, else "the chat") with Open chat, in a toast that goes by itself (AnywhereLLM shows its own over the page as well), and Open chat posts:
+
+```json
+{"open": {"workspace": "<cfg.workspace>", "thread": "<state.thread>"}}
+```
+
+with `thread` left out when it's null, which opens the workspace's main chat.

@@ -224,7 +224,11 @@ class Page {
       const fields = Object.entries(this.fields)
         .filter(([, f]) => f.box)
         .map(([ref, f]) => ({ ref, ...f.box, kind: f.type || "text", filled: !!f.value }));
-      return { elements, text: this.text, more: false, fields };
+      // Every element with a box is in view, as snapshot.ts gives the chat bar's targets.
+      const targets = Object.entries(this.fields)
+        .filter(([, f]) => f.box)
+        .map(([ref, f]) => ({ ref, role: f.kind || `input[${f.type}]`, text: f.name || "", ...f.box }));
+      return { elements, text: this.text, more: false, fields, targets };
     }
     throw new Error("the stand-in page evaluates only what the skill sends it");
   }

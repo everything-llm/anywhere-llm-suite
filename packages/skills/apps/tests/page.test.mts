@@ -26,9 +26,10 @@ test("a page is rendered with this skill's stand-in for a server", () => {
   const outside = html.replace(/<script[^>]*>[\s\S]*?<\/script>|<style>[\s\S]*?<\/style>/g, "");
   assert.ok(!outside.includes('src="app.js"') && !outside.includes('href="app.css"'), "every library is inline");
   assert.ok(html.indexOf("var AppsLean") < html.indexOf("const App = (() =>"), "the stand-in comes before the runtime");
-  // The app's data, the stand-in, the patch library, app.js, motion.js, the template's script and
-  // item-list's: no inlined text ends a script early.
-  assert.equal(html.split("</script>").length - 1, 7);
+  assert.ok(html.indexOf("var AnywhereComposer") < html.indexOf("var AppsLean"), "the composer Comment runs on comes before the stand-in");
+  // The app's data, the composer, the stand-in, the patch library, app.js, motion.js, the template's
+  // script and item-list's: no inlined text ends a script early.
+  assert.equal(html.split("</script>").length - 1, 8);
   assert.equal(render({ ...groceries(), page: undefined }, "home", "k"), null, "an app with no page has none to render");
 });
 
@@ -121,8 +122,9 @@ function browser(html: string, { stored = null, served = () => "{}", typing = fa
   ctx.parent = framed ? { postMessage: (message: unknown, to: string) => void messages.push([message, to]) } : ctx;
   ctx.self = ctx;
   vm.createContext(ctx);
-  // The stand-in, then app.js; the app is started as the template does, with what changed seen.
-  vm.runInContext(scripts[0] + "\n" + scripts[1] + "\n" + scripts[2].replace("const App =", "var App ="), ctx);
+  // The composer, the stand-in, the patch library, then app.js; the app is started as the template
+  // does, with what changed seen.
+  vm.runInContext(scripts[0] + "\n" + scripts[1] + "\n" + scripts[2] + "\n" + scripts[3].replace("const App =", "var App ="), ctx);
   vm.runInContext("var changes = []; App.start(AppsLean.app()); App.onchange((d) => changes.push(JSON.parse(JSON.stringify(d))));", ctx);
   const close = () => void (open = false);
   browsers.push(close);

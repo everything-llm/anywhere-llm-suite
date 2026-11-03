@@ -43,6 +43,7 @@ import * as vault from "#shared/vault";
 import * as vaultPage from "#shared/vault-page";
 import { type Unsent, isUnsent, submitted, typeIn } from "./act";
 import { MAX_YOURS, TO_USER, closeTab, entryFor, openYours, refusal } from "./browser";
+import { type Chat, chatOf } from "./chat";
 import * as passkey from "./passkey";
 import { searchAt } from "./research";
 import { JOBS } from "./scope";
@@ -304,17 +305,18 @@ function drawnTabs(workspace: string, entry: Entry | undefined, here?: [key: str
   return drawn;
 }
 
-/** One of the tabs along the top of a tab's page: its page (beside this one in the public folder,
- *  which the page knows itself by), its title and host, whether the agent has it (a chat's tab the
- *  user doesn't hold), and the id the page that asked for it gave (`made`, a tab of the user's own). */
-type StripTab = { path: string; title: string; host: string; agent: boolean; made: string | null };
+/** One of the workspace's tabs, as each tab's page lists them in its tabs sheet: its page (beside
+ *  this one in the public folder, which the page knows itself by), its title and host, whether the
+ *  agent has it (a chat's tab the user doesn't hold), whether it's one the user opened (`mine`), and
+ *  the id the page that asked for it gave (`made`, a tab of the user's own). */
+type StripTab = { path: string; title: string; host: string; agent: boolean; mine: boolean; made: string | null };
 
-/** The workspace's tabs along the top of each of its pages: the open ones of those `drawn`. */
+/** The workspace's tabs, for the tabs sheet of each of its pages: the open ones of those `drawn`. */
 function strip(workspace: string, entry: Entry, drawn: Map<string, Drawn>): StripTab[] {
   const tabs: StripTab[] = [];
   for (const [key, { names, st }] of drawn) {
     const at = tabOf(workspace, entry, key);
-    if (at) tabs.push({ path: `${names.token}.html`, title: clip(st.title, 200), host: clip(st.host, 300), agent: at.owner === "chat" && !entry.holds.has(key), made: entry.yours.get(key)?.made ?? null });
+    if (at) tabs.push({ path: `${names.token}.html`, title: clip(st.title, 200), host: clip(st.host, 300), agent: at.owner === "chat" && !entry.holds.has(key), mine: at.owner === "user", made: entry.yours.get(key)?.made ?? null });
   }
   return tabs;
 }
@@ -383,8 +385,10 @@ async function history(page: Tab["page"]): Promise<{ back: boolean; forward: boo
 }
 
 /** The tab's state, as its page reads it: nothing secret. Who has the tab; while the user does, the
- *  fields in view, for the page to type into. A tab the user opened (`mine`) is always theirs. */
-function tabState(at: Tab, names: Names, title: string, url: string, snap: Snap, vaultLink: string | null, nav: { back: boolean; forward: boolean }) {
+ *  fields in view, for the page to type into. A tab the user opened (`mine`) is always theirs. A
+ *  chat's tab has its chat (`thread`, its slug, and its name) and the elements in view with their
+ *  refs (`targets`), for the chat bar on its page, which points the agent at them by those refs. */
+function tabState(at: Tab, names: Names, title: string, url: string, snap: Snap, vaultLink: string | null, nav: { back: boolean; forward: boolean }, chat: Chat) {
   const host = hostOf(url);
   const drawn = drawnTabs(at.workspace, at.entry, [at.key, { names, text: "", st: { title, host } }]);
   const need = pendingNeed(at.entry, at.key);
@@ -405,6 +409,9 @@ function tabState(at: Tab, names: Names, title: string, url: string, snap: Snap,
     size: { w: screen.width, h: screen.height },
     who: held ? "user" : "agent",
     fields: held ? snap.fields : [],
+    targets: at.owner === "chat" ? snap.targets : [],
+    thread: at.owner === "chat" ? chat.thread : null,
+    chat: at.owner === "chat" ? chat.name : null,
     need: need ? { kind: need.kind, host: need.host, text: need.text, label: need.label ?? null, hasUser: !!need.userRef, confirm: !!need.confirmRef, until: need.until } : null,
     offer: takeover.shownOffer(at.entry, at.key),
     msg: msg && shownLine(msg),
@@ -431,9 +438,9 @@ async function draw(at: Tab, card: boolean, { snap, title }: Read): Promise<stri
       const { width, height } = at.page.viewport() ?? VIEWPORT;
       await at.page.screenshot({ path: `${shot}-card.jpg`, type: "jpeg", quality: QUALITY, clip: { x: 0, y: 0, width, height: Math.min(height, Math.round(width * 1.2)), scale: 0.5 } });
     })();
-    const [, nav, vaultLink] = await Promise.all([pictured, history(at.page), showVault()]);
-    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, names, title, at.page.url(), snap, linksHidden() ? null : vaultLink, nav)));
-    if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(statics().get("pages/tab.html")!.text, { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key, address: ADDRESS.source }));
+    const [, nav, vaultLink, chat] = await Promise.all([pictured, history(at.page), showVault(), at.owner === "chat" ? chatOf(at.key) : null]);
+    writePublic(pub(names.token, ".json"), JSON.stringify(tabState(at, names, title, at.page.url(), snap, linksHidden() ? null : vaultLink, nav, chat ?? { thread: null, name: null })));
+    if (card || !fs.existsSync(`${shot}.html`)) writePublic(pub(names.token, ".html"), await pageHtml(tabPage(), { token: names.token, secret: names.secret, title: TITLE, workspace: at.workspace, tab: at.key, address: ADDRESS.source }));
   } catch {
     return null;
   }
@@ -459,13 +466,23 @@ export async function card(at: Tab, base: string | null, read: Read): Promise<{ 
   return { lines: [`[![${name}](${link}-card.jpg?v=${Date.now().toString(36)})](${link}.html)`, "", ...lines], page: true };
 }
 
-const NOTHING_READ: Snap = { elements: [], text: "", more: false, fields: [] };
+const NOTHING_READ: Snap = { elements: [], text: "", more: false, fields: [], targets: [] };
 
-/** Draws `at` for its page alone: read only when the user holds it (its fields) or an offer waits on
- *  the page asking for a password; the picture and the title otherwise. */
+/** The tab's page as it's written: static/pages/tab.html with the composer its chat bar shares with
+ *  Apps' Comment (shared/composer.js, which the build gives the skill as composer.js) in place of its
+ *  placeholder. */
+function tabPage(): string {
+  const page = statics().get("pages/tab.html")!.text;
+  const composer = statics().get("composer.js")?.text ?? "";
+  return page.replace("/*COMPOSER*/", () => composer.replace(/<\//g, "<\\/"));
+}
+
+/** Draws `at` for its page alone: read when the user holds it (its fields), on a chat's tab (the
+ *  elements its chat bar points at), or while an offer waits on the page asking for a password; the
+ *  picture and the title otherwise. */
 async function redrawn(at: Tab): Promise<void> {
   if (tabOf(at.workspace, at.entry, at.key)?.page !== at.page) return; // closed meanwhile: nothing to draw, and no names to make again
-  const read = holder(at) || at.entry.offers.has(at.key) ? await readPage(at.page) : { snap: NOTHING_READ, title: await at.page.title().catch(() => "") };
+  const read = holder(at) || at.owner === "chat" || at.entry.offers.has(at.key) ? await readPage(at.page) : { snap: NOTHING_READ, title: await at.page.title().catch(() => "") };
   await draw(at, false, read);
 }
 
